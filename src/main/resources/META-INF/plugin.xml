@@ -1,6 +1,6 @@
 <idea-plugin>
     <id>com.hedworth.seshlog</id>
-    <name>Seshlog – Coding Agent Session Manager</name>
+    <name>Seshlog - Coding Agent Session Manager</name>
     <vendor url="https://github.com/Bigsy/seshlog">Bill Hedworth</vendor>
 
     <description><![CDATA[

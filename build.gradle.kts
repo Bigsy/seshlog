@@ -60,6 +60,12 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
+tasks.processResources {
+    from("LICENSE") {
+        into("META-INF")
+    }
+}
+
 intellijPlatform {
     // No GUI forms or @NotNull instrumentation needed; skipping avoids resolving the Java compiler artefact.
     instrumentCode = false

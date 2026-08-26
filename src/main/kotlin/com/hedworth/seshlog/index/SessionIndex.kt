@@ -1,0 +1,128 @@
+package com.hedworth.seshlog.index
+
+import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
+import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.model.SessionProvider
+import com.hedworth.seshlog.settings.SeshlogSettings
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.util.Disposer
+import com.intellij.util.concurrency.AppExecutorUtil
+import com.intellij.util.messages.Topic
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Application-level cache of all known sessions. Scans run on a pooled background thread; the
+ * result is published via [SessionIndexListener] on the EDT. The filesystem is never touched on
+ * the EDT.
+ */
+@Service(Service.Level.APP)
+class SessionIndex : Disposable {
+    private val LOG = logger<SessionIndex>()
+
+    interface SessionIndexListener {
+        fun sessionsUpdated(sessions: List<Session>)
+    }
+
+    private val settings get() = SeshlogSettings.getInstance()
+
+    val providers: List<SessionProvider> = listOf(
+        ClaudeCodeSessionProvider(
+            dataDir = { settings.resolvedClaudeDataDir() },
+            executable = { settings.claudeExecutable },
+            cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "index.json"),
+        ),
+    )
+
+    @Volatile
+    var sessions: List<Session> = emptyList()
+        private set
+
+    @Volatile
+    var lastScanMillis: Long = 0
+        private set
+
+    private val scanning = AtomicBoolean(false)
+    private val rescanRequested = AtomicBoolean(false)
+    private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog scanner", 1)
+    private val watcher = SessionWatcher(this) { refresh() }
+
+    init {
+        Disposer.register(this, watcher)
+        watcher.start(providers.flatMap { it.watchRoots() })
+    }
+
+    /** Where the first provider keeps its data — for the empty-state message. */
+    fun dataRootDescription(): String = providers.first().dataRoot().toString()
+
+    fun watchRoots(): List<Path> = providers.flatMap { it.watchRoots() }
+
+    fun providerFor(session: Session): SessionProvider = providers.first { it.kind == session.kind }
+
+    fun resumeCommand(session: Session): String = providerFor(session).resumeCommand(session)
+
+    fun forkCommand(session: Session): String = providerFor(session).forkCommand(session)
+
+    fun sessionById(id: String): Session? = sessions.firstOrNull { it.id == id }
+
+    /** Settings may have moved the data dir: re-watch and rescan. */
+    fun settingsChanged() {
+        watcher.start(watchRoots())
+        refresh()
+    }
+
+    /** Request a rescan. Coalesces: at most one scan runs at a time, one more can be queued. */
+    fun refresh() {
+        if (!scanning.compareAndSet(false, true)) {
+            rescanRequested.set(true)
+            return
+        }
+        executor.execute { runScan() }
+    }
+
+    private fun runScan() {
+        try {
+            val start = System.currentTimeMillis()
+            val previous = sessions.associateBy { it.id }
+            val result = ArrayList<Session>()
+            for (provider in providers) {
+                if (!provider.isAvailable()) continue
+                try {
+                    result += provider.scan(previous)
+                } catch (e: Exception) {
+                    LOG.warn("Session scan failed for ${provider.kind}", e)
+                }
+            }
+            result.sortByDescending { it.lastActivityAt }
+            sessions = result
+            lastScanMillis = System.currentTimeMillis() - start
+            LOG.debug("Scanned ${result.size} sessions in ${lastScanMillis} ms")
+            val app = ApplicationManager.getApplication()
+            if (app != null && !app.isDisposed) {
+                app.invokeLater({
+                    if (!app.isDisposed) app.messageBus.syncPublisher(TOPIC).sessionsUpdated(result)
+                })
+            }
+        } finally {
+            scanning.set(false)
+            if (rescanRequested.compareAndSet(true, false)) refresh()
+        }
+    }
+
+    override fun dispose() {
+        executor.shutdownNow()
+    }
+
+    companion object {
+        @JvmField
+        val TOPIC: Topic<SessionIndexListener> =
+            Topic.create("Seshlog session index", SessionIndexListener::class.java)
+
+        fun getInstance(): SessionIndex = ApplicationManager.getApplication().getService(SessionIndex::class.java)
+    }
+}

@@ -1,0 +1,110 @@
+package com.hedworth.seshlog.ui
+
+import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.SeshlogSettings
+import com.intellij.openapi.util.Disposer
+import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import java.nio.file.Paths
+import java.time.Instant
+
+class SeshlogToolWindowTest : BasePlatformTestCase() {
+
+    fun `test panel renders grouped sessions and filters to the project`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val inside = session("in", base.resolve("sub"), Instant.parse("2026-08-25T10:00:00Z"))
+            val outside = session("out", Paths.get("/somewhere/else"), Instant.parse("2026-08-26T10:00:00Z"))
+
+            SeshlogSettings.getInstance().showAllProjects = false
+            panel.render(listOf(outside, inside))
+            assertEquals(listOf("in"), panel.visibleSessions.map { it.id })
+
+            SeshlogSettings.getInstance().showAllProjects = true
+            panel.render(listOf(inside, outside))
+            assertEquals(listOf("out", "in"), SessionTreeModel.group(panel.visibleSessions).flatMap { g -> g.sessions.map { it.id } })
+            assertEquals(2, panel.tree.model.getChildCount(panel.tree.model.root))
+        } finally {
+            SeshlogSettings.getInstance().showAllProjects = false
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun `test search results are shown ranked and clearing the query restores the list`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val a = session("a", base, Instant.parse("2026-08-26T10:00:00Z"))
+            val b = session("b", base.resolve("sub"), Instant.parse("2026-08-25T10:00:00Z"))
+            val c = session("c", base, Instant.parse("2026-08-24T10:00:00Z"))
+            panel.render(listOf(a, b, c))
+            assertEquals(listOf("a", "c", "b"), SessionTreeModel.group(panel.visibleSessions).flatMap { g -> g.sessions.map { it.id } })
+
+            panel.renderSearchResults("needle", listOf(
+                SearchHit(c, score = 5, titleMatch = false, snippet = "…the needle…"),
+                SearchHit(b, score = 2, titleMatch = false, snippet = null),
+            ))
+            assertEquals("needle", panel.activeQuery)
+            assertEquals(listOf("c", "b"), panel.visibleSessions.map { it.id })
+            val root = panel.tree.model.root
+            assertEquals(2, panel.tree.model.getChildCount(root))
+            val firstGroup = panel.tree.model.getChild(root, 0) as javax.swing.tree.DefaultMutableTreeNode
+            assertEquals(base, (firstGroup.userObject as ProjectGroup).cwd)
+            assertEquals(1, firstGroup.childCount)
+
+            panel.render(listOf(a, b, c))
+            assertEquals(3, panel.visibleSessions.size)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun `test preview loads the tail of the selected session`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val transcript = Paths.get(javaClass.getResource("/fixtures/custom_and_ai_title.jsonl")!!.toURI())
+            val base = Paths.get(project.basePath!!)
+            val s = session("p", base, Instant.parse("2026-08-26T10:00:00Z")).copy(transcriptPath = transcript)
+            SeshlogSettings.getInstance().previewMessageCount = 2
+            SeshlogSettings.getInstance().showAllProjects = true
+            panel.render(listOf(s))
+            assertNull(panel.preview.session)
+
+            val node = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode, s)!!
+            panel.tree.selectionPath = javax.swing.tree.TreePath(node.path)
+            assertEquals("p", panel.preview.session?.id)
+
+            // A real index scan may land while we pump events, re-render the tree and clear the
+            // selection (which cancels the load); test loading on a standalone preview instead.
+            val preview = SessionPreviewPanel(disposable)
+            preview.showSession(s)
+            val deadline = System.currentTimeMillis() + 10_000
+            while (panel.preview.messages.isEmpty() && System.currentTimeMillis() < deadline) {
+                com.intellij.testFramework.PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+                Thread.sleep(20)
+            }
+            assertEquals(listOf("Sure.", "Now also cover the reverse case."), preview.messages.map { it.text })
+
+            preview.showSession(null)
+            assertNull(preview.session)
+            assertTrue(preview.messages.isEmpty())
+
+            // The MVP bug this exposed: re-rendering without the selected session must not throw.
+            panel.render(emptyList())
+        } finally {
+            SeshlogSettings.getInstance().showAllProjects = false
+            Disposer.dispose(disposable)
+        }
+    }
+
+    private fun session(id: String, cwd: java.nio.file.Path, at: Instant) = Session(
+        kind = AgentKind.CLAUDE_CODE, id = id, title = "Title $id", cwd = cwd, gitBranch = "main",
+        startedAt = at, lastActivityAt = at, transcriptPath = cwd.resolve("$id.jsonl"),
+        isLive = false, livePid = null, promptTitle = null, promptCount = 3, hasExplicitTitle = true,
+    )
+}

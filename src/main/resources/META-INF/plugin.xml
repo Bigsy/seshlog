@@ -1,0 +1,74 @@
+<idea-plugin>
+    <id>com.hedworth.seshlog</id>
+    <name>Seshlog – Coding Agent Session Manager</name>
+    <vendor url="https://github.com/Bigsy/seshlog">Bill Hedworth</vendor>
+
+    <description><![CDATA[
+    List, search and resume your local AI coding-agent sessions — Claude Code today, Codex and OpenCode
+    planned — from a tool window, titled the way the agent titles them, with one click to reopen any of
+    them in a terminal tab.
+    <br><br>
+    <ul>
+        <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
+        <li>Full-text search across prompts and replies, not just titles</li>
+        <li>Preview pane showing the last messages of the selected session</li>
+        <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
+        <li>Restore the sessions that were running when the IDE was closed</li>
+    </ul>
+    Entirely local: Seshlog reads the agent's transcripts read-only, never writes to them, and makes
+    no network requests — no telemetry, no analytics, nothing leaves your machine.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.terminal</depends>
+
+    <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>The parsed-transcript cache is persisted in the IDE's system directory, so the first scan after a restart no longer re-reads every transcript. It holds session metadata only — no message content.</li>
+        <li>Fork Session: continue a session's conversation under a new session id (<code>--fork-session</code>), from the Seshlog context menu or by right-clicking a Terminal tab Seshlog knows the session of.</li>
+        <li>Own our tabs: "Resume" on a live session running in one of this project's terminal tabs becomes "Show Tab" and focuses it; tab titles follow the session title when Claude names the session later.</li>
+        <li>Restore after restart: sessions that were live when the IDE closed are offered for resuming when the project reopens (Ask / Always / Never).</li>
+        <li>Preview pane: the selected session's last messages, with a "last N messages" control and a toolbar toggle.</li>
+        <li>Search across transcript content (user prompts and assistant replies), not just titles; results ranked by hits with a snippet.</li>
+    </ul>
+    <b>0.1.0</b>
+    <ul>
+        <li>Initial MVP: Claude Code session list and one-click resume.</li>
+    </ul>
+    ]]></change-notes>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Seshlog" displayType="BALLOON"/>
+        <toolWindow id="Seshlog" anchor="right" icon="com.hedworth.seshlog.SeshlogIcons.ToolWindow"
+                    factoryClass="com.hedworth.seshlog.ui.SeshlogToolWindowFactory"/>
+        <postStartupActivity implementation="com.hedworth.seshlog.restore.SeshlogStartupActivity"/>
+        <applicationConfigurable parentId="tools" instance="com.hedworth.seshlog.settings.SeshlogConfigurable"
+                                 id="com.hedworth.seshlog.settings" displayName="Seshlog"/>
+    </extensions>
+
+    <actions>
+        <action id="Seshlog.Refresh" class="com.hedworth.seshlog.ui.actions.RefreshSessionsAction"
+                text="Refresh" description="Rescan session transcripts" icon="AllIcons.Actions.Refresh"/>
+        <group id="Seshlog.ContextMenu" popup="true">
+            <action id="Seshlog.Resume" class="com.hedworth.seshlog.ui.actions.ResumeSessionAction"
+                    text="Resume" description="Resume this session in a new terminal tab" icon="AllIcons.Actions.Execute"/>
+            <action id="Seshlog.Fork" class="com.hedworth.seshlog.ui.actions.ForkSessionAction"
+                    text="Fork Session" description="Continue this session's conversation in a new session" icon="AllIcons.Vcs.Branch"/>
+            <separator/>
+            <action id="Seshlog.CopyResumeCommand" class="com.hedworth.seshlog.ui.actions.CopyResumeCommandAction"
+                    text="Copy Resume Command"/>
+            <action id="Seshlog.CopySessionId" class="com.hedworth.seshlog.ui.actions.CopySessionIdAction"
+                    text="Copy Session ID"/>
+            <separator/>
+            <action id="Seshlog.RevealTranscript" class="com.hedworth.seshlog.ui.actions.RevealTranscriptAction"
+                    text="Reveal Transcript"/>
+            <action id="Seshlog.OpenTranscript" class="com.hedworth.seshlog.ui.actions.OpenTranscriptAction"
+                    text="Open Transcript"/>
+        </group>
+        <action id="Seshlog.ForkTerminalTab" class="com.hedworth.seshlog.ui.actions.ForkTerminalTabSessionAction"
+                text="Fork Session" description="Continue this tab's Claude session in a new session" icon="AllIcons.Vcs.Branch">
+            <add-to-group group-id="ToolWindowContextMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

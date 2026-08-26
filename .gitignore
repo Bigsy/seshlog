@@ -1,0 +1,49 @@
+# IntelliJ project files
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# IntelliJ plugin development
+.sandbox/
+.intellijPlatform/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Logs
+*.log
+
+# Local configuration
+local.properties
+AGENTS.md
+
+# Compiled files
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Generated / cache
+bin/
+gen/
+.cache/
+.kotlin/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+tmp/
+temp/
+
+CLAUDE.md

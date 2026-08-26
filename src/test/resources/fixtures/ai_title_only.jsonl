@@ -1,0 +1,4 @@
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"fix the flaky test in CI"},"uuid":"u1","timestamp":"2026-08-21T10:00:00.000Z","cwd":"/Users/tester/workspace/acme/api","sessionId":"425fc66d-def4-46ed-9d10-10b64b7788d2","version":"2.1.240","gitBranch":"HEAD"}
+{"type":"ai-title","aiTitle":"Flaky test","sessionId":"425fc66d-def4-46ed-9d10-10b64b7788d2"}
+{"type":"permission-mode","permissionMode":"default","sessionId":"425fc66d-def4-46ed-9d10-10b64b7788d2"}
+{"type":"ai-title","aiTitle":"Fix flaky CI test","sessionId":"425fc66d-def4-46ed-9d10-10b64b7788d2"}

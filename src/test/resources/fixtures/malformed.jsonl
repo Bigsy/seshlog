@@ -1,0 +1,8 @@
+this is not json
+{"type":"user","message":{"role":"user","content":"hello world"},"timestamp":"2026-08-23T09:00:00.000Z","cwd":"/Users/tester/workspace/acme/api","sessionId":"bbbbbbbb-0000-0000-0000-000000000002","version":"2.1.245","gitBranch":"main"}
+{"type":"ai-title","aiTitle":
+{"type":"some-future-type","payload":{"deep":[1,2,3]}}
+[1,2,3]
+{"type":"ai-title","aiTitle":"Hello world session","sessionId":"bbbbbbbb-0000-0000-0000-000000000002"}
+{"type":"user","message":{"role":"user","content":null},"timestamp":"2026-08-23T09:01:00.000Z","cwd":"/Users/tester/workspace/acme/api","sessionId":"bbbbbbbb-0000-0000-0000-000000000002"}
+

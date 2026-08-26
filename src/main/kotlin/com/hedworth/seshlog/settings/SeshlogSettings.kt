@@ -1,0 +1,83 @@
+package com.hedworth.seshlog.settings
+
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
+import com.intellij.util.xmlb.XmlSerializerUtil
+import java.nio.file.Path
+import java.nio.file.Paths
+
+/** What to do with sessions that were live when the project was last closed. */
+enum class RestoreMode { ASK, ALWAYS, NEVER }
+
+@Service(Service.Level.APP)
+@State(name = "SeshlogSettings", storages = [Storage("seshlog.xml")])
+class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
+
+    class State {
+        /** Empty = auto (`$CLAUDE_CONFIG_DIR` or `~/.claude`). */
+        var claudeDataDir: String = ""
+        var claudeExecutable: String = "claude"
+        var showAllProjects: Boolean = false
+        /** Hide sessions that have no explicit title and fewer than this many real user prompts. */
+        var minPromptsForUntitled: Int = 1
+        /** How many of the most recent messages the preview pane shows. */
+        var previewMessageCount: Int = 2
+        /** Whether the preview pane is shown below the session list. */
+        var showPreview: Boolean = true
+        var restoreMode: String = RestoreMode.ASK.name
+    }
+
+    private var state = State()
+
+    override fun getState(): State = state
+    override fun loadState(state: State) = XmlSerializerUtil.copyBean(state, this.state)
+
+    var claudeDataDir: String
+        get() = state.claudeDataDir
+        set(value) { state.claudeDataDir = value }
+
+    var claudeExecutable: String
+        get() = state.claudeExecutable.ifBlank { "claude" }
+        set(value) { state.claudeExecutable = value }
+
+    var showAllProjects: Boolean
+        get() = state.showAllProjects
+        set(value) { state.showAllProjects = value }
+
+    var minPromptsForUntitled: Int
+        get() = state.minPromptsForUntitled
+        set(value) { state.minPromptsForUntitled = value }
+
+    var previewMessageCount: Int
+        get() = state.previewMessageCount.coerceIn(1, 50)
+        set(value) { state.previewMessageCount = value.coerceIn(1, 50) }
+
+    var showPreview: Boolean
+        get() = state.showPreview
+        set(value) { state.showPreview = value }
+
+    var restoreMode: RestoreMode
+        get() = runCatching { RestoreMode.valueOf(state.restoreMode) }.getOrDefault(RestoreMode.ASK)
+        set(value) { state.restoreMode = value.name }
+
+    /** Resolved Claude data directory. */
+    fun resolvedClaudeDataDir(): Path = resolveClaudeDataDir(state.claudeDataDir)
+
+    companion object {
+        fun getInstance(): SeshlogSettings = ApplicationManager.getApplication().getService(SeshlogSettings::class.java)
+
+        fun defaultClaudeDataDir(env: Map<String, String> = System.getenv()): Path {
+            env["CLAUDE_CONFIG_DIR"]?.takeIf { it.isNotBlank() }?.let { return Paths.get(expandTilde(it)) }
+            return Paths.get(System.getProperty("user.home"), ".claude")
+        }
+
+        fun resolveClaudeDataDir(configured: String, env: Map<String, String> = System.getenv()): Path =
+            if (configured.isBlank()) defaultClaudeDataDir(env) else Paths.get(expandTilde(configured.trim()))
+
+        private fun expandTilde(p: String): String =
+            if (p == "~" || p.startsWith("~/")) System.getProperty("user.home") + p.substring(1) else p
+    }
+}

@@ -23,18 +23,15 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
-    <b>Unreleased</b>
-    <ul>
-        <li>The parsed-transcript cache is persisted in the IDE's system directory, so the first scan after a restart no longer re-reads every transcript. It holds session metadata only — no message content.</li>
-        <li>Fork Session: continue a session's conversation under a new session id (<code>--fork-session</code>), from the Seshlog context menu or by right-clicking a Terminal tab Seshlog knows the session of.</li>
-        <li>Own our tabs: "Resume" on a live session running in one of this project's terminal tabs becomes "Show Tab" and focuses it; tab titles follow the session title when Claude names the session later.</li>
-        <li>Restore after restart: sessions that were live when the IDE closed are offered for resuming when the project reopens (Ask / Always / Never).</li>
-        <li>Preview pane: the selected session's last messages, with a "last N messages" control and a toolbar toggle.</li>
-        <li>Search across transcript content (user prompts and assistant replies), not just titles; results ranked by hits with a snippet.</li>
-    </ul>
     <b>0.1.0</b>
     <ul>
-        <li>Initial MVP: Claude Code session list and one-click resume.</li>
+        <li>Sessions grouped by project with title, branch, last activity and a live indicator, and one click to resume any of them in a terminal tab.</li>
+        <li>Search across transcript content (user prompts and assistant replies), not just titles; results ranked by hits with a snippet.</li>
+        <li>Preview pane: the selected session's last messages, with a "last N messages" control and a toolbar toggle.</li>
+        <li>Fork Session: continue a session's conversation under a new session id (<code>--fork-session</code>), from the Seshlog context menu or by right-clicking a Terminal tab Seshlog knows the session of.</li>
+        <li>Resume on a live session running in one of this project's terminal tabs becomes "Show Tab" and focuses it; tab titles follow the session title when Claude names the session later.</li>
+        <li>Restore after restart: sessions that were live when the IDE closed are offered for resuming when the project reopens (Ask / Always / Never).</li>
+        <li>Parsed-transcript metadata is cached in the IDE's system directory, so scans after a restart do not re-read every transcript. Metadata only — no message content.</li>
     </ul>
     ]]></change-notes>
 

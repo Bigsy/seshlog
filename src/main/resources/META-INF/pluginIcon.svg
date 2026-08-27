@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <!--
+    Marketplace / plugin-manager logo: the same lockup as the marketing page in docs/marketplace
+    (gradient tile + white session-bubble glyph), kept at those proportions — tile corner radius
+    18/64 of the tile, glyph 38/64, so the glyph geometry below is the icons/seshlog.svg path
+    verbatim and only the transform differs.
+  -->
+  <defs>
+    <linearGradient id="seshlogTile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect width="40" height="40" rx="11.25" fill="url(#seshlogTile)"/>
+  <g transform="translate(8.125 8.125) scale(1.826923)" fill="none" stroke="#FFFFFF" stroke-width="1.1">
+    <path d="M6.5 1.5a5 4.5 0 0 1 0 9H4.2L1.8 12.2V9.3A4.5 4.5 0 0 1 6.5 1.5Z" stroke-linejoin="round"/>
+    <path d="M6.5 3.8V6l1.7 1" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

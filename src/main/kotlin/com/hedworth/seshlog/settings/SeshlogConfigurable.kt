@@ -13,6 +13,7 @@ import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 
 class SeshlogConfigurable : BoundConfigurable("Seshlog") {
 
@@ -55,7 +56,7 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
             }
             group("Restore After Restart") {
                 row("Sessions live at shutdown:") {
-                    comboBox(RestoreMode.entries, com.intellij.ui.SimpleListCellRenderer.create("") { mode ->
+                    comboBox(RestoreMode.entries, textListCellRenderer<RestoreMode?> { mode ->
                         when (mode) {
                             RestoreMode.ASK -> "Ask"
                             RestoreMode.ALWAYS -> "Always restore"

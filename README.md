@@ -1,5 +1,7 @@
 # Seshlog
 
+https://plugins.jetbrains.com/plugin/33850-seshlog--coding-agent-session-manager
+
 An IntelliJ plugin that lists your local Claude Code and Codex sessions, titled the way the agent
 titled them, with one click to resume any of them in a terminal tab.
 

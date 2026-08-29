@@ -137,7 +137,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
             append("<html><body style='color:$fg;font-family:${UIUtil.getLabelFont().family};font-size:${UIUtil.getLabelFont().size}pt'>")
             if (placeholder != null) append("<p style='color:$gray'><i>").append(esc(placeholder)).append("</i></p>")
             for (m in msgs) {
-                val who = if (m.role == Role.USER) "You" else "Claude"
+                val who = if (m.role == Role.USER) "You" else session?.kind?.displayName ?: "Assistant"
                 val ts = m.timestamp?.let { TS.format(it.atZone(ZoneId.systemDefault())) } ?: ""
                 val bg = if (m.role == Role.USER) " background-color:$userBg;" else ""
                 append("<div style='margin:0 0 8px 0; padding:4px 6px;$bg'>")

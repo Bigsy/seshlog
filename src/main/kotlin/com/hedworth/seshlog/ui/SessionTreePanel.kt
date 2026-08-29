@@ -7,6 +7,9 @@ import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.SeshlogSettingsListener
+import com.hedworth.seshlog.settings.AgentFilterMode
+import com.hedworth.seshlog.settings.AgentFilterState
+import com.hedworth.seshlog.settings.AgentSessionFilter
 import com.hedworth.seshlog.ui.actions.ResumeSessionAction
 import com.intellij.ide.DataManager
 import com.intellij.openapi.Disposable
@@ -22,6 +25,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.options.ShowSettingsUtil
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
@@ -58,6 +62,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     private val settings get() = SeshlogSettings.getInstance()
     private val index get() = SessionIndex.getInstance()
+    private val agentFilter get() = AgentFilterState.getInstance(project)
 
     private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
     val tree: Tree = Tree(treeModel)
@@ -156,6 +161,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val group = DefaultActionGroup().apply {
             add(ActionManager.getInstance().getAction("Seshlog.Refresh"))
             add(ToggleAllProjectsAction())
+            add(AgentFilterAction())
             add(TogglePreviewAction())
             addSeparator()
             add(object : DumbAwareAction("Settings", "Open Seshlog settings", AllIcons.General.Settings) {
@@ -185,6 +191,39 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         override fun setSelected(e: AnActionEvent, state: Boolean) {
             settings.showPreview = state
             applyPreviewVisibility()
+        }
+    }
+
+    private inner class AgentFilterAction :
+        DumbAwareAction("Agent: Auto", "Choose which coding agent's sessions to show", null) {
+        override fun getActionUpdateThread() = ActionUpdateThread.BGT
+
+        override fun update(e: AnActionEvent) {
+            val mode = agentFilter.mode
+            val effective = AgentSessionFilter.effectiveKind(unfilteredSessions(index.sessions), mode)
+            e.presentation.text = when (mode) {
+                AgentFilterMode.AUTO -> "Agent: ${effective?.displayName ?: "Auto"} (Auto)"
+                else -> "Agent: ${mode.displayName}"
+            }
+        }
+
+        override fun actionPerformed(e: AnActionEvent) {
+            val group = DefaultActionGroup()
+            AgentFilterMode.entries.forEach { mode ->
+                group.add(object : ToggleAction(mode.displayName) {
+                    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+                    override fun isSelected(e: AnActionEvent): Boolean = agentFilter.mode == mode
+                    override fun setSelected(e: AnActionEvent, state: Boolean) {
+                        if (state) {
+                            agentFilter.mode = mode
+                            rerender()
+                        }
+                    }
+                })
+            }
+            JBPopupFactory.getInstance()
+                .createActionGroupPopup("Show Agent", group, e.dataContext, false, null, -1)
+                .showInBestPositionFor(e.dataContext)
         }
     }
 
@@ -236,6 +275,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     /** The project / worth-showing filter that applies to both the plain list and search candidates. */
     private fun baseFilter(all: List<Session>): List<Session> {
+        return AgentSessionFilter.apply(unfilteredSessions(all), agentFilter.mode)
+    }
+
+    /** Project/worth filter before applying the provider selection. */
+    private fun unfilteredSessions(all: List<Session>): List<Session> {
         val minPrompts = settings.minPromptsForUntitled
         val roots = projectRoots()
         return all.asSequence()
@@ -298,8 +342,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         text.clear()
         when {
             all.isEmpty() -> {
-                text.appendText("No Claude Code sessions found under")
-                text.appendLine(index.dataRootDescription() + "/projects")
+                text.appendText("No coding-agent sessions found under")
+                index.dataRootDescriptions().forEach { text.appendLine(it) }
+            }
+            baseFilter(all).isEmpty() && unfilteredSessions(all).isNotEmpty() -> {
+                text.appendText("No ${agentFilter.mode.displayName} sessions in the current scope.")
+                text.appendLine("Show all agents", com.intellij.ui.SimpleTextAttributes.LINK_ATTRIBUTES) {
+                    agentFilter.mode = AgentFilterMode.ALL
+                    rerender()
+                }
             }
             !settings.showAllProjects -> {
                 text.appendText("No sessions for this project.")

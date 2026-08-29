@@ -1,0 +1,8 @@
+{"timestamp":"2026-08-29T10:00:00Z","type":"session_meta","payload":{"id":"019a1111-2222-7333-8444-555555555555","timestamp":"2026-08-29T10:00:00Z","cwd":"/Users/tester/workspace/acme","cli_version":"0.42.0","git":{"branch":"feature/codex","commit_hash":"abc123"}}}
+{"timestamp":"2026-08-29T10:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>\n  <cwd>/Users/tester/workspace/acme</cwd>\n</environment_context>"}]}}
+{"timestamp":"2026-08-29T10:00:02Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Add Codex session support\nand cover the parser."},{"type":"input_image","image_url":"data:image/png;base64,synthetic"}]}}
+{"timestamp":"2026-08-29T10:00:03Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"I’ll add the provider and tests."}]}}
+{"timestamp":"2026-08-29T10:00:04Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{}"}}
+{malformed
+{"timestamp":"2026-08-29T10:00:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Also support named sessions."}]}}
+{"timestamp":"2026-08-29T10:00:06Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Named sessions now take precedence."}]}}

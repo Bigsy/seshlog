@@ -7,9 +7,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * Extracts the human-readable conversation from a Claude Code transcript for content search:
- * real user prompts and assistant `text` blocks (see [ConversationMessages]). Never throws for
- * bad content.
+ * Extracts the human-readable conversation from a supported agent transcript for content search.
+ * Never throws for bad content.
  */
 object TranscriptTextExtractor {
     /** Per-transcript cap so one pathological session cannot blow up the in-memory index. */

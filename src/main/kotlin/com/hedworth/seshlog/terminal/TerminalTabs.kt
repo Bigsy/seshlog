@@ -119,8 +119,8 @@ object TerminalTabs {
 
     /**
      * Fork [session]: always a fresh tab titled "<title> (fork)" in the session's cwd. The tab is
-     * deliberately *not* registered for [session] — `claude` mints a new session id, and adoption by
-     * process ancestry in [OwnedTerminalTabs.sync] picks the tab up on the next rescan.
+     * deliberately *not* registered for [session] — the agent mints a new session id, and adoption
+     * by process ancestry in [OwnedTerminalTabs.sync] may pick the tab up on the next rescan.
      */
     fun fork(project: Project, session: Session, command: String): TerminalWidget =
         TerminalLauncher.launch(project, session.cwd, forkTitle(session.title), command)

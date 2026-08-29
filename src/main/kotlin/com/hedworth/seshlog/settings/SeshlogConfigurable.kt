@@ -41,6 +41,26 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                         .comment("Resolved via the terminal shell's PATH.")
                 }
             }
+            group("Codex") {
+                row("Data directory:") {
+                    val field = TextFieldWithBrowseButton().apply {
+                        addActionListener {
+                            val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                            FileChooser.chooseFile(descriptor, null, null)?.let { text = it.path }
+                        }
+                    }
+                    cell(field)
+                        .bindText(settings::codexDataDir)
+                        .columns(40)
+                        .comment("Leave empty to use \$CODEX_HOME or ~/.codex (currently ${settings.resolvedCodexDataDir()}).")
+                }
+                row("Executable:") {
+                    textField()
+                        .bindText(settings::codexExecutable)
+                        .columns(20)
+                        .comment("Resolved via the terminal shell's PATH.")
+                }
+            }
             group("Session List") {
                 row {
                     checkBox("Show sessions from all projects by default")

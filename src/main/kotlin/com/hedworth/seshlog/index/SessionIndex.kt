@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.index
 
 import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
+import com.hedworth.seshlog.codex.CodexSessionProvider
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
 import com.hedworth.seshlog.settings.SeshlogSettings
@@ -37,6 +38,11 @@ class SessionIndex : Disposable {
             executable = { settings.claudeExecutable },
             cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "index.json"),
         ),
+        CodexSessionProvider(
+            dataDir = { settings.resolvedCodexDataDir() },
+            executable = { settings.codexExecutable },
+            cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "codex-index.json"),
+        ),
     )
 
     @Volatile
@@ -57,8 +63,8 @@ class SessionIndex : Disposable {
         watcher.start(providers.flatMap { it.watchRoots() })
     }
 
-    /** Where the first provider keeps its data — for the empty-state message. */
-    fun dataRootDescription(): String = providers.first().dataRoot().toString()
+    /** Agent data roots, for the empty-state message. */
+    fun dataRootDescriptions(): List<String> = providers.map { "${it.kind.displayName}: ${it.dataRoot()}" }
 
     fun watchRoots(): List<Path> = providers.flatMap { it.watchRoots() }
 

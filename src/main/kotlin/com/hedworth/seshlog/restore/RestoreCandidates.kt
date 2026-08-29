@@ -43,6 +43,11 @@ object RestoreCandidates {
             val session = byId[id] ?: continue
             val pid = session.livePid
             when {
+                // A remembered session belongs to a terminal from the project that just closed.
+                // When a provider can expose a pid, the process tree tells us whether it is still
+                // attached elsewhere. Codex currently exposes only a writer lock: without a pid
+                // there is no terminal to focus, so offer to recreate the tab instead of silently
+                // treating the session as reachable.
                 !session.isLive || pid == null -> restore += session
                 tree.isOrphan(pid) -> { restore += session; orphans += session }
                 else -> running += session

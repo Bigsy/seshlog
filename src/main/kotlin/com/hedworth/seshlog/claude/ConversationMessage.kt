@@ -19,12 +19,15 @@ object ConversationMessages {
     private val TYPE_REGEX = Regex("\"type\"\\s*:\\s*\"(user|assistant)\"")
 
     fun parseLine(line: String): ConversationMessage? {
-        val type = TYPE_REGEX.find(line)?.groupValues?.get(1) ?: return null
-        return when (type) {
-            "user" -> userMessage(line)
-            "assistant" -> assistantMessage(line)
-            else -> null
+        val type = TYPE_REGEX.find(line)?.groupValues?.get(1)
+        if (type != null) {
+            return when (type) {
+                "user" -> userMessage(line)
+                "assistant" -> assistantMessage(line)
+                else -> null
+            }
         }
+        return com.hedworth.seshlog.codex.CodexConversationMessages.parseLine(line)
     }
 
     private fun userMessage(line: String): ConversationMessage? {

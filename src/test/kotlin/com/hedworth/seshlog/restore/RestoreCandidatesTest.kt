@@ -65,4 +65,13 @@ class RestoreCandidatesTest {
         assertEquals(listOf("orphan"), plan.orphans.map { it.id })
         assertEquals(listOf("running"), plan.running.map { it.id })
     }
+
+    @Test
+    fun `plan restores a remembered live session when its provider cannot expose a pid`() {
+        val live = session("codex", null).copy(kind = AgentKind.CODEX, isLive = true)
+        val plan = RestoreCandidates.plan(listOf("codex"), listOf(live), tree)
+        assertEquals(listOf("codex"), plan.restore.map { it.id })
+        assertTrue(plan.orphans.isEmpty())
+        assertTrue(plan.running.isEmpty())
+    }
 }

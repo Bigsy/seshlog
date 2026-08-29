@@ -20,6 +20,9 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         /** Empty = auto (`$CLAUDE_CONFIG_DIR` or `~/.claude`). */
         var claudeDataDir: String = ""
         var claudeExecutable: String = "claude"
+        /** Empty = auto (`$CODEX_HOME` or `~/.codex`). */
+        var codexDataDir: String = ""
+        var codexExecutable: String = "codex"
         var showAllProjects: Boolean = false
         /** Hide sessions that have no explicit title and fewer than this many real user prompts. */
         var minPromptsForUntitled: Int = 1
@@ -42,6 +45,14 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var claudeExecutable: String
         get() = state.claudeExecutable.ifBlank { "claude" }
         set(value) { state.claudeExecutable = value }
+
+    var codexDataDir: String
+        get() = state.codexDataDir
+        set(value) { state.codexDataDir = value }
+
+    var codexExecutable: String
+        get() = state.codexExecutable.ifBlank { "codex" }
+        set(value) { state.codexExecutable = value }
 
     var showAllProjects: Boolean
         get() = state.showAllProjects
@@ -66,6 +77,9 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     /** Resolved Claude data directory. */
     fun resolvedClaudeDataDir(): Path = resolveClaudeDataDir(state.claudeDataDir)
 
+    /** Resolved Codex data directory. */
+    fun resolvedCodexDataDir(): Path = resolveCodexDataDir(state.codexDataDir)
+
     companion object {
         fun getInstance(): SeshlogSettings = ApplicationManager.getApplication().getService(SeshlogSettings::class.java)
 
@@ -76,6 +90,14 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
 
         fun resolveClaudeDataDir(configured: String, env: Map<String, String> = System.getenv()): Path =
             if (configured.isBlank()) defaultClaudeDataDir(env) else Paths.get(expandTilde(configured.trim()))
+
+        fun defaultCodexDataDir(env: Map<String, String> = System.getenv()): Path {
+            env["CODEX_HOME"]?.takeIf { it.isNotBlank() }?.let { return Paths.get(expandTilde(it)) }
+            return Paths.get(System.getProperty("user.home"), ".codex")
+        }
+
+        fun resolveCodexDataDir(configured: String, env: Map<String, String> = System.getenv()): Path =
+            if (configured.isBlank()) defaultCodexDataDir(env) else Paths.get(expandTilde(configured.trim()))
 
         private fun expandTilde(p: String): String =
             if (p == "~" || p.startsWith("~/")) System.getProperty("user.home") + p.substring(1) else p

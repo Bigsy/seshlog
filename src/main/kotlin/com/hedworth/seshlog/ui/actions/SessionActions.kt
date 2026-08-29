@@ -57,7 +57,8 @@ class ResumeSessionAction : SessionAction("Resume", "Resume this session in a ne
 
     override fun perform(project: Project, session: Session) {
         if (session.isLive && !OwnedTerminalTabs.getInstance(project).owns(session.id)) {
-            notify(project, "Session is already running (pid ${session.livePid})", NotificationType.INFORMATION)
+            val process = session.livePid?.let { " (pid $it)" } ?: ""
+            notify(project, "Session is already running$process", NotificationType.INFORMATION)
             return
         }
         val command = SessionIndex.getInstance().resumeCommand(session)
@@ -71,9 +72,9 @@ class ResumeSessionAction : SessionAction("Resume", "Resume this session in a ne
 }
 
 /**
- * Fork a session: a new terminal tab running `--resume <id> --fork-session`, so the conversation
- * continues under a new session id while the original stays untouched. Works for live and dead
- * sessions. Subclasses decide where the [Session] comes from (Seshlog tree vs. Terminal tab).
+ * Fork a session into a new terminal tab, continuing the conversation under a new session id while
+ * the original stays untouched. Works for live and dead sessions. Subclasses decide where the
+ * [Session] comes from (Seshlog tree vs. Terminal tab).
  */
 abstract class ForkSessionActionBase : DumbAwareAction("Fork Session", "Continue this session's conversation in a new session", AllIcons.Vcs.Branch) {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT

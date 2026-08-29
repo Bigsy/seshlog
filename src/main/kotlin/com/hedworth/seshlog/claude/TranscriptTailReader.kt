@@ -7,7 +7,7 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 
 /**
- * Reads the last N conversation messages of a transcript without scanning the whole file:
+ * Reads the last N conversation messages of a supported agent transcript without scanning the whole file:
  * the file is read backwards in chunks, split into lines, and each complete line is parsed
  * from the end until enough messages are found. Transcripts can exceed 5 MB, and the preview
  * only needs the tail, so this keeps selection-time cost proportional to what is shown.

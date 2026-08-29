@@ -37,6 +37,13 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     /** Session ids Seshlog launched from this project (this IDE run). */
     private val launched: MutableSet<String> = Collections.synchronizedSet(HashSet())
 
+    /**
+     * Newly launched ids whose provider has not reported them live yet. Starting an agent and
+     * seeing its transcript/lock change are asynchronous; without this bridge, the first index
+     * update can erase the restore state written by [recordLaunch].
+     */
+    private val awaitingLive: MutableSet<String> = Collections.synchronizedSet(HashSet())
+
     private val started = AtomicBoolean(false)
 
     /** Ids that were live when the project was last open; consumed by [offerRestore]. */
@@ -45,7 +52,8 @@ class SessionRestoreManager(private val project: Project) : Disposable {
 
     fun recordLaunch(session: Session) {
         launched += session.id
-        snapshot(index.sessions)
+        awaitingLive += session.id
+        remember((state.liveSessionIds + session.id).distinct())
     }
 
     /** Called once from the startup activity, on a background thread. */
@@ -65,43 +73,65 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         })
         connection.subscribe(ProjectCloseListener.TOPIC, object : ProjectCloseListener {
             override fun projectClosing(closing: Project) {
-                if (closing == project) snapshot(index.sessions)
+                // Terminal teardown can race this callback. Never replace a useful last-known
+                // snapshot with empty merely because the widgets/agent locks vanished first.
+                if (closing == project) snapshot(index.sessions, preserveExisting = true)
             }
         })
-
-        // Sessions already scanned before we subscribed (another project's tool window, say).
-        val current = index.sessions
-        if (current.isNotEmpty() && index.lastScanMillis > 0) {
-            ApplicationManager.getApplication().invokeLater({ if (!project.isDisposed) offerRestore(current) })
-        }
+        // Always wait for the refresh requested below. SessionIndex is application-scoped, so its
+        // current value may belong to the previous project lifecycle and must not consume pending
+        // restore ids before this project's fresh scan completes.
         index.refresh()
     }
 
     /** Persist what runs in this project's terminals now. Called on the EDT (index updates arrive there). */
-    private fun snapshot(sessions: List<Session>) {
+    private fun snapshot(sessions: List<Session>, preserveExisting: Boolean = false) {
         if (project.isDisposed) return
-        val ids = RestoreCandidates.snapshot(sessions, launched.toSet(), TerminalTabs.shellPids(project), ProcessTree.System)
-        if (ids != state.liveSessionIds) {
-            LOG.debug("Live sessions for ${project.name}: $ids")
-            state.liveSessionIds = ids
+        val byId = sessions.associateBy { it.id }
+        val nowConfirmed = awaitingLive.filter { byId[it]?.isLive == true }
+        awaitingLive.removeAll(nowConfirmed.toSet())
+
+        val owned = OwnedTerminalTabs.getInstance(project)
+        val stillStarting = awaitingLive.filter { owned.owns(it) }
+        awaitingLive.retainAll(stillStarting.toSet())
+        val busyLaunched = launched.filter { id ->
+            owned.widgetFor(id)?.let(TerminalTabs::isBusy) == true
         }
+        val detected = RestoreCandidates.snapshot(
+            sessions,
+            launched.toSet(),
+            TerminalTabs.shellPids(project),
+            ProcessTree.System,
+        )
+        val ids = (detected + busyLaunched + stillStarting).distinct()
+        val next = if (preserveExisting) (state.liveSessionIds + ids).distinct() else ids
+        remember(next)
+    }
+
+    private fun remember(ids: List<String>) {
+        if (ids == state.liveSessionIds) return
+        LOG.debug("Live sessions for ${project.name}: $ids")
+        state.liveSessionIds = ids
     }
 
     private fun offerRestore(sessions: List<Session>) {
         val ids = pending
         if (ids.isEmpty()) return
-        pending = emptyList()
-        val plan = RestoreCandidates.plan(ids, sessions, ProcessTree.System)
+        val available = sessions.mapTo(HashSet()) { it.id }
+        val resolved = ids.filter { it in available }
+        if (resolved.isEmpty()) return // keep them for a later scan instead of losing them
+        pending = ids.filterNot { it in available }
+        val plan = RestoreCandidates.plan(resolved, sessions, ProcessTree.System)
         LOG.debug("Restore plan for ${project.name}: restore=${plan.restore.map { it.id }} orphans=${plan.orphans.map { it.id }} running=${plan.running.map { it.id }}")
         if (plan.restore.isEmpty()) return
         when (settings.restoreMode) {
             RestoreMode.NEVER -> Unit
             RestoreMode.ALWAYS -> whenTerminalReady {
                 restore(plan)
-                notification("Restored ${describe(plan.restore.size)}", NotificationType.INFORMATION).notify(project)
+                notification("Restored ${describe(plan.restore)}", NotificationType.INFORMATION).notify(project)
             }
             RestoreMode.ASK -> {
-                val n = notification("Restore ${describe(plan.restore.size)}?", NotificationType.INFORMATION)
+                val n = notification("Restore ${describe(plan.restore)}?", NotificationType.INFORMATION)
                 n.setSubtitle(plan.restore.joinToString(", ") { it.title })
                 if (plan.orphans.isNotEmpty()) {
                     n.setContent("${plan.orphans.size} left-over claude process${if (plan.orphans.size == 1) "" else "es"} from closed tabs will be stopped first.")
@@ -148,7 +178,10 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         }
     }
 
-    private fun describe(n: Int) = if (n == 1) "1 Claude session" else "$n Claude sessions"
+    private fun describe(sessions: List<Session>): String {
+        val agent = sessions.map { it.kind }.distinct().singleOrNull()?.displayName ?: "coding-agent"
+        return "${sessions.size} $agent session${if (sessions.size == 1) "" else "s"}"
+    }
 
     private fun notification(content: String, type: NotificationType) =
         NotificationGroupManager.getInstance().getNotificationGroup("Seshlog").createNotification(content, type)

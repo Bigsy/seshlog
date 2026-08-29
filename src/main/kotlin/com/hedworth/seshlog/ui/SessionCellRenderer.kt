@@ -42,6 +42,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         icon = if (session.isLive) AllIcons.Debugger.ThreadRunning else AllIcons.Vcs.History
         val titleAttrs = if (session.isLive) SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES else SimpleTextAttributes.REGULAR_ATTRIBUTES
         append(session.title, titleAttrs)
+        append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
         append("  " + DateFormatUtil.formatPrettyDateTime(session.lastActivityAt.toEpochMilli()), SimpleTextAttributes.GRAYED_ATTRIBUTES)
         session.displayBranch?.let { append("  $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
         if (session.isLive) {
@@ -65,6 +66,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         val fmt = { i: java.time.Instant? -> i?.let { TS.format(it.atZone(ZoneId.systemDefault())) } ?: "–" }
         return buildString {
             append("<html><b>").append(esc(session.title)).append("</b><br>")
+            append("Agent: ").append(session.kind.displayName).append("<br>")
             append("Session: ").append(session.id).append("<br>")
             append("Directory: ").append(esc(session.cwd.toString())).append("<br>")
             session.displayBranch?.let { append("Branch: ").append(esc(it)).append("<br>") }

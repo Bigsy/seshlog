@@ -11,11 +11,10 @@ import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentFilterState
 import com.hedworth.seshlog.settings.AgentSessionFilter
 import com.hedworth.seshlog.ui.actions.ResumeSessionAction
-import com.intellij.ide.DataManager
+import com.hedworth.seshlog.ui.actions.SessionAction
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.ActionToolbar
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -43,7 +42,6 @@ import com.intellij.util.Alarm
 import com.intellij.util.ui.StatusText
 import com.intellij.util.ui.tree.TreeUtil
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.ex.ActionUtil
 import java.awt.BorderLayout
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
@@ -152,9 +150,16 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         index.refresh()
     }
 
-    private fun invoke(action: DumbAwareAction) {
-        val context = DataManager.getInstance().getDataContext(tree)
-        ActionUtil.invokeAction(action, context, ActionPlaces.TOOLWINDOW_CONTENT, null, null)
+    /**
+     * Run [action] on the current selection. Deliberately a direct call instead of going through
+     * ActionManager: ActionUtil.invokeAction is deprecated, its replacement (ActionUtil.performAction)
+     * only exists from 2025.2, and ActionManager.tryToExecute defers via
+     * IdeFocusManager.doWhenFocusSettlesDown — which would make double-click and Enter asynchronous.
+     * The context-menu path still goes through the action system, so listeners and stats keep working.
+     */
+    internal fun invoke(action: SessionAction) {
+        val session = selectedSession() ?: return
+        action.perform(project, session)
     }
 
     private fun createToolbar(): ActionToolbar {

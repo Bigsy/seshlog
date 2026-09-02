@@ -131,16 +131,30 @@ class CopySessionIdAction : SessionAction("Copy Session ID") {
     }
 }
 
-class RevealTranscriptAction : SessionAction(RevealFileAction.getActionName(), "Show the transcript file") {
-    override fun perform(project: Project, session: Session) {
-        RevealFileAction.openFile(session.transcriptPath)
+/** Base for actions on the session's transcript file; hidden for agents that keep no per-session file. */
+abstract class TranscriptFileAction(text: String, description: String? = null) : SessionAction(text, description) {
+    override fun update(e: AnActionEvent) {
+        super.update(e)
+        if (e.getData(SeshlogDataKeys.SESSION)?.transcriptPath == null) e.presentation.isEnabledAndVisible = false
+    }
+
+    final override fun perform(project: Project, session: Session) {
+        perform(project, session, session.transcriptPath ?: return)
+    }
+
+    abstract fun perform(project: Project, session: Session, transcript: java.nio.file.Path)
+}
+
+class RevealTranscriptAction : TranscriptFileAction(RevealFileAction.getActionName(), "Show the transcript file") {
+    override fun perform(project: Project, session: Session, transcript: java.nio.file.Path) {
+        RevealFileAction.openFile(transcript)
     }
 }
 
-class OpenTranscriptAction : SessionAction("Open Transcript", "Open the raw transcript in an editor tab") {
-    override fun perform(project: Project, session: Session) {
-        val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(session.transcriptPath) ?: run {
-            notify(project, "Transcript not found: ${session.transcriptPath}", NotificationType.WARNING)
+class OpenTranscriptAction : TranscriptFileAction("Open Transcript", "Open the raw transcript in an editor tab") {
+    override fun perform(project: Project, session: Session, transcript: java.nio.file.Path) {
+        val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(transcript) ?: run {
+            notify(project, "Transcript not found: $transcript", NotificationType.WARNING)
             return
         }
         FileEditorManager.getInstance(project).openFile(vf, true)

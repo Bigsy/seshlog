@@ -1,8 +1,8 @@
 package com.hedworth.seshlog.ui
 
-import com.hedworth.seshlog.claude.ConversationMessage
-import com.hedworth.seshlog.claude.Role
-import com.hedworth.seshlog.claude.TranscriptTailReader
+import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.intellij.openapi.Disposable
@@ -29,8 +29,8 @@ import javax.swing.JSpinner
 import javax.swing.SpinnerNumberModel
 
 /**
- * Bottom half of the tool window: the last N messages of the selected session, read lazily from
- * the transcript tail on a background thread. Lets you decide *which* session to resume.
+ * Bottom half of the tool window: the last N messages of the selected session, read lazily
+ * through its provider on a background thread. Lets you decide *which* session to resume.
  */
 class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(BorderLayout()), Disposable {
     private val LOG = logger<SessionPreviewPanel>()
@@ -104,9 +104,9 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         val myGen = generation.incrementAndGet()
         executor.execute {
             val result = try {
-                TranscriptTailReader.lastMessages(target.transcriptPath, count)
+                SessionIndex.getInstance().providerFor(target).lastMessages(target, count)
             } catch (e: Exception) {
-                LOG.debug("Cannot read tail of ${target.transcriptPath}", e)
+                LOG.debug("Cannot read last messages of ${target.kind} session ${target.id}", e)
                 null
             }
             if (generation.get() != myGen) return@execute

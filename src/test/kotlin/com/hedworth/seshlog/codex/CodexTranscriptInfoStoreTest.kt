@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.codex
 
+import com.hedworth.seshlog.cache.InfoStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -24,7 +25,7 @@ class CodexTranscriptInfoStoreTest {
 
     @Test
     fun `round trips metadata and ignores corrupt caches`() {
-        val entries = mapOf(Paths.get("/rollouts/a.jsonl") to CodexTranscriptInfoStore.Entry(10, 20, info))
+        val entries = mapOf(Paths.get("/rollouts/a.jsonl") to InfoStore.Entry(10, 20, info))
         assertEquals(entries, CodexTranscriptInfoStore.fromJson(CodexTranscriptInfoStore.toJson(entries)))
 
         val file = tmp.root.toPath().resolve("nested/codex-index.json")

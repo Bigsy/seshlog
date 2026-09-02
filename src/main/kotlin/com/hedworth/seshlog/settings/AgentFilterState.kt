@@ -9,11 +9,34 @@ import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.StoragePathMacros
 import com.intellij.openapi.project.Project
 
-enum class AgentFilterMode(val displayName: String) {
-    AUTO("Auto"),
-    ALL("All agents"),
-    CLAUDE_CODE("Claude Code"),
-    CODEX("Codex"),
+/**
+ * Which agent's sessions the tool window shows. [Only] wraps an [AgentKind] so adding an agent
+ * never touches this class; the persisted form is `"AUTO"`, `"ALL"` or the kind's name.
+ */
+sealed class AgentFilterMode(val displayName: String) {
+    /** The agent with the most sessions in the current scope. */
+    object Auto : AgentFilterMode("Auto")
+    object All : AgentFilterMode("All agents")
+    data class Only(val kind: AgentKind) : AgentFilterMode(kind.displayName)
+
+    fun serialize(): String = when (this) {
+        Auto -> "AUTO"
+        All -> "ALL"
+        is Only -> kind.name
+    }
+
+    companion object {
+        /** Auto, All, then one entry per agent — the order the toolbar popup shows them in. */
+        val entries: List<AgentFilterMode>
+            get() = listOf(Auto, All) + AgentKind.entries.map(::Only)
+
+        /** Inverse of [serialize]; unknown values (a removed agent, a hand-edited file) fall back to [Auto]. */
+        fun parse(value: String): AgentFilterMode = when (value) {
+            "AUTO" -> Auto
+            "ALL" -> All
+            else -> AgentKind.entries.firstOrNull { it.name == value }?.let(::Only) ?: Auto
+        }
+    }
 }
 
 /** Project-specific agent-filter preference, stored in workspace.xml. */
@@ -21,7 +44,7 @@ enum class AgentFilterMode(val displayName: String) {
 @State(name = "SeshlogAgentFilter", storages = [Storage(StoragePathMacros.WORKSPACE_FILE)])
 class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
     class State {
-        var mode: String = AgentFilterMode.AUTO.name
+        var mode: String = AgentFilterMode.Auto.serialize()
     }
 
     private var state = State()
@@ -32,8 +55,8 @@ class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
     }
 
     var mode: AgentFilterMode
-        get() = runCatching { AgentFilterMode.valueOf(state.mode) }.getOrDefault(AgentFilterMode.AUTO)
-        set(value) { state.mode = value.name }
+        get() = AgentFilterMode.parse(state.mode)
+        set(value) { state.mode = value.serialize() }
 
     companion object {
         fun getInstance(project: Project): AgentFilterState = project.getService(AgentFilterState::class.java)
@@ -44,10 +67,9 @@ class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
 object AgentSessionFilter {
     fun apply(sessions: List<Session>, mode: AgentFilterMode): List<Session> {
         val kind = when (mode) {
-            AgentFilterMode.ALL -> null
-            AgentFilterMode.CLAUDE_CODE -> AgentKind.CLAUDE_CODE
-            AgentFilterMode.CODEX -> AgentKind.CODEX
-            AgentFilterMode.AUTO -> sessions.groupingBy { it.kind }.eachCount()
+            AgentFilterMode.All -> null
+            is AgentFilterMode.Only -> mode.kind
+            AgentFilterMode.Auto -> sessions.groupingBy { it.kind }.eachCount()
                 .maxWithOrNull(compareBy<Map.Entry<AgentKind, Int>> { it.value }.thenByDescending { it.key.ordinal })
                 ?.key
         }

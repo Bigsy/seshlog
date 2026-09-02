@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.claude
 
+import com.hedworth.seshlog.cache.InfoStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -22,8 +23,8 @@ class TranscriptInfoStoreTest {
     @Test
     fun `round trips through json`() {
         val entries = mapOf(
-            Paths.get("/a/1.jsonl") to TranscriptInfoStore.Entry(10, 20, info),
-            Paths.get("/a/2.jsonl") to TranscriptInfoStore.Entry(1, 2, info.copy(startedAt = null, aiTitle = null)),
+            Paths.get("/a/1.jsonl") to InfoStore.Entry(10, 20, info),
+            Paths.get("/a/2.jsonl") to InfoStore.Entry(1, 2, info.copy(startedAt = null, aiTitle = null)),
         )
         assertEquals(entries, TranscriptInfoStore.fromJson(TranscriptInfoStore.toJson(entries)))
     }
@@ -32,7 +33,7 @@ class TranscriptInfoStoreTest {
     fun `save and load, missing or corrupt file yields empty`() {
         val file = tmp.root.toPath().resolve("nested/index.json")
         assertTrue(TranscriptInfoStore.load(file).isEmpty())
-        val entries = mapOf(Paths.get("/a/1.jsonl") to TranscriptInfoStore.Entry(10, 20, info))
+        val entries = mapOf(Paths.get("/a/1.jsonl") to InfoStore.Entry(10, 20, info))
         TranscriptInfoStore.save(file, entries)
         assertEquals(entries, TranscriptInfoStore.load(file))
         Files.writeString(file, "{not json")

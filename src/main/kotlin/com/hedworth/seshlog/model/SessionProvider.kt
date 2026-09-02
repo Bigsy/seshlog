@@ -26,4 +26,19 @@ interface SessionProvider {
 
     /** Directories to watch for changes that should trigger a rescan. */
     fun watchRoots(): List<Path>
+
+    /**
+     * Every visible message text of [session] (user prompts and assistant replies, in order), for
+     * content search. Never throws for bad content; I/O errors propagate.
+     */
+    fun conversationText(session: Session): List<String>
+
+    /** The last [count] visible messages of [session] in chronological order, for the preview pane. */
+    fun lastMessages(session: Session, count: Int): List<ConversationMessage>
+
+    /**
+     * Cheap token that changes whenever [conversationText] would: the search index re-extracts a
+     * session only when its stamp differs. `null` means "unknown, never cache".
+     */
+    fun contentStamp(session: Session): Any?
 }

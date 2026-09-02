@@ -1,6 +1,11 @@
 package com.hedworth.seshlog.codex
 
+import com.hedworth.seshlog.cache.FileBackedParseCache
+import com.hedworth.seshlog.cache.FileStamp
+import com.hedworth.seshlog.claude.TranscriptTailReader
+import com.hedworth.seshlog.claude.TranscriptTextExtractor
 import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
 import com.hedworth.seshlog.terminal.ShellQuote
@@ -9,25 +14,18 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 
 /** Read-only provider for Codex CLI rollout sessions under `$CODEX_HOME/sessions`. */
 class CodexSessionProvider(
     private val dataDir: () -> Path,
     private val executable: () -> String,
-    private val cacheFile: Path? = null,
+    cacheFile: Path? = null,
 ) : SessionProvider {
     private val LOG = logger<CodexSessionProvider>()
 
     override val kind: AgentKind = AgentKind.CODEX
 
-    private val cache = ConcurrentHashMap<Path, CodexTranscriptInfoStore.Entry>()
-    private val cacheDirty = AtomicBoolean(false)
-
-    init {
-        if (cacheFile != null) cache.putAll(CodexTranscriptInfoStore.load(cacheFile))
-    }
+    private val cache = FileBackedParseCache(CodexTranscriptInfoStore, cacheFile, CodexTranscriptParser::parse)
 
     override fun dataRoot(): Path = dataDir()
     private fun sessionsDir() = dataDir().resolve("sessions")
@@ -49,7 +47,7 @@ class CodexSessionProvider(
         if (!Files.isDirectory(root)) return emptyList()
         val names = CodexSessionIndexReader.read(namesFile())
         val paths = listTranscripts(root)
-        if (cache.keys.retainAll(paths.toSet())) cacheDirty.set(true)
+        cache.retainOnly(paths.toSet())
         val result = ArrayList<Session>(paths.size)
         for (path in paths) {
             val attrs = try {
@@ -59,7 +57,7 @@ class CodexSessionProvider(
             }
             val modified = Instant.ofEpochMilli(attrs.lastModifiedTime().toMillis())
             val idFromName = idFromFileName(path)
-            val info = cachedInfo(path, attrs) ?: continue
+            val info = cache.get(path, attrs) ?: continue
             val id = info.sessionId ?: idFromName ?: continue
             val cwd = info.cwd?.let { runCatching { Path.of(it) }.getOrNull() } ?: continue
             val promptTitle = info.promptTitle
@@ -80,29 +78,18 @@ class CodexSessionProvider(
                 hasExplicitTitle = explicitTitle != null,
             )
         }
-        persistCache()
+        cache.persist()
         return result
     }
 
-    private fun cachedInfo(path: Path, attrs: BasicFileAttributes): CodexTranscriptInfo? {
-        val size = attrs.size()
-        val mtime = attrs.lastModifiedTime().toMillis()
-        cache[path]?.let { if (it.size == size && it.mtimeMillis == mtime) return it.info }
-        val info = try {
-            CodexTranscriptParser.parse(path)
-        } catch (e: Exception) {
-            LOG.debug("Failed to parse Codex rollout $path", e)
-            return null
-        }
-        cache[path] = CodexTranscriptInfoStore.Entry(size, mtime, info)
-        cacheDirty.set(true)
-        return info
-    }
+    override fun conversationText(session: Session): List<String> =
+        session.transcriptPath?.let { TranscriptTextExtractor.extract(it, CodexConversationMessages::parseLine) } ?: emptyList()
 
-    private fun persistCache() {
-        if (cacheFile == null || !cacheDirty.compareAndSet(true, false)) return
-        CodexTranscriptInfoStore.save(cacheFile, HashMap(cache))
-    }
+    override fun lastMessages(session: Session, count: Int): List<ConversationMessage> =
+        session.transcriptPath?.let { TranscriptTailReader.lastMessages(it, count, parseLine = CodexConversationMessages::parseLine) }
+            ?: emptyList()
+
+    override fun contentStamp(session: Session): Any? = FileStamp.of(session.transcriptPath)
 
     private fun listTranscripts(root: Path): List<Path> {
         val result = ArrayList<Path>()

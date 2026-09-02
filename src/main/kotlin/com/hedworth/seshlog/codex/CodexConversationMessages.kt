@@ -1,7 +1,7 @@
 package com.hedworth.seshlog.codex
 
-import com.hedworth.seshlog.claude.ConversationMessage
-import com.hedworth.seshlog.claude.Role
+import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.codex.CodexTranscriptParser.objectValue
 import com.hedworth.seshlog.codex.CodexTranscriptParser.string
 

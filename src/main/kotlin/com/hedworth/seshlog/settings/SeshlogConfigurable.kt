@@ -6,6 +6,7 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
+import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindItem
 import com.intellij.ui.dsl.builder.toNullableProperty
@@ -14,54 +15,21 @@ import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
+import kotlin.reflect.KMutableProperty0
 
 class SeshlogConfigurable : BoundConfigurable("Seshlog") {
 
     override fun createPanel(): DialogPanel {
         val settings = SeshlogSettings.getInstance()
         return panel {
-            group("Claude Code") {
-                row("Data directory:") {
-                    // Row.textFieldWithBrowseButton's signature differs between 2024.1 (sinceBuild) and 2026.x
-                    // (old overload is a compile error); a plain field + FileChooser works on both.
-                    val field = TextFieldWithBrowseButton().apply {
-                        addActionListener {
-                            val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                            FileChooser.chooseFile(descriptor, null, null)?.let { text = it.path }
-                        }
-                    }
-                    cell(field)
-                        .bindText(settings::claudeDataDir)
-                        .columns(40)
-                        .comment("Leave empty to use \$CLAUDE_CONFIG_DIR or ~/.claude (currently ${settings.resolvedClaudeDataDir()}).")
-                }
-                row("Executable:") {
-                    textField()
-                        .bindText(settings::claudeExecutable)
-                        .columns(20)
-                        .comment("Resolved via the terminal shell's PATH.")
-                }
-            }
-            group("Codex") {
-                row("Data directory:") {
-                    val field = TextFieldWithBrowseButton().apply {
-                        addActionListener {
-                            val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                            FileChooser.chooseFile(descriptor, null, null)?.let { text = it.path }
-                        }
-                    }
-                    cell(field)
-                        .bindText(settings::codexDataDir)
-                        .columns(40)
-                        .comment("Leave empty to use \$CODEX_HOME or ~/.codex (currently ${settings.resolvedCodexDataDir()}).")
-                }
-                row("Executable:") {
-                    textField()
-                        .bindText(settings::codexExecutable)
-                        .columns(20)
-                        .comment("Resolved via the terminal shell's PATH.")
-                }
-            }
+            agentGroup(
+                "Claude Code", settings::claudeDataDir, settings::claudeExecutable,
+                "Leave empty to use \$CLAUDE_CONFIG_DIR or ~/.claude (currently ${settings.resolvedClaudeDataDir()}).",
+            )
+            agentGroup(
+                "Codex", settings::codexDataDir, settings::codexExecutable,
+                "Leave empty to use \$CODEX_HOME or ~/.codex (currently ${settings.resolvedCodexDataDir()}).",
+            )
             group("Session List") {
                 row {
                     checkBox("Show sessions from all projects by default")
@@ -97,6 +65,39 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                         .columns(4)
                 }.comment("The most recent user prompts and assistant replies of the selected session.")
             }
+        }
+    }
+
+    /** The per-agent settings group: data directory with a folder chooser, executable, optional extras. */
+    private fun Panel.agentGroup(
+        title: String,
+        dataDir: KMutableProperty0<String>,
+        executable: KMutableProperty0<String>,
+        dataDirComment: String,
+        extraRows: Panel.() -> Unit = {},
+    ) {
+        group(title) {
+            row("Data directory:") {
+                // Row.textFieldWithBrowseButton's signature differs between 2024.1 (sinceBuild) and 2026.x
+                // (old overload is a compile error); a plain field + FileChooser works on both.
+                val field = TextFieldWithBrowseButton().apply {
+                    addActionListener {
+                        val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
+                        FileChooser.chooseFile(descriptor, null, null)?.let { text = it.path }
+                    }
+                }
+                cell(field)
+                    .bindText(dataDir)
+                    .columns(40)
+                    .comment(dataDirComment)
+            }
+            row("Executable:") {
+                textField()
+                    .bindText(executable)
+                    .columns(20)
+                    .comment("Resolved via the terminal shell's PATH.")
+            }
+            extraRows()
         }
     }
 

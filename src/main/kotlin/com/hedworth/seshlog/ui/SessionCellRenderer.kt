@@ -75,7 +75,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
             append("Prompts: ").append(session.promptCount).append("<br>")
             if (session.isLive) append("Running, pid ").append(session.livePid).append("<br>")
             hit?.snippet?.let { append("Match: <i>").append(esc(it)).append("</i><br>") }
-            append("<span style='color:gray'>").append(esc(session.transcriptPath.toString())).append("</span>")
+            session.transcriptPath?.let { append("<span style='color:gray'>").append(esc(it.toString())).append("</span>") }
             append("</html>")
         }
     }

@@ -3,32 +3,24 @@ package com.hedworth.seshlog.claude
 import com.hedworth.seshlog.claude.TranscriptParser.bool
 import com.hedworth.seshlog.claude.TranscriptParser.getAsJsonObjectOrNull
 import com.hedworth.seshlog.claude.TranscriptParser.string
+import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.Role
 import java.time.Instant
 
-enum class Role { USER, ASSISTANT }
-
-/** One human-readable turn of a conversation: a real user prompt or an assistant text reply. */
-data class ConversationMessage(val role: Role, val text: String, val timestamp: Instant?)
-
 /**
- * Turns one transcript line into a [ConversationMessage], or null for anything that is not part
- * of the visible conversation: tool calls, tool results, thinking blocks, sidechains (subagents),
- * meta records, slash commands, title records. Never throws.
+ * Turns one Claude Code transcript line into a [ConversationMessage], or null for anything that is
+ * not part of the visible conversation: tool calls, tool results, thinking blocks, sidechains
+ * (subagents), meta records, slash commands, title records. Never throws.
  */
 object ConversationMessages {
     private val TYPE_REGEX = Regex("\"type\"\\s*:\\s*\"(user|assistant)\"")
 
-    fun parseLine(line: String): ConversationMessage? {
-        val type = TYPE_REGEX.find(line)?.groupValues?.get(1)
-        if (type != null) {
-            return when (type) {
-                "user" -> userMessage(line)
-                "assistant" -> assistantMessage(line)
-                else -> null
-            }
+    fun parseLine(line: String): ConversationMessage? =
+        when (TYPE_REGEX.find(line)?.groupValues?.get(1)) {
+            "user" -> userMessage(line)
+            "assistant" -> assistantMessage(line)
+            else -> null
         }
-        return com.hedworth.seshlog.codex.CodexConversationMessages.parseLine(line)
-    }
 
     private fun userMessage(line: String): ConversationMessage? {
         // Tool results are `user` records too, and they can be huge — skip without parsing.

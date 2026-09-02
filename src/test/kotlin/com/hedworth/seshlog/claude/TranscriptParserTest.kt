@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.claude
 
+import com.hedworth.seshlog.cache.InfoStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -94,7 +95,7 @@ class TranscriptParserTest {
         assertFalse("raw prompt body must not survive parsing", info.toString().contains("yyyy"))
         assertFalse(
             "raw prompt body must not reach the on-disk cache",
-            TranscriptInfoStore.toJson(mapOf(Paths.get("/a.jsonl") to TranscriptInfoStore.Entry(1, 2, info)))
+            TranscriptInfoStore.toJson(mapOf(Paths.get("/a.jsonl") to InfoStore.Entry(1, 2, info)))
                 .contains("yyyy"),
         )
     }

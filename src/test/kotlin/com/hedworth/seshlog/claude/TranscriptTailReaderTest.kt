@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.claude
 
+import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.Role
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

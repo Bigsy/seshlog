@@ -33,12 +33,18 @@ class CodexTranscriptParserTest {
                 "Also support named sessions.",
                 "Named sessions now take precedence.",
             ),
-            TranscriptTextExtractor.extract(fixture()),
+            TranscriptTextExtractor.extract(fixture(), CodexConversationMessages::parseLine),
         )
         assertEquals(
             listOf("I’ll add the provider and tests.", "Also support named sessions.", "Named sessions now take precedence."),
-            TranscriptTailReader.lastMessages(fixture(), 3).map { it.text },
+            TranscriptTailReader.lastMessages(fixture(), 3, parseLine = CodexConversationMessages::parseLine).map { it.text },
         )
+    }
+
+    @Test
+    fun `the Claude parser no longer falls through to Codex records`() {
+        assertEquals(emptyList<String>(), TranscriptTextExtractor.extract(fixture()))
+        assertEquals(emptyList<com.hedworth.seshlog.model.ConversationMessage>(), TranscriptTailReader.lastMessages(fixture(), 3))
     }
 
     @Test

@@ -1,6 +1,5 @@
 package com.hedworth.seshlog.index
 
-import com.hedworth.seshlog.claude.TranscriptTextExtractor
 import com.hedworth.seshlog.model.Session
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -18,7 +17,10 @@ import java.util.concurrent.atomic.AtomicLong
 class ContentSearchService : Disposable {
     private val LOG = logger<ContentSearchService>()
 
-    private val index = ContentSearchIndex(TranscriptTextExtractor::extract)
+    private val index = ContentSearchIndex(
+        extractor = { session -> SessionIndex.getInstance().providerFor(session).conversationText(session) },
+        contentStamp = { session -> SessionIndex.getInstance().providerFor(session).contentStamp(session) },
+    )
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog content search", 1)
     private val generation = AtomicLong()
 
@@ -31,7 +33,7 @@ class ContentSearchService : Disposable {
         executor.execute {
             val start = System.currentTimeMillis()
             val hits = try {
-                index.retainOnly(sessions.map { it.transcriptPath })
+                index.retainOnly(sessions.map { it.id })
                 index.search(query, sessions) { generation.get() != myGen }
             } catch (e: Exception) {
                 LOG.warn("Content search failed", e)

@@ -207,7 +207,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             val mode = agentFilter.mode
             val effective = AgentSessionFilter.effectiveKind(unfilteredSessions(index.sessions), mode)
             e.presentation.text = when (mode) {
-                AgentFilterMode.AUTO -> "Agent: ${effective?.displayName ?: "Auto"} (Auto)"
+                AgentFilterMode.Auto -> "Agent: ${effective?.displayName ?: "Auto"} (Auto)"
                 else -> "Agent: ${mode.displayName}"
             }
         }
@@ -353,7 +353,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             baseFilter(all).isEmpty() && unfilteredSessions(all).isNotEmpty() -> {
                 text.appendText("No ${agentFilter.mode.displayName} sessions in the current scope.")
                 text.appendLine("Show all agents", com.intellij.ui.SimpleTextAttributes.LINK_ATTRIBUTES) {
-                    agentFilter.mode = AgentFilterMode.ALL
+                    agentFilter.mode = AgentFilterMode.All
                     rerender()
                 }
             }

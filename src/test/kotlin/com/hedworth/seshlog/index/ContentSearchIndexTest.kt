@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.index
 
+import com.hedworth.seshlog.cache.FileStamp
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import org.junit.Assert.assertEquals
@@ -18,7 +19,16 @@ class ContentSearchIndexTest {
 
     private val contents = HashMap<Path, List<String>>()
     private var extractions = 0
-    private val index = ContentSearchIndex { path -> extractions++; contents.getValue(path) }
+    private val index = ContentSearchIndex(
+        // Like the real extractors: a vanished transcript is an I/O error, not empty content.
+        extractor = { s ->
+            extractions++
+            val path = s.transcriptPath!!
+            if (!Files.exists(path)) throw java.nio.file.NoSuchFileException(path.toString())
+            contents.getValue(path)
+        },
+        contentStamp = { s -> FileStamp.of(s.transcriptPath) },
+    )
 
     private fun session(id: String, title: String, texts: List<String>, at: String = "2026-08-20T00:00:00Z"): Session {
         val path = tmp.root.toPath().resolve("$id.jsonl")
@@ -67,8 +77,8 @@ class ContentSearchIndexTest {
         assertEquals(1, extractions)
 
         Thread.sleep(20)
-        contents[s.transcriptPath] = listOf("first", "second")
-        Files.writeString(s.transcriptPath, "first\nsecond")
+        contents[s.transcriptPath!!] = listOf("first", "second")
+        Files.writeString(s.transcriptPath!!, "first\nsecond")
         val hits = index.search("second", listOf(s))
         assertEquals(1, hits.size)
         assertEquals(2, extractions)
@@ -77,8 +87,31 @@ class ContentSearchIndexTest {
     @Test
     fun `missing transcript yields no hit and no exception`() {
         val s = session("gone", "Gone", listOf("text"))
-        Files.delete(s.transcriptPath)
+        Files.delete(s.transcriptPath!!)
         assertEquals(emptyList<SearchHit>(), index.search("text", listOf(s)))
+        assertEquals(0, index.size)
+    }
+
+    @Test
+    fun `a null stamp disables caching, a changed stamp re-extracts, retainOnly drops by id`() {
+        var stamp: Any? = null
+        val index = ContentSearchIndex(extractor = { extractions++; listOf("hit") }, contentStamp = { stamp })
+        val s = session("s", "T", listOf("hit"))
+        index.search("hit", listOf(s))
+        index.search("hit", listOf(s))
+        assertEquals(2, extractions)
+        assertEquals(0, index.size)
+
+        stamp = Instant.parse("2026-08-20T00:00:00Z")
+        index.search("hit", listOf(s))
+        index.search("hit", listOf(s))
+        assertEquals(3, extractions)
+        stamp = Instant.parse("2026-08-21T00:00:00Z")
+        index.search("hit", listOf(s))
+        assertEquals(4, extractions)
+
+        index.retainOnly(listOf("other"))
+        assertEquals(0, index.size)
     }
 
     @Test

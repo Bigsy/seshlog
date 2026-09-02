@@ -1,9 +1,6 @@
 package com.hedworth.seshlog.index
 
 import com.hedworth.seshlog.model.Session
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.ConcurrentHashMap
 
 /** One session that matched a content search. */
@@ -18,27 +15,31 @@ data class SearchHit(
 )
 
 /**
- * In-memory full-text index over transcript conversation text, kept free of IntelliJ types so it
- * is unit-testable. Entries are keyed by `(size, mtime)` and rebuilt lazily: [search] indexes any
- * transcript that is new or changed before matching against it, so the first query pays the
- * extraction cost and later ones are pure string scans.
+ * In-memory full-text index over session conversation text, kept free of IntelliJ types so it is
+ * unit-testable. Entries are keyed by session id and stamped with the provider's [contentStamp];
+ * [search] re-extracts any session whose stamp is new or changed before matching against it, so the
+ * first query pays the extraction cost and later ones are pure string scans.
  *
  * Matching is a case-insensitive substring search — the `rg`-style "find the phrase" the plan asks
  * for, without a query language.
  *
- * @param extractor reads one transcript into its list of message texts (never throws)
+ * @param extractor    reads one session into its list of message texts (may throw: treated as empty)
+ * @param contentStamp cheap change token for a session; null means "unknown", which disables caching for it
  */
-class ContentSearchIndex(private val extractor: (Path) -> List<String>) {
+class ContentSearchIndex(
+    private val extractor: (Session) -> List<String>,
+    private val contentStamp: (Session) -> Any?,
+) {
 
-    private class Entry(val size: Long, val mtimeMillis: Long, val texts: List<String>, val lower: List<String>)
+    private class Entry(val stamp: Any?, val texts: List<String>, val lower: List<String>)
 
-    private val entries = ConcurrentHashMap<Path, Entry>()
+    private val entries = ConcurrentHashMap<String, Entry>()
 
-    /** Number of transcripts currently indexed (for tests and diagnostics). */
+    /** Number of sessions currently indexed (for tests and diagnostics). */
     val size: Int get() = entries.size
 
     /**
-     * Search [sessions] for [query]. [isCancelled] is polled between transcripts so a superseded
+     * Search [sessions] for [query]. [isCancelled] is polled between sessions so a superseded
      * query can bail out early; when cancelled, the (partial) result is still returned.
      * Results are ranked best first.
      */
@@ -48,7 +49,7 @@ class ContentSearchIndex(private val extractor: (Path) -> List<String>) {
         val hits = ArrayList<SearchHit>()
         for (session in sessions) {
             if (isCancelled()) break
-            val entry = entryFor(session.transcriptPath)
+            val entry = entryFor(session)
             val titleMatch = session.title.lowercase().contains(needle)
             var count = 0
             var snippet: String? = null
@@ -67,27 +68,23 @@ class ContentSearchIndex(private val extractor: (Path) -> List<String>) {
         return hits
     }
 
-    /** Drop entries for transcripts that are no longer in [live]. */
-    fun retainOnly(live: Collection<Path>) {
+    /** Drop entries for sessions whose ids are no longer in [live]. */
+    fun retainOnly(live: Collection<String>) {
         entries.keys.retainAll(live.toSet())
     }
 
-    private fun entryFor(path: Path): Entry? {
-        val attrs = try {
-            Files.readAttributes(path, BasicFileAttributes::class.java)
-        } catch (_: Exception) {
-            entries.remove(path)
-            return null
-        }
-        val size = attrs.size()
-        val mtime = attrs.lastModifiedTime().toMillis()
-        entries[path]?.let { if (it.size == size && it.mtimeMillis == mtime) return it }
+    private fun entryFor(session: Session): Entry? {
+        val stamp = contentStamp(session)
+        if (stamp != null) entries[session.id]?.let { if (it.stamp == stamp) return it }
         val texts = try {
-            extractor(path)
+            extractor(session)
         } catch (_: Exception) {
             emptyList()
         }
-        return Entry(size, mtime, texts, texts.map { it.lowercase() }).also { entries[path] = it }
+        val entry = Entry(stamp, texts, texts.map { it.lowercase() })
+        // No stamp means we cannot tell when the content changes: use the extraction once, never cache it.
+        if (stamp == null) entries.remove(session.id) else entries[session.id] = entry
+        return entry
     }
 
     companion object {

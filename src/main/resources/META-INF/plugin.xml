@@ -4,8 +4,8 @@
     <vendor url="https://github.com/Bigsy/seshlog">Bill Hedworth</vendor>
 
     <description><![CDATA[
-    List, search and resume your local Claude Code and Codex sessions from a tool window, titled the
-    way the agent titles them, with one click to reopen any of them in a terminal tab.
+    List, search and resume your local Claude Code, Codex and opencode sessions from a tool window,
+    titled the way the agent titles them, with one click to reopen any of them in a terminal tab.
     <br><br>
     <ul>
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
@@ -23,6 +23,14 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.4.0</b>
+    <ul>
+        <li>opencode support: list, name, search, preview, resume and fork local opencode sessions, read straight from opencode's SQLite database (read-only).</li>
+        <li>Archived opencode sessions are hidden; a setting under Tools &rarr; Seshlog shows them.</li>
+        <li>opencode publishes no lock or pid file, so its sessions never show as live and are not part of restore-after-restart.</li>
+        <li>Content search and the preview pane now go through the session provider, so an agent that keeps no per-session file is a first-class citizen.</li>
+        <li>Larger download (0.3 MB &rarr; 12 MB): the bundled SQLite driver ships native libraries for every platform.</li>
+    </ul>
     <b>0.3.0</b>
     <ul>
         <li>Codex support: list, name, search, preview, resume and fork local Codex CLI sessions.</li>

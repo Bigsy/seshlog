@@ -23,6 +23,11 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         /** Empty = auto (`$CODEX_HOME` or `~/.codex`). */
         var codexDataDir: String = ""
         var codexExecutable: String = "codex"
+        /** Empty = auto (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`). */
+        var opencodeDataDir: String = ""
+        var opencodeExecutable: String = "opencode"
+        /** opencode lets the user archive a session to hide it from its own list; hidden here too unless set. */
+        var opencodeShowArchived: Boolean = false
         var showAllProjects: Boolean = false
         /** Hide sessions that have no explicit title and fewer than this many real user prompts. */
         var minPromptsForUntitled: Int = 1
@@ -54,6 +59,18 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         get() = state.codexExecutable.ifBlank { "codex" }
         set(value) { state.codexExecutable = value }
 
+    var opencodeDataDir: String
+        get() = state.opencodeDataDir
+        set(value) { state.opencodeDataDir = value }
+
+    var opencodeExecutable: String
+        get() = state.opencodeExecutable.ifBlank { "opencode" }
+        set(value) { state.opencodeExecutable = value }
+
+    var opencodeShowArchived: Boolean
+        get() = state.opencodeShowArchived
+        set(value) { state.opencodeShowArchived = value }
+
     var showAllProjects: Boolean
         get() = state.showAllProjects
         set(value) { state.showAllProjects = value }
@@ -80,6 +97,9 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     /** Resolved Codex data directory. */
     fun resolvedCodexDataDir(): Path = resolveCodexDataDir(state.codexDataDir)
 
+    /** Resolved opencode data directory (the one holding `opencode.db`). */
+    fun resolvedOpenCodeDataDir(): Path = resolveOpenCodeDataDir(state.opencodeDataDir)
+
     companion object {
         fun getInstance(): SeshlogSettings = ApplicationManager.getApplication().getService(SeshlogSettings::class.java)
 
@@ -98,6 +118,16 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
 
         fun resolveCodexDataDir(configured: String, env: Map<String, String> = System.getenv()): Path =
             if (configured.isBlank()) defaultCodexDataDir(env) else Paths.get(expandTilde(configured.trim()))
+
+        /** `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` — what `opencode debug paths` reports as `data`. */
+        fun defaultOpenCodeDataDir(env: Map<String, String> = System.getenv()): Path {
+            val dataHome = env["XDG_DATA_HOME"]?.takeIf { it.isNotBlank() }?.let { Paths.get(expandTilde(it)) }
+                ?: Paths.get(System.getProperty("user.home"), ".local", "share")
+            return dataHome.resolve("opencode")
+        }
+
+        fun resolveOpenCodeDataDir(configured: String, env: Map<String, String> = System.getenv()): Path =
+            if (configured.isBlank()) defaultOpenCodeDataDir(env) else Paths.get(expandTilde(configured.trim()))
 
         private fun expandTilde(p: String): String =
             if (p == "~" || p.startsWith("~/")) System.getProperty("user.home") + p.substring(1) else p

@@ -30,6 +30,16 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                 "Codex", settings::codexDataDir, settings::codexExecutable,
                 "Leave empty to use \$CODEX_HOME or ~/.codex (currently ${settings.resolvedCodexDataDir()}).",
             )
+            agentGroup(
+                "opencode", settings::opencodeDataDir, settings::opencodeExecutable,
+                "Leave empty to use \$XDG_DATA_HOME/opencode or ~/.local/share/opencode (currently ${settings.resolvedOpenCodeDataDir()}).",
+            ) {
+                row {
+                    checkBox("Show archived sessions")
+                        .bindSelected(settings::opencodeShowArchived)
+                        .comment("Sessions archived in opencode's own session list are hidden unless this is on.")
+                }
+            }
             group("Session List") {
                 row {
                     checkBox("Show sessions from all projects by default")

@@ -56,6 +56,10 @@ dependencies {
         testFramework(TestFrameworkType.Platform)
     }
 
+    // opencode keeps its sessions in a SQLite database; the driver bundles native libraries for
+    // every platform, which is most of the plugin zip's size.
+    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
+
     // BasePlatformTestCase is JUnit3/4-based; the platform test framework doesn't bring JUnit itself.
     testImplementation("junit:junit:4.13.2")
 }

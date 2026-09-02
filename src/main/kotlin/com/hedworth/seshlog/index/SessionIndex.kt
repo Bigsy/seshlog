@@ -4,6 +4,7 @@ import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
 import com.hedworth.seshlog.codex.CodexSessionProvider
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
+import com.hedworth.seshlog.opencode.OpenCodeSessionProvider
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -42,6 +43,12 @@ class SessionIndex : Disposable {
             dataDir = { settings.resolvedCodexDataDir() },
             executable = { settings.codexExecutable },
             cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "codex-index.json"),
+        ),
+        // No cache file: a scan is one indexed query against opencode's own database.
+        OpenCodeSessionProvider(
+            dataDir = { settings.resolvedOpenCodeDataDir() },
+            executable = { settings.opencodeExecutable },
+            showArchived = { settings.opencodeShowArchived },
         ),
     )
 

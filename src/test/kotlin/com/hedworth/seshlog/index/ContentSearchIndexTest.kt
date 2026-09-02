@@ -77,8 +77,9 @@ class ContentSearchIndexTest {
         assertEquals(1, extractions)
 
         Thread.sleep(20)
-        contents[s.transcriptPath!!] = listOf("first", "second")
-        Files.writeString(s.transcriptPath!!, "first\nsecond")
+        val path = s.transcriptPath!!
+        contents[path] = listOf("first", "second")
+        Files.writeString(path, "first\nsecond")
         val hits = index.search("second", listOf(s))
         assertEquals(1, hits.size)
         assertEquals(2, extractions)

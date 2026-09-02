@@ -1,17 +1,20 @@
 package com.hedworth.seshlog.settings
 
+import com.hedworth.seshlog.model.AgentKind
+import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.awt.Component
 import java.awt.Container
+import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.ListCellRenderer
 
 /**
- * Guards the settings UI built by the Kotlin UI DSL. The Restore-mode combo used to render its
- * labels through the deprecated SimpleListCellRenderer.create(String, Function); this pins the
- * label for every mode (and for null) so the swap to textListCellRenderer stays behaviour-neutral.
+ * Guards the settings UI built by the Kotlin UI DSL: the Restore-mode combo's labels (which used to
+ * come from the deprecated SimpleListCellRenderer.create(String, Function), so the swap to
+ * textListCellRenderer is pinned as behaviour-neutral) and one settings group per agent.
  */
 class SeshlogConfigurableTest : BasePlatformTestCase() {
 
@@ -43,13 +46,28 @@ class SeshlogConfigurableTest : BasePlatformTestCase() {
         }
     }
 
-    private fun comboBoxes(root: Component): List<JComboBox<*>> = buildList {
+    fun `test every agent has a data-directory group and opencode has its archived toggle`() {
+        val configurable = SeshlogConfigurable()
+        try {
+            val root = configurable.createComponent()
+            val browseFields = components(root).filterIsInstance<TextFieldWithBrowseButton>()
+            assertEquals(AgentKind.entries.size, browseFields.size)
+            val archived = components(root).filterIsInstance<JCheckBox>().single { it.text == "Show archived sessions" }
+            assertFalse(archived.isSelected)
+        } finally {
+            configurable.disposeUIResources()
+        }
+    }
+
+    private fun components(root: Component): List<Component> = buildList {
         fun walk(c: Component) {
-            if (c is JComboBox<*>) add(c)
+            add(c)
             if (c is Container) c.components.forEach(::walk)
         }
         walk(root)
     }
+
+    private fun comboBoxes(root: Component): List<JComboBox<*>> = components(root).filterIsInstance<JComboBox<*>>()
 
     /** The DSL renderer returns a composite component; the text lives in its labels. */
     private fun labelText(c: Component): String = buildList {

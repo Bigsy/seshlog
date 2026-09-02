@@ -54,8 +54,9 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
         }
     }
 
+    // VFS paths always use '/', including on Windows, so the roots are normalised to match.
     private fun isUnderRoots(path: String, roots: List<Path>): Boolean =
-        roots.any { root -> path.startsWith(root.toAbsolutePath().toString()) }
+        isUnderRoots(path, roots.map { it.toAbsolutePath().toString().replace('\\', '/') })
 
     private fun schedule() {
         if (alarm.isDisposed) return
@@ -71,5 +72,14 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
 
     companion object {
         const val DEBOUNCE_MS = 1500
+
+        /**
+         * True when [path] is one of [roots] or sits inside one of them. Matching whole path
+         * segments matters: a sibling that merely shares a root's prefix is not a match — notably
+         * `opencode.db-shm`, the wal-index every SQLite reader (Seshlog's own scan included)
+         * touches, which would otherwise make each scan schedule the next one.
+         */
+        internal fun isUnderRoots(path: String, roots: List<String>): Boolean =
+            roots.any { root -> path == root || path.startsWith("$root/") }
     }
 }

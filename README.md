@@ -2,8 +2,8 @@
 
 https://plugins.jetbrains.com/plugin/33850-seshlog--coding-agent-session-manager
 
-An IntelliJ plugin that lists your local Claude Code and Codex sessions, titled the way the agent
-titled them, with one click to resume any of them in a terminal tab.
+An IntelliJ plugin that lists your local Claude Code, Codex and opencode sessions, titled the way
+the agent titled them, with one click to resume any of them in a terminal tab.
 
 Restarting your IDE closes every terminal tab, and with them your running coding-agent sessions.
 Getting back to one means remembering which project it was in and finding it in the agent's session
@@ -16,7 +16,7 @@ picker. Seshlog makes it a click.
 - **Sessions grouped by project**, sorted by last activity, with the agent's own title, git branch,
   prompt count, and a live indicator for sessions running right now.
 - **Agent filter** which defaults to the provider with the most sessions in this project. Force All,
-  Claude Code, or Codex from the toolbar; the choice is remembered per project.
+  or a single agent, from the toolbar; the choice is remembered per project.
 - **Full-text search** across your prompts and the assistant's replies, not just titles. Results are
   ranked by hit count with a snippet of the first match.
 - **Preview pane** showing the last messages of the selected session without opening anything.
@@ -32,9 +32,9 @@ picker. Seshlog makes it a click.
 ## Requirements
 
 - IntelliJ IDEA 2024.1 or newer (any IntelliJ Platform IDE with the bundled Terminal plugin).
-- [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex/cli/),
-  or both installed, with the corresponding executable on the PATH of the shell your Terminal tool
-  window uses.
+- Any of [Claude Code](https://claude.com/claude-code),
+  [Codex](https://developers.openai.com/codex/cli/) or [opencode](https://opencode.ai) installed,
+  with the corresponding executable on the PATH of the shell your Terminal tool window uses.
 - JDK 17 to build from source.
 
 ## Install
@@ -55,9 +55,11 @@ Open the tool window with **View → Tool Windows → Seshlog** (it docks on the
 Seshlog is entirely local. It makes no network requests of any kind — there is no telemetry, no
 analytics, and no remote service involved.
 
-It reads the agents' data directories — `$CLAUDE_CONFIG_DIR`/`~/.claude` and
-`$CODEX_HOME`/`~/.codex` — **read-only** and never writes to them. Its own state lives in the IDE's
-own storage:
+It reads the agents' data directories — `$CLAUDE_CONFIG_DIR`/`~/.claude`,
+`$CODEX_HOME`/`~/.codex` and `$XDG_DATA_HOME/opencode`/`~/.local/share/opencode` — **read-only** and
+never writes to them. opencode's SQLite database is opened read-only, so a session running
+alongside is never disturbed — reading it does update `opencode.db-shm`, the shared-memory index
+every SQLite reader maintains, which holds no session data of its own. Its own state lives in the IDE's own storage:
 
 - parsed-transcript caches in `<IDE system dir>/seshlog/`, holding per-session metadata
   only — title, cwd, branch, timestamps, prompt count. No message content is written to it: the
@@ -76,6 +78,9 @@ own storage:
 | Claude executable | `claude` | Resolved via the terminal shell's PATH |
 | Codex data directory | auto | `$CODEX_HOME`, else `~/.codex` |
 | Codex executable | `codex` | Resolved via the terminal shell's PATH |
+| opencode data directory | auto | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` |
+| opencode executable | `opencode` | Resolved via the terminal shell's PATH |
+| Show archived sessions (opencode) | off | Sessions archived inside opencode stay hidden unless on |
 | Agent toolbar filter | Auto | Shows the provider with the most sessions; a forced choice is stored per project |
 | Show sessions from all projects | off | Otherwise only sessions whose cwd is under the open project |
 | Hide untitled sessions with fewer than *n* prompts | 1 | Filters out aborted starts; 0 shows everything |
@@ -100,14 +105,19 @@ Both are also worth knowing:
 - The plugin targets Kotlin API level 1.9 because platform 2024.1 bundles the Kotlin 1.9 stdlib;
   using a 2.x-only stdlib API is a compile error rather than a runtime failure on older IDEs.
 
-Transcript parsing is deliberately defensive — both agents' `.jsonl` schemas are internal and can
-change between versions, so unknown record types are skipped, missing fields become null, and a
-malformed line is logged at DEBUG and ignored. See `src/test/resources/fixtures/` for the shapes
-that are covered.
+Session reading is deliberately defensive — the agents' storage formats are internal and can change
+between versions. In the `.jsonl` transcripts of Claude Code and Codex, unknown record types are
+skipped, missing fields become null, and a malformed line is logged at DEBUG and ignored; opencode's
+database is queried for the few columns Seshlog needs, and a database it cannot read leaves the
+provider empty rather than failing the scan. See `src/test/resources/fixtures/` for the shapes that
+are covered — including `opencode_fixture.sql`, the SQL script the tests build a throwaway opencode
+database from.
 
 ## Roadmap
 
-- **More agents.** Add an OpenCode implementation behind the existing `SessionProvider` seam.
+- **More agents** behind the existing `SessionProvider` seam.
+- **Live opencode sessions.** opencode writes no lock or pid file, so its sessions never show as
+  running and are not restored after a restart.
 - **Titles for the untitled.** Around 7% of sessions never get an `ai-title`; generate one from the
   first exchange and store it on the Seshlog side.
 - **Housekeeping.** Delete or archive old transcripts from the UI, and show disk usage per project.

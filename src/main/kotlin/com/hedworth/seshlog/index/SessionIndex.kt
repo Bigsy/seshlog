@@ -44,7 +44,8 @@ class SessionIndex : Disposable {
             executable = { settings.codexExecutable },
             cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "codex-index.json"),
         ),
-        // No cache file: a scan is one indexed query against opencode's own database.
+        // No cache file: a scan queries opencode's own database — the session list, plus the
+        // prompts of each session that is new or changed since the last scan.
         OpenCodeSessionProvider(
             dataDir = { settings.resolvedOpenCodeDataDir() },
             executable = { settings.opencodeExecutable },

@@ -44,6 +44,7 @@ class OpenCodeSessionProviderTest {
         assertNull(titled.transcriptPath)
         assertFalse(titled.isLive)
         assertNull(titled.livePid)
+        assertFalse(provider.detectsLiveSessions)
 
         val placeholder = sessions.single { it.id == "ses_c" }
         assertFalse(placeholder.hasExplicitTitle)

@@ -51,6 +51,9 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     private var pending: List<String> = emptyList()
 
     fun recordLaunch(session: Session) {
+        // Without a liveness signal the session would sit in awaitingLive for good and be offered
+        // for restoring whether or not it was still running when the IDE closed.
+        if (!index.providerFor(session).detectsLiveSessions) return
         launched += session.id
         awaitingLive += session.id
         remember((state.liveSessionIds + session.id).distinct())
@@ -121,7 +124,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         val resolved = ids.filter { it in available }
         if (resolved.isEmpty()) return // keep them for a later scan instead of losing them
         pending = ids.filterNot { it in available }
-        val plan = RestoreCandidates.plan(resolved, sessions, ProcessTree.System)
+        val plan = RestoreCandidates.plan(resolved, sessions, ProcessTree.System) { index.providerFor(it).detectsLiveSessions }
         LOG.debug("Restore plan for ${project.name}: restore=${plan.restore.map { it.id }} orphans=${plan.orphans.map { it.id }} running=${plan.running.map { it.id }}")
         if (plan.restore.isEmpty()) return
         when (settings.restoreMode) {

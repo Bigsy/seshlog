@@ -67,6 +67,16 @@ class RestoreCandidatesTest {
     }
 
     @Test
+    fun `plan drops remembered sessions whose provider cannot detect liveness`() {
+        val opencode = session("opencode", null).copy(kind = AgentKind.OPENCODE, transcriptPath = null)
+        val dead = session("dead", null)
+        val plan = RestoreCandidates.plan(listOf("opencode", "dead"), listOf(opencode, dead), tree) { it.kind != AgentKind.OPENCODE }
+        assertEquals(listOf("dead"), plan.restore.map { it.id })
+        assertTrue(plan.orphans.isEmpty())
+        assertTrue(plan.running.isEmpty())
+    }
+
+    @Test
     fun `plan restores a remembered live session when its provider cannot expose a pid`() {
         val live = session("codex", null).copy(kind = AgentKind.CODEX, isLive = true)
         val plan = RestoreCandidates.plan(listOf("codex"), listOf(live), tree)

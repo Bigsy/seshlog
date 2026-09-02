@@ -32,15 +32,22 @@ object RestoreCandidates {
      * Resolve the ids remembered at shutdown against the current index. A session whose process
      * is still alive is skipped when that process sits under a live shell (it is really running
      * somewhere), but restored when it is an orphan of a tab that no longer exists — closing a
-     * terminal tab does not reliably kill `claude`.
+     * terminal tab does not reliably kill `claude`. Sessions [restorable] rejects (their provider
+     * cannot tell whether they were running) are dropped without being restored.
      */
-    fun plan(pendingIds: List<String>, sessions: List<Session>, tree: ProcessTree): RestorePlan {
+    fun plan(
+        pendingIds: List<String>,
+        sessions: List<Session>,
+        tree: ProcessTree,
+        restorable: (Session) -> Boolean = { true },
+    ): RestorePlan {
         val byId = sessions.associateBy { it.id }
         val restore = ArrayList<Session>()
         val orphans = ArrayList<Session>()
         val running = ArrayList<Session>()
         for (id in pendingIds.distinct()) {
             val session = byId[id] ?: continue
+            if (!restorable(session)) continue
             val pid = session.livePid
             when {
                 // A remembered session belongs to a terminal from the project that just closed.

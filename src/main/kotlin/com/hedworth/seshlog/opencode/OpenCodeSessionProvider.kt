@@ -28,6 +28,9 @@ class OpenCodeSessionProvider(
 
     override val kind: AgentKind = AgentKind.OPENCODE
 
+    /** No lock or pid file to read, so no session is ever live and none takes part in restore. */
+    override val detectsLiveSessions: Boolean = false
+
     private fun databaseFile(): Path = dataDir().resolve(DATABASE_FILE)
     private fun writeAheadLogFile(): Path = dataDir().resolve(WAL_FILE)
     private fun database() = OpenCodeDatabase(databaseFile())

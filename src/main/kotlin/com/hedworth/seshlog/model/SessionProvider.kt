@@ -5,6 +5,14 @@ import java.nio.file.Path
 interface SessionProvider {
     val kind: AgentKind
 
+    /**
+     * Whether this provider can ever report a session as live (`Session.isLive`). Restore after
+     * restart relies on that signal, so sessions of a provider without one are never remembered
+     * for restoring — a resumed session stays remembered until the provider confirms it is running,
+     * which for such a provider would be forever.
+     */
+    val detectsLiveSessions: Boolean get() = true
+
     /** True when the agent's data directory exists. */
     fun isAvailable(): Boolean
 

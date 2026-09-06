@@ -14,7 +14,7 @@ class ResolvedPathsTest {
         val root = Paths.get("/synthetic")
         val paths = (0 until 50_000).map { root.resolve("worktree-${it % 100}/sub") }
         var calls = 0
-        val snapshot = ResolvedPaths.resolve(paths + root) { calls++; it }
+        val snapshot = ResolvedPaths.resolve(paths + root, resolver = { calls++; it }, repositoryResolver = { null })
         assertEquals(101, calls)
         repeat(3) { assertTrue(paths.all { snapshot.isUnderAny(it, listOf(root)) }) }
         assertEquals(101, calls)

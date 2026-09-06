@@ -44,6 +44,7 @@ sealed class AgentFilterMode(val displayName: String) {
 @State(name = "SeshlogAgentFilter", storages = [Storage(StoragePathMacros.WORKSPACE_FILE)])
 class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
     class State {
+        var includeWorktrees: Boolean = true
         var mode: String = AgentFilterMode.Auto.serialize()
     }
 
@@ -53,6 +54,10 @@ class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
     override fun loadState(state: State) {
         this.state = state
     }
+
+    var includeWorktrees: Boolean
+        get() = state.includeWorktrees
+        set(value) { state.includeWorktrees = value }
 
     var mode: AgentFilterMode
         get() = AgentFilterMode.parse(state.mode)

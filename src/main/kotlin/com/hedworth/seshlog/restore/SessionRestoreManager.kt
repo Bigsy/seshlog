@@ -131,7 +131,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
             RestoreMode.NEVER -> Unit
             RestoreMode.ALWAYS -> whenTerminalReady {
                 restore(plan)
-                notification("Restored ${describe(plan.restore)}", NotificationType.INFORMATION).notify(project)
+                notification("Restoring ${describe(plan.restore)}", NotificationType.INFORMATION).notify(project)
             }
             RestoreMode.ASK -> {
                 val n = notification("Restore ${describe(plan.restore)}?", NotificationType.INFORMATION)
@@ -171,12 +171,14 @@ class SessionRestoreManager(private val project: Project) : Disposable {
             ProcessTree.System.terminate(pid)
         }
         for (session in plan.restore) {
-            try {
-                TerminalTabs.resume(project, session, index.resumeCommand(session))
-                launched += session.id
-            } catch (t: Throwable) {
-                LOG.warn("Could not restore session ${session.id}", t)
-                notification("Could not restore '${session.title}': ${t.message}", NotificationType.ERROR).notify(project)
+            com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
+                try {
+                    TerminalTabs.resume(project, target, index.resumeCommand(target))
+                    launched += session.id
+                } catch (t: Throwable) {
+                    LOG.warn("Could not restore session ${session.id}", t)
+                    notification("Could not restore '${session.title}': ${t.message}", NotificationType.ERROR).notify(project)
+                }
             }
         }
     }

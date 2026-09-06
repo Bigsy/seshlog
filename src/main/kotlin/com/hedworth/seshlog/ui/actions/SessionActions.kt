@@ -61,12 +61,20 @@ class ResumeSessionAction : SessionAction("Resume", "Resume this session in a ne
             notify(project, "Session is already running$process", NotificationType.INFORMATION)
             return
         }
-        val command = SessionIndex.getInstance().resumeCommand(session)
-        try {
-            TerminalTabs.resume(project, session, command)
-            SessionRestoreManager.getInstance(project).recordLaunch(session)
-        } catch (t: Throwable) {
-            notify(project, "Could not open terminal: ${t.message}", NotificationType.ERROR)
+        val owned = OwnedTerminalTabs.getInstance(project)
+        val widget = owned.widgetFor(session.id)
+        if (widget != null && TerminalTabs.state(widget) != com.hedworth.seshlog.terminal.TerminalState.IDLE) {
+            owned.focus(session.id)
+            return
+        }
+        com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
+            val command = SessionIndex.getInstance().resumeCommand(target)
+            try {
+                TerminalTabs.resume(project, target, command)
+                SessionRestoreManager.getInstance(project).recordLaunch(target)
+            } catch (t: Throwable) {
+                notify(project, "Could not open terminal: ${t.message}", NotificationType.ERROR)
+            }
         }
     }
 }
@@ -88,11 +96,13 @@ abstract class ForkSessionActionBase : DumbAwareAction("Fork Session", "Continue
     final override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val session = sessionOf(e) ?: return
-        val command = SessionIndex.getInstance().forkCommand(session)
-        try {
-            TerminalTabs.fork(project, session, command)
-        } catch (t: Throwable) {
-            notify(project, "Could not open terminal: ${t.message}", NotificationType.ERROR)
+        com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
+            val command = SessionIndex.getInstance().forkCommand(target)
+            try {
+                TerminalTabs.fork(project, target, command)
+            } catch (t: Throwable) {
+                notify(project, "Could not open terminal: ${t.message}", NotificationType.ERROR)
+            }
         }
     }
 }

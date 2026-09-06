@@ -195,6 +195,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val group = DefaultActionGroup().apply {
             add(ActionManager.getInstance().getAction("Seshlog.Refresh"))
             add(ToggleAllProjectsAction())
+            add(object : ToggleAction("Sibling Worktrees", "Include worktrees sharing this repository", AllIcons.Vcs.Branch) {
+                override fun getActionUpdateThread() = ActionUpdateThread.EDT
+                override fun isSelected(e: AnActionEvent) = agentFilter.includeWorktrees
+                override fun setSelected(e: AnActionEvent, state: Boolean) { agentFilter.includeWorktrees = state; rerender() }
+            })
             add(AgentFilterAction())
             add(TogglePreviewAction())
             add(object : ToggleAction("Show Hidden", "Include locally hidden sessions", AllIcons.Actions.Show) {
@@ -325,7 +330,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         return all.asSequence()
             .filter { showHidden || !organisation.metadata(it.id).hidden }
             .filter { SessionFilter.isWorthShowing(it, minPrompts) }
-            .filter { settings.showAllProjects || resolvedPaths.isUnderAny(it.cwd, roots) }
+            .filter { settings.showAllProjects || resolvedPaths.isUnderAny(it.cwd, roots) ||
+                (agentFilter.includeWorktrees && resolvedPaths.belongsToRepository(it.cwd, roots)) }
             .toList()
     }
 

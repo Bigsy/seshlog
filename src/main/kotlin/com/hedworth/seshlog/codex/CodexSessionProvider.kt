@@ -25,12 +25,18 @@ class CodexSessionProvider(
 
     override val kind: AgentKind = AgentKind.CODEX
 
-    private val cache = FileBackedParseCache(CodexTranscriptInfoStore, cacheFile, CodexTranscriptParser::parse)
+    private val cache = FileBackedParseCache(CodexTranscriptInfoStore, cacheFile, CodexTranscriptParser::parse,
+        onReadFailure = { path, error -> scanProblem = "Cannot read $path: ${error.message}" },
+    )
 
     override fun dataRoot(): Path = dataDir()
     private fun sessionsDir() = dataDir().resolve("sessions")
     private fun namesFile() = dataDir().resolve("session_index.jsonl")
     private fun locksDir() = dataDir().resolve("thread-writer-locks")
+
+    @Volatile override var scanProblem: String? = null
+        private set
+    override fun storagePath(): Path = sessionsDir()
 
     override fun isAvailable(): Boolean = Files.isDirectory(sessionsDir())
 
@@ -43,6 +49,7 @@ class CodexSessionProvider(
         "${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)}"
 
     override fun scan(previous: Map<String, Session>): List<Session> {
+        scanProblem = null
         val root = sessionsDir()
         if (!Files.isDirectory(root)) return emptyList()
         val names = CodexSessionIndexReader.read(namesFile())
@@ -105,6 +112,7 @@ class CodexSessionProvider(
                 }.forEach(result::add)
             }
         } catch (e: Exception) {
+            scanProblem = "Cannot list $root: ${e.message}"
             LOG.debug("Cannot list Codex sessions under $root", e)
         }
         return result

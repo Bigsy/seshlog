@@ -24,6 +24,20 @@ class OpenCodeSessionProviderTest {
     }
 
     @Test
+    fun `corrupt database is diagnosed and retry can recover`() {
+        val root = tmp.root.toPath()
+        val provider = OpenCodeSessionProvider({ root }, { "opencode" })
+        Files.writeString(root.resolve("opencode.db"), "synthetic invalid database")
+        assertTrue(provider.scan(emptyMap()).isEmpty())
+        assertEquals(com.hedworth.seshlog.model.ProviderHealth.ERROR, provider.scanWithDiagnostics(emptyMap()).health)
+        Files.delete(root.resolve("opencode.db"))
+        OpenCodeFixture.create(root)
+        val recovered = provider.scanWithDiagnostics(emptyMap())
+        assertEquals(com.hedworth.seshlog.model.ProviderHealth.READY, recovered.health)
+        assertTrue(recovered.sessions.isNotEmpty())
+    }
+
+    @Test
     fun `scan lists top-level unarchived sessions with titles, prompt stats and no transcript file`() {
         val provider = provider()
         assertTrue(provider.isAvailable())

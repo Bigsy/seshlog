@@ -30,12 +30,18 @@ class ClaudeCodeSessionProvider(
 
     override val kind: AgentKind = AgentKind.CLAUDE_CODE
 
-    private val cache = FileBackedParseCache(TranscriptInfoStore, cacheFile, TranscriptParser::parse)
+    private val cache = FileBackedParseCache(TranscriptInfoStore, cacheFile, TranscriptParser::parse,
+        onReadFailure = { path, error -> scanProblem = "Cannot read $path: ${error.message}" },
+    )
 
     override fun dataRoot(): Path = dataDir()
 
     private fun projectsDir(): Path = dataDir().resolve("projects")
     private fun sessionsDir(): Path = dataDir().resolve("sessions")
+
+    @Volatile override var scanProblem: String? = null
+        private set
+    override fun storagePath(): Path = projectsDir()
 
     override fun isAvailable(): Boolean = Files.isDirectory(projectsDir())
 
@@ -47,6 +53,7 @@ class ClaudeCodeSessionProvider(
     override fun forkCommand(session: Session): String = "${resumeCommand(session)} --fork-session"
 
     override fun scan(previous: Map<String, Session>): List<Session> {
+        scanProblem = null
         val projects = projectsDir()
         if (!Files.isDirectory(projects)) return emptyList()
         val live = LiveSessionReader.read(sessionsDir())
@@ -63,13 +70,13 @@ class ClaudeCodeSessionProvider(
             }
             val info = cache.get(path, attrs) ?: continue
             val id = info.sessionId ?: path.fileName.toString().removeSuffix(".jsonl")
-            val cwd = info.cwd ?: continue // no user record yet: nothing to resume into
+            val cwd = info.cwd?.let { runCatching { Paths.get(it) }.getOrNull() } ?: continue // no user record yet: nothing to resume into
             val liveEntry = live[id]
             sessions += Session(
                 kind = kind,
                 id = id,
                 title = info.title,
-                cwd = Paths.get(cwd),
+                cwd = cwd,
                 gitBranch = info.gitBranch,
                 startedAt = info.startedAt,
                 lastActivityAt = Instant.ofEpochMilli(attrs.lastModifiedTime().toMillis()),
@@ -108,11 +115,13 @@ class ClaudeCodeSessionProvider(
                                 .forEach { result.add(it) }
                         }
                     } catch (e: Exception) {
+                        scanProblem = "Cannot list $dir: ${e.message}"
                         LOG.debug("Cannot list $dir", e)
                     }
                 }
             }
         } catch (e: Exception) {
+            scanProblem = "Cannot list $projects: ${e.message}"
             LOG.debug("Cannot list $projects", e)
         }
         return result

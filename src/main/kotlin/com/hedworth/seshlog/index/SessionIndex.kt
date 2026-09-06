@@ -28,6 +28,7 @@ class SessionIndex : Disposable {
     private val LOG = logger<SessionIndex>()
 
     interface SessionIndexListener {
+        fun scanStateChanged(scanning: Boolean) {}
         fun sessionsUpdated(sessions: List<Session>)
     }
 
@@ -61,6 +62,9 @@ class SessionIndex : Disposable {
     var lastScanMillis: Long = 0
         private set
 
+    @Volatile var providerDiagnostics: Map<com.hedworth.seshlog.model.AgentKind, com.hedworth.seshlog.model.ProviderScan> = emptyMap()
+        private set
+    val isScanning: Boolean get() = scanning.get()
     private val scanning = AtomicBoolean(false)
     private val rescanRequested = AtomicBoolean(false)
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog scanner", 1)
@@ -96,6 +100,7 @@ class SessionIndex : Disposable {
             rescanRequested.set(true)
             return
         }
+        publishScanState(true)
         executor.execute { runScan() }
     }
 
@@ -104,14 +109,13 @@ class SessionIndex : Disposable {
             val start = System.currentTimeMillis()
             val previous = sessions.associateBy { it.id }
             val result = ArrayList<Session>()
+            val diagnostics = linkedMapOf<com.hedworth.seshlog.model.AgentKind, com.hedworth.seshlog.model.ProviderScan>()
             for (provider in providers) {
-                if (!provider.isAvailable()) continue
-                try {
-                    result += provider.scan(previous)
-                } catch (e: Exception) {
-                    LOG.warn("Session scan failed for ${provider.kind}", e)
-                }
+                val scan = provider.scanWithDiagnostics(previous)
+                diagnostics[provider.kind] = scan
+                result += scan.sessions
             }
+            providerDiagnostics = diagnostics
             result.sortByDescending { it.lastActivityAt }
             sessions = result
             lastScanMillis = System.currentTimeMillis() - start
@@ -124,7 +128,15 @@ class SessionIndex : Disposable {
             }
         } finally {
             scanning.set(false)
+            publishScanState(false)
             if (rescanRequested.compareAndSet(true, false)) refresh()
+        }
+    }
+
+    private fun publishScanState(scanning: Boolean) {
+        val app = ApplicationManager.getApplication()
+        if (!app.isDisposed) app.invokeLater {
+            if (!app.isDisposed) app.messageBus.syncPublisher(TOPIC).scanStateChanged(scanning)
         }
     }
 

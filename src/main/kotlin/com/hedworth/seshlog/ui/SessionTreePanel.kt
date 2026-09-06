@@ -72,6 +72,10 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val index get() = SessionIndex.getInstance()
     private val agentFilter get() = AgentFilterState.getInstance(project)
 
+    private val statusLabel = javax.swing.JLabel()
+    private val retryButton = javax.swing.JButton("Retry")
+    private var searching = false
+
     private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
     val tree: Tree = Tree(treeModel)
     private val renderer = SessionCellRenderer()
@@ -139,12 +143,20 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         splitter.firstComponent = ScrollPaneFactory.createScrollPane(tree)
         splitter.secondComponent = preview
         add(splitter, BorderLayout.CENTER)
+        add(JPanel(BorderLayout()).apply {
+            add(statusLabel, BorderLayout.CENTER)
+            add(retryButton, BorderLayout.EAST)
+        }, BorderLayout.SOUTH)
+        retryButton.addActionListener { index.refresh(); if (activeQuery.isNotEmpty()) runSearch() }
+        updateLoadingState()
         applyPreviewVisibility()
 
         tree.addTreeSelectionListener { preview.showSession(selectedSession()) }
 
         project.messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
+            override fun scanStateChanged(scanning: Boolean) { updateLoadingState() }
             override fun sessionsUpdated(sessions: List<Session>) {
+                updateLoadingState()
                 requestedPaths = emptySet() // Refresh symlinks and missing ancestors on every scan.
                 preparePaths(sessions)
                 // A rescan while searching: re-run the query so new/changed transcripts are included.
@@ -298,6 +310,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         if (query.length < MIN_QUERY_LENGTH) {
             // Cleared (or too short): drop back to the plain list immediately.
             searchScope.cancel()
+            searching = false
+            updateLoadingState()
             if (activeQuery.isNotEmpty()) {
                 activeQuery = ""
                 render(index.sessions)
@@ -312,6 +326,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) return
         activeQuery = query
+        searching = true
+        updateLoadingState()
         val candidates = baseFilter(index.sessions)
         ContentSearchService.getInstance().search(searchScope, query, candidates) { hits ->
             // Stale delivery guard: the field may have changed since this search was requested.
@@ -339,6 +355,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     /** Show only the sessions in [hits], ranked best first within their project groups. */
     fun renderSearchResults(query: String, hits: List<SearchHit>) {
         activeQuery = query
+        searching = false
+        updateLoadingState()
         val byId = hits.associateBy { it.session.id }
         visibleSessions = hits.map { it.session }
         renderer.hits = byId
@@ -402,6 +420,17 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             ((p.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? Session)?.id == id
         }.firstOrNull() ?: return
         TreeUtil.promiseSelect(tree, path)
+    }
+
+    private fun updateLoadingState() {
+        val errors = index.providerDiagnostics.filterValues { it.health == com.hedworth.seshlog.model.ProviderHealth.ERROR }
+        val parts = mutableListOf<String>()
+        if (index.isScanning) parts += "Scanning…"
+        if (searching) parts += "Searching…"
+        errors.forEach { (kind, _) -> parts += "${kind.displayName}: storage could not be read" }
+        statusLabel.text = parts.joinToString(" · ")
+        statusLabel.toolTipText = errors.values.mapNotNull { it.problem }.joinToString("; ").ifEmpty { null }
+        retryButton.isVisible = errors.isNotEmpty()
     }
 
     private fun updateEmptyText(all: List<Session>) {

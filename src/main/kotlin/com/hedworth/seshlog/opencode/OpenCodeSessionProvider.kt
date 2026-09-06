@@ -37,6 +37,11 @@ class OpenCodeSessionProvider(
 
     override fun dataRoot(): Path = dataDir()
 
+    @Volatile override var scanProblem: String? = null
+        private set
+    override fun storagePath(): Path = databaseFile()
+    override val storageIsDirectory = false
+
     override fun isAvailable(): Boolean = Files.isRegularFile(databaseFile())
 
     /**
@@ -55,6 +60,7 @@ class OpenCodeSessionProvider(
     override fun forkCommand(session: Session): String = "${resumeCommand(session)} --fork"
 
     override fun scan(previous: Map<String, Session>): List<Session> {
+        scanProblem = null
         if (!isAvailable()) return emptyList()
         return try {
             val db = database()
@@ -98,6 +104,7 @@ class OpenCodeSessionProvider(
                 result
             }
         } catch (e: Exception) {
+            scanProblem = "Cannot read ${databaseFile()}: ${e.message}"
             LOG.warn("Cannot read opencode database ${databaseFile()}", e)
             emptyList()
         }

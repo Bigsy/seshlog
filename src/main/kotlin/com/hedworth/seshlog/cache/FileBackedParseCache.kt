@@ -37,6 +37,7 @@ class FileBackedParseCache<T>(
     private val store: InfoStore<T>,
     private val cacheFile: Path?,
     private val parse: (Path) -> T,
+    private val onReadFailure: (Path, Exception) -> Unit = { _, _ -> },
 ) {
     private val LOG = logger<FileBackedParseCache<*>>()
 
@@ -65,6 +66,7 @@ class FileBackedParseCache<T>(
         val info = try {
             parse(path)
         } catch (e: Exception) {
+            onReadFailure(path, e)
             LOG.debug("Failed to parse $path", e)
             return null
         }

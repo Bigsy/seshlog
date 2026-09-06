@@ -19,6 +19,13 @@ interface SessionProvider {
     /** Where the agent keeps its data (used for the empty-state message). */
     fun dataRoot(): Path
 
+    /** Actual session storage, for diagnostics (a directory except for SQLite providers). */
+    fun storagePath(): Path = dataRoot()
+    val storageIsDirectory: Boolean get() = true
+    val scanProblem: String? get() = null
+    fun scanWithDiagnostics(previous: Map<String, Session>): ProviderScan =
+        ProviderScan.read(storagePath(), storageIsDirectory, { scan(previous) }, { scanProblem })
+
     /**
      * Scan the agent's data and return every session found. [previous] is the last result keyed by
      * session id; implementations may use it to avoid re-reading unchanged transcripts.

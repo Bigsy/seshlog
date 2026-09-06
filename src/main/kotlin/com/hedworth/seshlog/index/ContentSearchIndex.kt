@@ -23,7 +23,7 @@ data class SearchHit(
  * Matching is a case-insensitive substring search — the `rg`-style "find the phrase" the plan asks
  * for, without a query language.
  *
- * @param extractor    reads one session into its list of message texts (may throw: treated as empty)
+ * @param extractor    reads one session into its list of message texts (may throw: skipped and retried on the next search)
  * @param contentStamp cheap change token for a session; null means "unknown", which disables caching for it
  */
 class ContentSearchIndex(
@@ -79,7 +79,8 @@ class ContentSearchIndex(
         val texts = try {
             extractor(session)
         } catch (_: Exception) {
-            emptyList()
+            entries.remove(session.id)
+            return null
         }
         val entry = Entry(stamp, texts, texts.map { it.lowercase() })
         // No stamp means we cannot tell when the content changes: use the extraction once, never cache it.

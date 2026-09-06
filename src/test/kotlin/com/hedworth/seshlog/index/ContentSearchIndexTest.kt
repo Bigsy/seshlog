@@ -42,6 +42,31 @@ class ContentSearchIndexTest {
     }
 
     @Test
+    fun `transient extraction failure retries without a stamp change`() {
+        val s = session("retry", "Title", listOf("needle"))
+        var calls = 0
+        val retrying = ContentSearchIndex(
+            extractor = { if (calls++ == 0) throw java.io.IOException("Temporarily locked") else listOf("needle") },
+            contentStamp = { 1 },
+        )
+        assertTrue(retrying.search("needle", listOf(s)).isEmpty())
+        assertEquals(0, retrying.size)
+        assertEquals(1, retrying.search("needle", listOf(s)).size)
+        retrying.search("needle", listOf(s))
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun `successful empty extraction is cached`() {
+        val s = session("empty", "Title", emptyList())
+        var calls = 0
+        val empty = ContentSearchIndex(extractor = { calls++; emptyList() }, contentStamp = { 1 })
+        repeat(2) { assertTrue(empty.search("needle", listOf(s)).isEmpty()) }
+        assertEquals(1, calls)
+        assertEquals(1, empty.size)
+    }
+
+    @Test
     fun `ranks by occurrence count, case-insensitively, with a snippet`() {
         val a = session("a", "Alpha", listOf("Fix the Rollback script", "rollback again, ROLLBACK once more"))
         val b = session("b", "Beta", listOf("nothing here"))

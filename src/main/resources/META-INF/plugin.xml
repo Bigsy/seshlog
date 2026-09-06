@@ -23,6 +23,13 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.4.1</b>
+    <ul>
+        <li>Safer terminal reuse, independent searches across project windows, and retries after transient content-read failures.</li>
+        <li>Faster project filtering, sibling-worktree support, and remembered replacement directories for sessions whose working directory is missing.</li>
+        <li>Session pins, local titles, hide/unhide, and preserved tree expansion and selection across refreshes.</li>
+        <li>Full conversation view with search-match navigation, provider diagnostics, loading indicators, and retry actions.</li>
+    </ul>
     <b>0.4.0</b>
     <ul>
         <li>opencode support: list, name, search, preview, resume and fork local opencode sessions, read straight from opencode's SQLite database (read-only).</li>

@@ -29,6 +29,10 @@ class ClaudeCodeSessionProviderTest {
         assertEquals(2, sessions.size)
         val titled = sessions.single { it.id == "425fc66d-def4-46ed-9d10-10b64b7788d2" }
         assertEquals("Fix flaky CI test", titled.title)
+        val conversation = provider.conversationMessages(titled)
+        assertTrue(conversation.isNotEmpty())
+        assertEquals(provider.conversationText(titled), conversation.map { it.text })
+        assertEquals(provider.lastMessages(titled, 2), conversation.takeLast(2))
         assertEquals(Paths.get("/Users/tester/workspace/acme/api"), titled.cwd)
         assertEquals(null, titled.displayBranch)
         assertTrue(!titled.isLive)

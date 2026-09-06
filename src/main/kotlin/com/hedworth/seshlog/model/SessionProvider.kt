@@ -41,6 +41,9 @@ interface SessionProvider {
      */
     fun conversationText(session: Session): List<String>
 
+    /** Full visible conversation, in order. I/O errors propagate; content remains in memory. */
+    fun conversationMessages(session: Session): List<ConversationMessage>
+
     /** The last [count] visible messages of [session] in chronological order, for the preview pane. */
     fun lastMessages(session: Session, count: Int): List<ConversationMessage>
 

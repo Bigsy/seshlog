@@ -97,7 +97,10 @@ class OpenCodeDatabase(private val file: Path) {
     }
 
     /** Every visible message text of the session, one string per message, oldest first. */
-    fun conversationText(conn: Connection, sessionId: String): List<String> {
+    fun conversationText(conn: Connection, sessionId: String): List<String> =
+        conversationMessages(conn, sessionId, TranscriptTextExtractor.MAX_CHARS_PER_TRANSCRIPT).map { it.text }
+
+    fun conversationMessages(conn: Connection, sessionId: String, maxChars: Int = Int.MAX_VALUE): List<ConversationMessage> {
         val sql = """
             SELECT m.id, json_extract(m.data, '$.role'), m.time_created, json_extract(p.data, '$.text')
             FROM message m JOIN part p ON p.message_id = m.id
@@ -108,7 +111,7 @@ class OpenCodeDatabase(private val file: Path) {
         """.trimIndent()
         conn.prepareStatement(sql).use { st ->
             st.setString(1, sessionId)
-            st.executeQuery().use { rs -> return fold(rs, TranscriptTextExtractor.MAX_CHARS_PER_TRANSCRIPT).map { it.text } }
+            st.executeQuery().use { rs -> return fold(rs, maxChars) }
         }
     }
 

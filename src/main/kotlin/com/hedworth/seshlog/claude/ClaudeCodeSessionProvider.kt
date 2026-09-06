@@ -88,6 +88,9 @@ class ClaudeCodeSessionProvider(
     override fun conversationText(session: Session): List<String> =
         session.transcriptPath?.let { TranscriptTextExtractor.extract(it) } ?: emptyList()
 
+    override fun conversationMessages(session: Session): List<ConversationMessage> =
+        session.transcriptPath?.let { TranscriptTextExtractor.messages(it) } ?: emptyList()
+
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> =
         session.transcriptPath?.let { TranscriptTailReader.lastMessages(it, count) } ?: emptyList()
 

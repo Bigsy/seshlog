@@ -108,6 +108,11 @@ class OpenCodeSessionProvider(
         return db.read { conn -> db.conversationText(conn, session.id) }
     }
 
+    override fun conversationMessages(session: Session): List<ConversationMessage> {
+        val db = database()
+        return db.read { conn -> db.conversationMessages(conn, session.id) }
+    }
+
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> {
         val db = database()
         return db.read { conn -> db.lastMessages(conn, session.id, count) }

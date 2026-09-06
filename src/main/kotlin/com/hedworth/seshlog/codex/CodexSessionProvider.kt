@@ -85,6 +85,9 @@ class CodexSessionProvider(
     override fun conversationText(session: Session): List<String> =
         session.transcriptPath?.let { TranscriptTextExtractor.extract(it, CodexConversationMessages::parseLine) } ?: emptyList()
 
+    override fun conversationMessages(session: Session): List<ConversationMessage> =
+        session.transcriptPath?.let { TranscriptTextExtractor.messages(it, parseLine = CodexConversationMessages::parseLine) } ?: emptyList()
+
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> =
         session.transcriptPath?.let { TranscriptTailReader.lastMessages(it, count, parseLine = CodexConversationMessages::parseLine) }
             ?: emptyList()

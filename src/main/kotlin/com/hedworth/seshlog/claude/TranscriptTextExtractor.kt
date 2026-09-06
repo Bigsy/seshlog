@@ -21,6 +21,9 @@ object TranscriptTextExtractor {
             extractLines(generateSequence { reader.readLine() }, parseLine)
         }
 
+    fun messages(path: Path, parseLine: (String) -> ConversationMessage? = ConversationMessages::parseLine): List<ConversationMessage> =
+        Files.newBufferedReader(path, StandardCharsets.UTF_8).useLines { lines -> lines.mapNotNull(parseLine).toList() }
+
     fun extractLines(lines: Sequence<String>, parseLine: (String) -> ConversationMessage? = ConversationMessages::parseLine): List<String> {
         val out = ArrayList<String>()
         var chars = 0

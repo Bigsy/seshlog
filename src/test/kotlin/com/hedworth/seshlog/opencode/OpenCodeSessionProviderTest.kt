@@ -32,6 +32,10 @@ class OpenCodeSessionProviderTest {
 
         val titled = sessions.single { it.id == "ses_a" }
         assertEquals(AgentKind.OPENCODE, titled.kind)
+        val conversation = provider.conversationMessages(titled)
+        assertTrue(conversation.isNotEmpty())
+        assertEquals(provider.conversationText(titled), conversation.map { it.text })
+        assertEquals(provider.lastMessages(titled, 2), conversation.takeLast(2))
         assertEquals("Add opencode support", titled.title)
         assertTrue(titled.hasExplicitTitle)
         assertEquals("Add opencode as a third provider.", titled.promptTitle)

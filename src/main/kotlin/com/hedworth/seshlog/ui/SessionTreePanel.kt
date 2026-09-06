@@ -202,6 +202,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             })
             add(AgentFilterAction())
             add(TogglePreviewAction())
+            add(ActionManager.getInstance().getAction("Seshlog.OpenConversation"))
             add(object : ToggleAction("Show Hidden", "Include locally hidden sessions", AllIcons.Actions.Show) {
                 override fun getActionUpdateThread() = ActionUpdateThread.EDT
                 override fun isSelected(e: AnActionEvent) = showHidden

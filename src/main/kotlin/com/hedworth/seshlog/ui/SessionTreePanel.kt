@@ -3,6 +3,7 @@ package com.hedworth.seshlog.ui
 import com.hedworth.seshlog.index.ContentSearchService
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SessionFilter
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
@@ -58,6 +59,11 @@ import javax.swing.tree.TreeSelectionModel
 
 class SessionTreePanel(private val project: Project, parentDisposable: Disposable) :
     JBPanel<SessionTreePanel>(BorderLayout()), DataProvider, Disposable {
+
+    @Volatile private var resolvedPaths = ResolvedPaths.EMPTY
+    private var requestedPaths: Set<Path> = emptySet()
+    private val pathScope = SearchRequestScope()
+    private var latestSessions: List<Session> = emptyList()
 
     private val settings get() = SeshlogSettings.getInstance()
     private val index get() = SessionIndex.getInstance()
@@ -136,6 +142,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         project.messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
             override fun sessionsUpdated(sessions: List<Session>) {
+                requestedPaths = emptySet() // Refresh symlinks and missing ancestors on every scan.
+                preparePaths(sessions)
                 // A rescan while searching: re-run the query so new/changed transcripts are included.
                 if (activeQuery.isNotEmpty()) runSearch() else render(sessions)
             }
@@ -148,6 +156,16 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             }
         })
 
+        project.messageBus.connect(this).subscribe(
+            com.intellij.ProjectTopics.PROJECT_ROOTS,
+            object : com.intellij.openapi.roots.ModuleRootListener {
+                override fun rootsChanged(event: com.intellij.openapi.roots.ModuleRootEvent) {
+                    requestedPaths = emptySet()
+                    preparePaths(index.sessions)
+                    rerender()
+                }
+            },
+        )
         render(index.sessions)
         index.refresh()
     }
@@ -270,6 +288,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     private fun runSearch() {
+        preparePaths(index.sessions)
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) return
         activeQuery = query
@@ -291,7 +310,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val roots = projectRoots()
         return all.asSequence()
             .filter { SessionFilter.isWorthShowing(it, minPrompts) }
-            .filter { settings.showAllProjects || SessionFilter.belongsToProject(it, roots) }
+            .filter { settings.showAllProjects || resolvedPaths.isUnderAny(it.cwd, roots) }
             .toList()
     }
 
@@ -323,6 +342,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     fun render(all: List<Session>) {
+        latestSessions = all
+        preparePaths(all)
         val filtered = baseFilter(all)
         visibleSessions = filtered
         renderer.hits = emptyMap()
@@ -334,6 +355,23 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         TreeUtil.expandAll(tree)
         previouslySelected?.let(::reselect)
         updateEmptyText(all)
+    }
+
+    /** Capture UI roots here; resolution and all filesystem access happen on a worker. */
+    private fun preparePaths(all: List<Session>) {
+        val paths = (all.map { it.cwd } + projectRoots()).toSet()
+        if (paths == requestedPaths) return
+        requestedPaths = paths
+        val cancelled = pathScope.begin()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val snapshot = ResolvedPaths.resolve(paths)
+            ApplicationManager.getApplication().invokeLater {
+                if (!cancelled() && !project.isDisposed) {
+                    resolvedPaths = snapshot
+                    if (activeQuery.isNotEmpty()) runSearch() else render(latestSessions)
+                }
+            }
+        }
     }
 
     /** Re-select the session with [id] if it is still in the tree; a vanished session just loses selection. */
@@ -381,7 +419,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         else -> null
     }
 
-    override fun dispose() { searchScope.dispose() }
+    override fun dispose() { searchScope.dispose(); pathScope.dispose() }
 
     companion object {
         const val MIN_QUERY_LENGTH = 2

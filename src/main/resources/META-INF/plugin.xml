@@ -23,6 +23,10 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.4.2</b>
+    <ul>
+        <li>Includes session organisation, sibling-worktree support, missing-directory recovery, full conversation search navigation, and reliability improvements from 0.4.1.</li>
+    </ul>
     <b>0.4.1</b>
     <ul>
         <li>Safer terminal reuse, independent searches across project windows, and retries after transient content-read failures.</li>

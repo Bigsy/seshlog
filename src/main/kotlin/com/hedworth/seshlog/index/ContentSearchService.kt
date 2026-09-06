@@ -18,6 +18,7 @@ class ContentSearchService : Disposable {
 
     private val index = ContentSearchIndex(
         extractor = { session -> SessionIndex.getInstance().providerFor(session).conversationText(session) },
+        localTitle = { com.hedworth.seshlog.settings.SessionOrganisation.getInstance().metadata(it.id).title },
         contentStamp = { session -> SessionIndex.getInstance().providerFor(session).contentStamp(session) },
     )
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog content search", 1)

@@ -68,6 +68,10 @@
             <action id="Seshlog.Fork" class="com.hedworth.seshlog.ui.actions.ForkSessionAction"
                     text="Fork Session" description="Continue this session's conversation in a new session" icon="AllIcons.Vcs.Branch"/>
             <separator/>
+            <action id="Seshlog.Pin" class="com.hedworth.seshlog.ui.actions.PinSessionAction" text="Pin / Unpin"/>
+            <action id="Seshlog.Rename" class="com.hedworth.seshlog.ui.actions.RenameSessionAction" text="Rename Locally…"/>
+            <action id="Seshlog.Hide" class="com.hedworth.seshlog.ui.actions.HideSessionAction" text="Hide / Unhide"/>
+            <separator/>
             <action id="Seshlog.CopyResumeCommand" class="com.hedworth.seshlog.ui.actions.CopyResumeCommandAction"
                     text="Copy Resume Command"/>
             <action id="Seshlog.CopySessionId" class="com.hedworth.seshlog.ui.actions.CopySessionIdAction"

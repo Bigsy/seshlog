@@ -41,7 +41,11 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
     private fun renderSession(session: Session) {
         icon = if (session.isLive) AllIcons.Debugger.ThreadRunning else AllIcons.Vcs.History
         val titleAttrs = if (session.isLive) SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES else SimpleTextAttributes.REGULAR_ATTRIBUTES
-        append(session.title, titleAttrs)
+        val organisation = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+        val metadata = organisation.metadata(session.id)
+        if (metadata.pinned) append("★ ", titleAttrs)
+        append(organisation.title(session), titleAttrs)
+        if (metadata.hidden) append("  hidden", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
         append("  " + DateFormatUtil.formatPrettyDateTime(session.lastActivityAt.toEpochMilli()), SimpleTextAttributes.GRAYED_ATTRIBUTES)
         session.displayBranch?.let { append("  $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }

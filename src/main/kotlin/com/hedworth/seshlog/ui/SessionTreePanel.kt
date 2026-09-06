@@ -65,6 +65,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val pathScope = SearchRequestScope()
     private var latestSessions: List<Session> = emptyList()
 
+    private val organisation get() = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+    private var showHidden = false
+
     private val settings get() = SeshlogSettings.getInstance()
     private val index get() = SessionIndex.getInstance()
     private val agentFilter get() = AgentFilterState.getInstance(project)
@@ -99,7 +102,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         tree.cellRenderer = renderer
         TreeSpeedSearch.installOn(tree, true) { path ->
             when (val obj = (path.lastPathComponent as? DefaultMutableTreeNode)?.userObject) {
-                is Session -> obj.title + " " + (obj.displayBranch ?: "")
+                is Session -> organisation.title(obj) + " " + obj.title + " " + (obj.displayBranch ?: "")
                 is ProjectGroup -> obj.displayName
                 else -> ""
             }
@@ -166,6 +169,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 }
             },
         )
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(
+            com.hedworth.seshlog.settings.SessionOrganisation.TOPIC,
+            object : com.hedworth.seshlog.settings.SessionOrganisation.Listener {
+                override fun changed() { rerender() }
+            },
+        )
         render(index.sessions)
         index.refresh()
     }
@@ -188,6 +197,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(ToggleAllProjectsAction())
             add(AgentFilterAction())
             add(TogglePreviewAction())
+            add(object : ToggleAction("Show Hidden", "Include locally hidden sessions", AllIcons.Actions.Show) {
+                override fun getActionUpdateThread() = ActionUpdateThread.EDT
+                override fun isSelected(e: AnActionEvent) = showHidden
+                override fun setSelected(e: AnActionEvent, state: Boolean) { showHidden = state; rerender() }
+            })
             addSeparator()
             add(object : DumbAwareAction("Settings", "Open Seshlog settings", AllIcons.General.Settings) {
                 override fun actionPerformed(e: AnActionEvent) =
@@ -309,6 +323,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val minPrompts = settings.minPromptsForUntitled
         val roots = projectRoots()
         return all.asSequence()
+            .filter { showHidden || !organisation.metadata(it.id).hidden }
             .filter { SessionFilter.isWorthShowing(it, minPrompts) }
             .filter { settings.showAllProjects || resolvedPaths.isUnderAny(it.cwd, roots) }
             .toList()
@@ -323,7 +338,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.query = query
 
         val previouslySelected = selectedSession()?.id
-        val groups = SessionTreeModel.groupRanked(hits)
+        val groups = SessionTreeModel.groupRanked(hits) { organisation.metadata(it.id).pinned }
         treeModel.setRoot(SessionTreeModel.buildRoot(groups))
         TreeUtil.expandAll(tree)
         previouslySelected?.let(::reselect)
@@ -350,7 +365,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.query = ""
 
         val previouslySelected = selectedSession()?.id
-        val groups = SessionTreeModel.group(filtered)
+        val groups = SessionTreeModel.group(filtered) { organisation.metadata(it.id).pinned }
         treeModel.setRoot(SessionTreeModel.buildRoot(groups))
         TreeUtil.expandAll(tree)
         previouslySelected?.let(::reselect)

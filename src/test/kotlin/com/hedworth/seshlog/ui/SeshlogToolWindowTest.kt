@@ -102,6 +102,29 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test hidden sessions are excluded and pins sort first`() {
+        val disposable = Disposer.newDisposable()
+        val organisation = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val older = session("pin", base, Instant.parse("2026-08-24T10:00:00Z"))
+            val newer = session("new", base, Instant.parse("2026-08-26T10:00:00Z"))
+            organisation.edit("pin") { it.pinned = true }
+            organisation.edit("new") { it.hidden = true }
+            panel.render(listOf(newer, older))
+            assertEquals(listOf("pin"), panel.visibleSessions.map { it.id })
+            organisation.edit("new") { it.hidden = false }
+            panel.render(listOf(newer, older))
+            val groups = SessionTreeModel.group(panel.visibleSessions) { organisation.metadata(it.id).pinned }
+            assertEquals(listOf("pin", "new"), groups.single().sessions.map { it.id })
+            assertEquals(newer.lastActivityAt, groups.single().lastActivityAt)
+        } finally {
+            Disposer.dispose(disposable)
+            organisation.loadState(com.hedworth.seshlog.settings.SessionOrganisation.State())
+        }
+    }
+
     private fun session(id: String, cwd: java.nio.file.Path, at: Instant) = Session(
         kind = AgentKind.CLAUDE_CODE, id = id, title = "Title $id", cwd = cwd, gitBranch = "main",
         startedAt = at, lastActivityAt = at, transcriptPath = cwd.resolve("$id.jsonl"),

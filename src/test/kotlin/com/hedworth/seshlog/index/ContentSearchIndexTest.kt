@@ -42,6 +42,15 @@ class ContentSearchIndexTest {
     }
 
     @Test
+    fun `local title is searchable without losing the provider title`() {
+        val s = session("renamed", "Original", emptyList())
+        val renamed = ContentSearchIndex({ emptyList() }, { 1 }, { "Local name" })
+        assertEquals(1, renamed.search("original", listOf(s)).size)
+        assertEquals(1, renamed.search("local", listOf(s)).size)
+        assertEquals("Original", s.title)
+    }
+
+    @Test
     fun `transient extraction failure retries without a stamp change`() {
         val s = session("retry", "Title", listOf("needle"))
         var calls = 0

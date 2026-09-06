@@ -29,6 +29,7 @@ data class SearchHit(
 class ContentSearchIndex(
     private val extractor: (Session) -> List<String>,
     private val contentStamp: (Session) -> Any?,
+    private val localTitle: (Session) -> String = { "" },
 ) {
 
     private class Entry(val stamp: Any?, val texts: List<String>, val lower: List<String>)
@@ -50,7 +51,7 @@ class ContentSearchIndex(
         for (session in sessions) {
             if (isCancelled()) break
             val entry = entryFor(session)
-            val titleMatch = session.title.lowercase().contains(needle)
+            val titleMatch = session.title.lowercase().contains(needle) || localTitle(session).lowercase().contains(needle)
             var count = 0
             var snippet: String? = null
             if (entry != null) {

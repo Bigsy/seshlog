@@ -76,6 +76,10 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val retryButton = javax.swing.JButton("Retry")
     private var searching = false
 
+    private val collapsedGroups = mutableSetOf<Path>()
+    private var rebuildingTree = false
+    private var rememberedSelection: String? = null
+
     private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
     val tree: Tree = Tree(treeModel)
     private val renderer = SessionCellRenderer()
@@ -151,7 +155,19 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         updateLoadingState()
         applyPreviewVisibility()
 
-        tree.addTreeSelectionListener { preview.showSession(selectedSession()) }
+        tree.addTreeSelectionListener {
+            selectedSession()?.let { rememberedSelection = it.id }
+            preview.showSession(selectedSession())
+        }
+        tree.addTreeExpansionListener(object : javax.swing.event.TreeExpansionListener {
+            override fun treeExpanded(event: javax.swing.event.TreeExpansionEvent) { rememberExpansion(event, false) }
+            override fun treeCollapsed(event: javax.swing.event.TreeExpansionEvent) { rememberExpansion(event, true) }
+            private fun rememberExpansion(event: javax.swing.event.TreeExpansionEvent, collapsed: Boolean) {
+                if (rebuildingTree) return
+                val group = (event.path.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? ProjectGroup ?: return
+                if (collapsed) collapsedGroups.add(group.cwd) else collapsedGroups.remove(group.cwd)
+            }
+        })
 
         project.messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
             override fun scanStateChanged(scanning: Boolean) { updateLoadingState() }
@@ -362,11 +378,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.hits = byId
         renderer.query = query
 
-        val previouslySelected = selectedSession()?.id
         val groups = SessionTreeModel.groupRanked(hits) { organisation.metadata(it.id).pinned }
-        treeModel.setRoot(SessionTreeModel.buildRoot(groups))
-        TreeUtil.expandAll(tree)
-        previouslySelected?.let(::reselect)
+        rebuildTree(groups)
 
         val text: StatusText = tree.emptyText
         text.clear()
@@ -389,11 +402,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.hits = emptyMap()
         renderer.query = ""
 
-        val previouslySelected = selectedSession()?.id
         val groups = SessionTreeModel.group(filtered) { organisation.metadata(it.id).pinned }
-        treeModel.setRoot(SessionTreeModel.buildRoot(groups))
-        TreeUtil.expandAll(tree)
-        previouslySelected?.let(::reselect)
+        rebuildTree(groups)
         updateEmptyText(all)
     }
 
@@ -414,12 +424,29 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
     }
 
+    private fun rebuildTree(groups: List<ProjectGroup>) {
+        val selection = selectedSession()?.id ?: rememberedSelection
+        rebuildingTree = true
+        try {
+            val root = SessionTreeModel.buildRoot(groups)
+            treeModel.setRoot(root)
+            for (i in 0 until root.childCount) {
+                val node = root.getChildAt(i) as DefaultMutableTreeNode
+                val group = node.userObject as ProjectGroup
+                if (group.cwd !in collapsedGroups) tree.expandPath(javax.swing.tree.TreePath(node.path))
+            }
+            selection?.let(::reselect)
+        } finally {
+            rebuildingTree = false
+        }
+    }
+
     /** Re-select the session with [id] if it is still in the tree; a vanished session just loses selection. */
     private fun reselect(id: String) {
         val path = TreeUtil.treePathTraverser(tree).filter { p ->
             ((p.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? Session)?.id == id
         }.firstOrNull() ?: return
-        TreeUtil.promiseSelect(tree, path)
+        if (tree.isExpanded(path.parentPath)) tree.selectionPath = path
     }
 
     private fun updateLoadingState() {

@@ -125,6 +125,37 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test collapsed groups and selection survive refresh and search rebuilds`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val a = session("state-a", base, Instant.parse("2026-08-26T10:00:00Z"))
+            val b = session("state-b", base.resolve("sub"), Instant.parse("2026-08-25T10:00:00Z"))
+            panel.render(listOf(a, b))
+            fun groupPath(cwd: java.nio.file.Path): javax.swing.tree.TreePath {
+                val root = panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode
+                val node = (0 until root.childCount).map { root.getChildAt(it) as javax.swing.tree.DefaultMutableTreeNode }
+                    .single { (it.userObject as ProjectGroup).cwd == cwd }
+                return javax.swing.tree.TreePath(node.path)
+            }
+            panel.tree.collapsePath(groupPath(base))
+            val root = panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode
+            val selected = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(root, b)!!
+            panel.tree.selectionPath = javax.swing.tree.TreePath(selected.path)
+            panel.render(listOf(a.copy(title = "Updated"), b))
+            assertFalse(panel.tree.isExpanded(groupPath(base)))
+            assertEquals(b.id, panel.selectedSession()?.id)
+            panel.renderSearchResults("needle", listOf(SearchHit(b, 1, false, "needle")))
+            panel.render(listOf(a, b))
+            assertFalse(panel.tree.isExpanded(groupPath(base)))
+            assertEquals(b.id, panel.selectedSession()?.id)
+            panel.tree.expandPath(groupPath(base))
+            panel.render(listOf(a, b))
+            assertTrue(panel.tree.isExpanded(groupPath(base)))
+        } finally { Disposer.dispose(disposable) }
+    }
+
     private fun session(id: String, cwd: java.nio.file.Path, at: Instant) = Session(
         kind = AgentKind.CLAUDE_CODE, id = id, title = "Title $id", cwd = cwd, gitBranch = "main",
         startedAt = at, lastActivityAt = at, transcriptPath = cwd.resolve("$id.jsonl"),

@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.ContentSearchService
+import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SearchHit
 import com.hedworth.seshlog.index.SessionFilter
 import com.hedworth.seshlog.index.SessionIndex
@@ -72,6 +73,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     /** Content search: the field, its debounce alarm, and the last delivered hits (by session id). */
     val searchField = SearchTextField(true)
+    private val searchScope = SearchRequestScope()
     private val searchAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
 
     /** Query currently applied to the list; empty when not searching. */
@@ -257,7 +259,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) {
             // Cleared (or too short): drop back to the plain list immediately.
-            ContentSearchService.getInstance().cancel()
+            searchScope.cancel()
             if (activeQuery.isNotEmpty()) {
                 activeQuery = ""
                 render(index.sessions)
@@ -272,7 +274,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         if (query.length < MIN_QUERY_LENGTH) return
         activeQuery = query
         val candidates = baseFilter(index.sessions)
-        ContentSearchService.getInstance().search(query, candidates) { hits ->
+        ContentSearchService.getInstance().search(searchScope, query, candidates) { hits ->
             // Stale delivery guard: the field may have changed since this search was requested.
             if (searchField.text.trim() == query) renderSearchResults(query, hits)
         }
@@ -379,7 +381,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         else -> null
     }
 
-    override fun dispose() = Unit
+    override fun dispose() { searchScope.dispose() }
 
     companion object {
         const val MIN_QUERY_LENGTH = 2

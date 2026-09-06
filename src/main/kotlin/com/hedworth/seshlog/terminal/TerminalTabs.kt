@@ -71,7 +71,7 @@ object TerminalTabs {
             } catch (_: Throwable) {
                 null
             } ?: continue
-            if (!hasRunningCommands(widget)) return widget
+            if (state(widget) == TerminalState.IDLE) return widget
         }
         return null
     }
@@ -84,7 +84,7 @@ object TerminalTabs {
     }
 
     /** True when the shell in [widget] is running something (e.g. `claude`). */
-    fun isBusy(widget: TerminalWidget): Boolean = hasRunningCommands(widget)
+    fun isBusy(widget: TerminalWidget): Boolean = state(widget) == TerminalState.BUSY
 
     /**
      * Resume [session] in the tab we already own for it (focus it when busy, run the command in it
@@ -95,7 +95,7 @@ object TerminalTabs {
     fun resume(project: Project, session: Session, command: String): TerminalWidget {
         val owned = OwnedTerminalTabs.getInstance(project)
         owned.widgetFor(session.id)?.let { widget ->
-            if (isBusy(widget)) {
+            if (state(widget) != TerminalState.IDLE) {
                 LOG.debug("Session ${session.id} already runs in its tab; focusing")
                 owned.focus(session.id)
             } else {
@@ -140,9 +140,7 @@ object TerminalTabs {
         null // not a local shell widget (SSH, new engine, not started yet…)
     }
 
-    private fun hasRunningCommands(widget: TerminalWidget): Boolean = try {
+    fun state(widget: TerminalWidget): TerminalState = TerminalState.inspect {
         ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget).hasRunningCommands()
-    } catch (_: Throwable) {
-        false // cannot tell: treat as idle, the worst case is a command typed into a busy shell
     }
 }

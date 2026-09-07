@@ -156,6 +156,31 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         } finally { Disposer.dispose(disposable) }
     }
 
+    fun `test date filter composes with project and agent filters before extraction`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val inside = session("date-in", base, Instant.parse("2026-08-25T12:00:00Z"))
+            val old = session("date-old", base, Instant.parse("2026-08-20T12:00:00Z"))
+            val outside = inside.copy(id = "date-out", cwd = Paths.get("/elsewhere"))
+            val otherAgent = inside.copy(id = "date-agent", kind = AgentKind.CODEX)
+            com.hedworth.seshlog.settings.AgentFilterState.getInstance(project).mode =
+                com.hedworth.seshlog.settings.AgentFilterMode.Only(AgentKind.CLAUDE_CODE)
+            panel.setDateFilter(com.hedworth.seshlog.index.SessionDateFilter(
+                com.hedworth.seshlog.index.DatePeriod.CUSTOM, java.time.LocalDate.parse("2026-08-25"), java.time.LocalDate.parse("2026-08-25")))
+            panel.render(listOf(inside, old, outside, otherAgent))
+            assertEquals(listOf(inside), panel.visibleSessions)
+            val extracted = mutableListOf<String>()
+            val search = com.hedworth.seshlog.index.ContentSearchIndex({ extracted += it.id; listOf("needle") }, { 1 })
+            search.search("needle", panel.visibleSessions)
+            assertEquals(listOf(inside.id), extracted)
+            panel.setDateFilter(com.hedworth.seshlog.index.SessionDateFilter())
+            panel.render(listOf(inside, old, outside, otherAgent))
+            assertEquals(listOf(inside, old), panel.visibleSessions)
+        } finally { Disposer.dispose(disposable) }
+    }
+
     private fun session(id: String, cwd: java.nio.file.Path, at: Instant) = Session(
         kind = AgentKind.CLAUDE_CODE, id = id, title = "Title $id", cwd = cwd, gitBranch = "main",
         startedAt = at, lastActivityAt = at, transcriptPath = cwd.resolve("$id.jsonl"),

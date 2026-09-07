@@ -67,6 +67,46 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     private val organisation get() = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
     private var showHidden = false
+    internal var dateFilter = com.hedworth.seshlog.index.SessionDateFilter()
+        private set
+    private val dateButton = javax.swing.JButton("All time")
+    private val clearDate = javax.swing.JButton("Clear date").apply { isVisible = false }
+
+    internal fun setDateFilter(filter: com.hedworth.seshlog.index.SessionDateFilter) {
+        dateFilter = filter
+        dateButton.text = filter.label
+        clearDate.isVisible = filter.period != com.hedworth.seshlog.index.DatePeriod.ALL
+        rerender()
+    }
+
+    private fun chooseDateFilter() {
+        val menu = javax.swing.JPopupMenu()
+        com.hedworth.seshlog.index.DatePeriod.values().forEach { period ->
+            menu.add(javax.swing.JMenuItem(period.label).apply {
+                addActionListener {
+                    if (period != com.hedworth.seshlog.index.DatePeriod.CUSTOM) {
+                        setDateFilter(com.hedworth.seshlog.index.SessionDateFilter(period))
+                    } else {
+                        val start = javax.swing.JTextField(dateFilter.start?.toString() ?: java.time.LocalDate.now().toString(), 10)
+                        val end = javax.swing.JTextField(dateFilter.end?.toString() ?: java.time.LocalDate.now().toString(), 10)
+                        val form = JPanel(java.awt.GridLayout(0, 2)).apply {
+                            add(javax.swing.JLabel("From (YYYY-MM-DD)")); add(start)
+                            add(javax.swing.JLabel("Through (YYYY-MM-DD)")); add(end)
+                        }
+                        while (javax.swing.JOptionPane.showConfirmDialog(this@SessionTreePanel, form,
+                                "Custom date range", javax.swing.JOptionPane.OK_CANCEL_OPTION) == javax.swing.JOptionPane.OK_OPTION) {
+                            val filter = runCatching { com.hedworth.seshlog.index.SessionDateFilter(period,
+                                java.time.LocalDate.parse(start.text.trim()), java.time.LocalDate.parse(end.text.trim())) }.getOrNull()
+                            if (filter != null) { setDateFilter(filter); break }
+                            javax.swing.JOptionPane.showMessageDialog(this@SessionTreePanel,
+                                "Enter valid dates with the start on or before the end.", "Invalid range", javax.swing.JOptionPane.ERROR_MESSAGE)
+                        }
+                    }
+                }
+            })
+        }
+        menu.show(dateButton, 0, dateButton.height)
+    }
 
     private val settings get() = SeshlogSettings.getInstance()
     private val index get() = SessionIndex.getInstance()
@@ -140,10 +180,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             override fun textChanged(e: DocumentEvent) = scheduleSearch()
         })
 
+        dateButton.addActionListener { chooseDateFilter() }
+        clearDate.addActionListener { setDateFilter(com.hedworth.seshlog.index.SessionDateFilter()) }
         val header = JPanel(BorderLayout()).apply {
             add(createToolbar().component, BorderLayout.WEST)
             add(searchField, BorderLayout.CENTER)
-            add(javax.swing.JLabel(com.hedworth.seshlog.index.TextQuery.HINT), BorderLayout.SOUTH)
+            add(JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0)).apply {
+                add(dateButton); add(clearDate)
+                add(javax.swing.JLabel(com.hedworth.seshlog.index.TextQuery.HINT))
+            }, BorderLayout.SOUTH)
         }
         add(header, BorderLayout.NORTH)
         splitter.firstComponent = ScrollPaneFactory.createScrollPane(tree)
@@ -355,7 +400,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     /** The project / worth-showing filter that applies to both the plain list and search candidates. */
     private fun baseFilter(all: List<Session>): List<Session> {
+        val bounds = dateFilter.bounds()
         return AgentSessionFilter.apply(unfilteredSessions(all), agentFilter.mode)
+            .filter { bounds.contains(it.lastActivityAt) }
     }
 
     /** Project/worth filter before applying the provider selection. */
@@ -385,7 +432,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         val text: StatusText = tree.emptyText
         text.clear()
-        if (hits.isEmpty()) text.appendText("No sessions match \"$query\"")
+        if (hits.isEmpty()) text.appendText("No sessions match \"$query\"" +
+            if (dateFilter.period != com.hedworth.seshlog.index.DatePeriod.ALL) " · ${dateFilter.label}" else "")
     }
 
     /** Project base path + content roots. Read once per render, on the EDT (no filesystem access). */
@@ -466,6 +514,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val text: StatusText = tree.emptyText
         text.clear()
         when {
+            dateFilter.period != com.hedworth.seshlog.index.DatePeriod.ALL -> {
+                text.appendText("No sessions in ${dateFilter.label} with the current filters.")
+                text.appendLine("Clear date filter", com.intellij.ui.SimpleTextAttributes.LINK_ATTRIBUTES) {
+                    setDateFilter(com.hedworth.seshlog.index.SessionDateFilter())
+                }
+            }
             all.isEmpty() -> {
                 text.appendText("No coding-agent sessions found under")
                 index.dataRootDescriptions().forEach { text.appendLine(it) }

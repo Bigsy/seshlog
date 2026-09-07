@@ -20,6 +20,8 @@ picker. Seshlog makes it a click.
 - **Flexible search** across provider titles, local names, project paths and conversation text.
   Words match in any order, including across messages; use `"quoted phrases"` for contiguous text.
   Title and phrase matches rank first, with recency breaking ties and snippets opening in the viewer.
+- **Date filter** for All time, Today, Last 7/30 days or a custom inclusive calendar range,
+  using last activity in your system time zone. It applies to browsing and search and resets with the panel.
 - **Conversation viewer** with term highlighting and previous/next match navigation.
 - **Pin, rename and hide** sessions locally; Show Hidden lets you restore them.
 - **Sibling worktrees** can be included in the project filter. Collapsed groups and selection survive refresh.

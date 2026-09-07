@@ -23,6 +23,15 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.5.0</b>
+    <ul>
+        <li>Pi support: discover, search, preview, resume and fork local sessions, with configurable executable and sessions directory. Requires Pi 0.84.2 or newer.</li>
+        <li>Pi search and previews follow the persisted active branch, preserving original history across compaction. Pi sessions have no live badges or restart recovery.</li>
+        <li>Search with literal terms and quoted phrases across session fields, with improved ranking and match navigation.</li>
+        <li>Filter browsing and search by local calendar dates.</li>
+        <li>Search and inspect tool activity from Claude Code, Codex and opencode, with limits on loaded content.</li>
+        <li>Copy individual entries or the loaded dialogue from the conversation viewer.</li>
+    </ul>
     <b>0.4.2</b>
     <ul>
         <li>Includes session organisation, sibling-worktree support, missing-directory recovery, full conversation search navigation, and reliability improvements from 0.4.1.</li>

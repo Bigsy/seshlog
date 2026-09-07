@@ -1,0 +1,11 @@
+{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Find the build failure"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Checking now."}]}}
+{"type": "response_item", "payload": {"type": "function_call", "call_id": "call-1", "name": "shell", "arguments": "{\"command\":\"cat src/demo.kt\"}"}}
+{"type": "response_item", "payload": {"type": "function_call_output", "call_id": "call-1", "output": [{"type": "text", "text": "TOOL_ONLY failure\nsecond line"}, {"type": "image", "data": "HIDDEN_BINARY"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "It needs a fix."}]}}
+{"type": "response_item", "payload": {"type": "function_call_output", "output": "orphan output"}}
+{"type": "response_item", "payload": {"type": "function_call", "arguments": null}}
+{"type": "response_item", "payload": {"type": "reasoning", "text": "HIDDEN_THOUGHT"}}
+{"type": "response_item", "payload": {"type": "custom_tool_call", "call_id": "custom-1", "name": "apply_patch", "input": "patch src/demo.kt"}}
+{"type": "response_item", "payload": {"type": "custom_tool_call_output", "call_id": "custom-1", "output": "patch done"}}
+{broken

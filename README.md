@@ -23,6 +23,14 @@ picker. Seshlog makes it a click.
 - **Date filter** for All time, Today, Last 7/30 days or a custom inclusive calendar range,
   using last activity in your system time zone. It applies to browsing and search and resets with the panel.
 - **Conversation viewer** with term highlighting and previous/next match navigation.
+  Claude Code, Codex and opencode tool names, inputs and textual results are searchable too.
+  Tool entries start collapsed; navigating to a match expands its entry. Use Expand/collapse tool
+  on the entry at the caret to inspect or fold it. Previews and prompt counts remain dialogue-only.
+  Images, binary payloads, thinking and subagents are excluded.
+- **Bounded content** shared by search and the viewer: 32,000 characters per entry,
+  500,000 characters / 2,000 entries per session. JSON records above 1,000,000 characters are
+  skipped and extraction scans at most 16,000,000 source characters. Truncation and partial
+  search coverage are shown explicitly; text beyond these limits is not searchable.
 - **Pin, rename and hide** sessions locally; Show Hidden lets you restore them.
 - **Sibling worktrees** can be included in the project filter. Collapsed groups and selection survive refresh.
 - **Missing-directory recovery** lets you choose a working directory when resuming old work.

@@ -54,8 +54,9 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         }
         val hit = hits[session.id]
         if (hit != null) {
-            val label = if (hit.snippet != null) "  content match" else "  title/path match"
+            val label = if (hit.toolMatch) "  tool match" else if (hit.snippet != null) "  content match" else "  title/path match"
             append(label, SimpleTextAttributes(SimpleTextAttributes.STYLE_SMALLER, HIT_COLOR))
+            if (hit.partial) append("  partial coverage", SimpleTextAttributes.GRAYED_ATTRIBUTES)
             hit.snippet?.let { append("  $it", SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES) }
         }
         toolTipText = tooltip(session, hit)

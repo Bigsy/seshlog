@@ -120,6 +120,11 @@ class OpenCodeSessionProvider(
         return db.read { conn -> db.conversationMessages(conn, session.id) }
     }
 
+    override fun conversationEntries(session: Session): List<com.hedworth.seshlog.model.ConversationEntry> {
+        val db = OpenCodeDatabase(storagePath())
+        return db.read { conn -> db.conversationEntries(conn, session.id) }
+    }
+
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> {
         val db = database()
         return db.read { conn -> db.lastMessages(conn, session.id, count) }

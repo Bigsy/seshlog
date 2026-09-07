@@ -175,7 +175,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         PopupHandler.installPopupMenu(tree, contextMenu, "SeshlogPopup")
 
         searchField.textEditor.emptyText.text = "Search titles, paths and content"
-        searchField.toolTipText = com.hedworth.seshlog.index.TextQuery.HINT
+        searchField.toolTipText = com.hedworth.seshlog.index.TextQuery.HINT + " " + com.hedworth.seshlog.model.ConversationLimits.NOTICE
         searchField.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = scheduleSearch()
         })
@@ -188,6 +188,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0)).apply {
                 add(dateButton); add(clearDate)
                 add(javax.swing.JLabel(com.hedworth.seshlog.index.TextQuery.HINT))
+                add(javax.swing.JLabel("Limited coverage").apply { toolTipText = com.hedworth.seshlog.model.ConversationLimits.NOTICE })
             }, BorderLayout.SOUTH)
         }
         add(header, BorderLayout.NORTH)

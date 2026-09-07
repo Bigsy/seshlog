@@ -12,6 +12,9 @@ data class SearchHit(
     val titleMatch: Boolean,
     /** Short context around the first content match, or null if only the title matched. */
     val snippet: String?,
+    val entryId: String? = null,
+    val toolMatch: Boolean = false,
+    val partial: Boolean = false,
 )
 
 /**
@@ -29,9 +32,14 @@ class ContentSearchIndex(
     private val extractor: (Session) -> List<String>,
     private val contentStamp: (Session) -> Any?,
     private val localTitle: (Session) -> String = { "" },
+    private val entryExtractor: ((Session) -> List<com.hedworth.seshlog.model.ConversationEntry>)? = null,
 ) {
 
-    private class Entry(val stamp: Any?, val texts: List<String>)
+    private class Entry(val stamp: Any?, val content: List<com.hedworth.seshlog.model.ConversationEntry>) {
+        val searchable = content.filter { it.searchable }
+        val texts = searchable.map { it.text }
+        val partial = content.any { it.truncated || !it.searchable }
+    }
 
     private val entries = ConcurrentHashMap<String, Entry>()
 
@@ -56,17 +64,20 @@ class ContentSearchIndex(
             val titleTerms = parsed.terms.filter { term -> titles.any(term::matches) }
             var count = 0
             var snippet: String? = null
-            for (text in texts) {
+            var matchedEntry: com.hedworth.seshlog.model.ConversationEntry? = null
+            for ((i, text) in texts.withIndex()) {
                 val ranges = parsed.ranges(text)
                 count = (count + ranges.size).coerceAtMost(9)
                 if (snippet == null && ranges.isNotEmpty()) {
                     val first = ranges.first()
-                    snippet = snippet(text, first.first, first.last - first.first + 1)
+                    matchedEntry = entry?.searchable?.get(i)
+                    snippet = (if (matchedEntry?.isTool == true) "${matchedEntry.label}: " else "") +
+                        snippet(text, first.first, first.last - first.first + 1)
                 }
             }
             val phraseBonus = parsed.terms.count { it.phrase && texts.any(it::matches) } * 20
             hits += SearchHit(session, titleTerms.size * TITLE_BONUS + phraseBonus + count,
-                titleTerms.isNotEmpty(), snippet)
+                titleTerms.isNotEmpty(), snippet, matchedEntry?.sourceId, matchedEntry?.isTool == true, entry?.partial == true)
         }
         hits.sortWith(compareByDescending<SearchHit> { it.score }.thenByDescending { it.session.lastActivityAt })
         return hits
@@ -81,7 +92,10 @@ class ContentSearchIndex(
         val stamp = contentStamp(session)
         if (stamp != null) entries[session.id]?.let { if (it.stamp == stamp) return it }
         val texts = try {
-            extractor(session)
+            entryExtractor?.invoke(session) ?: extractor(session).mapIndexed { i, text ->
+                com.hedworth.seshlog.model.ConversationEntry(
+                    com.hedworth.seshlog.model.ConversationMessage(com.hedworth.seshlog.model.Role.ASSISTANT, text, null), "message:$i")
+            }
         } catch (_: Exception) {
             entries.remove(session.id)
             return null

@@ -51,6 +51,15 @@ interface SessionProvider {
     /** Full visible conversation, in order. I/O errors propagate; content remains in memory. */
     fun conversationMessages(session: Session): List<ConversationMessage>
 
+    /** Dialogue and tool activity with shared in-memory search/viewer limits. */
+    fun conversationEntries(session: Session): List<ConversationEntry> {
+        val collector = ConversationLimits.Collector()
+        conversationMessages(session).forEachIndexed { index, message ->
+            collector.add(ConversationEntry(message, "message:$index"))
+        }
+        return collector.finish()
+    }
+
     /** The last [count] visible messages of [session] in chronological order, for the preview pane. */
     fun lastMessages(session: Session, count: Int): List<ConversationMessage>
 

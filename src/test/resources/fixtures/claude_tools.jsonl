@@ -1,0 +1,8 @@
+{"type": "user", "uuid": "u1", "message": {"content": "Find the build failure"}}
+{"type": "assistant", "uuid": "a1", "message": {"content": [{"type": "text", "text": "Checking now."}, {"type": "tool_use", "id": "call-1", "name": "shell", "input": {"command": "cat src/demo.kt", "attachment": {"type": "image", "data": "HIDDEN_BINARY"}}}, {"type": "thinking", "thinking": "HIDDEN_THOUGHT"}]}}
+{"type": "user", "uuid": "u2", "message": {"content": [{"type": "tool_result", "tool_use_id": "call-1", "content": [{"type": "text", "text": "TOOL_ONLY failure\nsecond line"}, {"type": "image", "data": "HIDDEN_BINARY"}]}]}}
+{"type": "assistant", "uuid": "a2", "message": {"content": [{"type": "text", "text": "It needs a fix."}]}}
+{"type": "user", "message": {"content": [{"type": "tool_result", "content": "orphan output"}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "input": null}, {"type": "unknown", "text": "HIDDEN_UNKNOWN"}]}}
+{"type": "assistant", "isSidechain": true, "message": {"content": [{"type": "tool_use", "name": "hidden", "input": {"text": "HIDDEN_SUBAGENT"}}]}}
+{broken

@@ -115,6 +115,36 @@ class OpenCodeDatabase(private val file: Path) {
         }
     }
 
+    /** Raw parts are bounded before JDBC materializes them. Malformed rows are skipped individually. */
+    fun conversationEntries(conn: Connection, sessionId: String): List<com.hedworth.seshlog.model.ConversationEntry> {
+        val out = com.hedworth.seshlog.model.ConversationLimits.Collector()
+        val sql = """
+            SELECT m.id, CASE WHEN json_valid(m.data) THEN json_extract(m.data, '$.role') END,
+                   m.time_created, p.id, length(p.data),
+                   CASE WHEN length(p.data) <= ${com.hedworth.seshlog.model.ConversationLimits.RECORD_CHARS} THEN p.data END
+            FROM message m JOIN part p ON p.message_id = m.id
+            WHERE m.session_id = ?
+            ORDER BY m.time_created, m.id, p.id
+        """.trimIndent()
+        conn.prepareStatement(sql).use { st ->
+            st.setString(1, sessionId)
+            st.executeQuery().use { rs ->
+                var sourceChars = 0L
+                while (rs.next()) {
+                    sourceChars += rs.getLong(5)
+                    if (out.full || sourceChars > com.hedworth.seshlog.model.ConversationLimits.SOURCE_CHARS) {
+                        out.limited = true; break
+                    }
+                    val raw = rs.getString(6)
+                    if (raw == null) { out.limited = true; continue }
+                    val role = roleOf(rs.getString(2)) ?: continue
+                    OpenCodeConversationEntries.parse(raw, rs.getString(4), role, Instant.ofEpochMilli(rs.getLong(3))).forEach(out::add)
+                }
+            }
+        }
+        return out.finish()
+    }
+
     /** The last [count] messages that have text, oldest first. */
     fun lastMessages(conn: Connection, sessionId: String, count: Int): List<ConversationMessage> {
         if (count <= 0) return emptyList()

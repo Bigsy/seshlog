@@ -1,0 +1,10 @@
+{"type": "text", "text": "Find the build failure"}
+{"type": "text", "text": "Checking now."}
+{"type": "tool", "tool": "shell", "callID": "call-1", "state": {"status": "error", "input": {"command": "cat src/demo.kt"}, "error": "TOOL_ONLY failure\nsecond line"}}
+{"type": "text", "text": "It needs a fix."}
+{"type": "tool", "state": {"status": "completed", "output": "orphan output"}}
+{"type": "tool", "state": null}
+{"type": "file", "data": "HIDDEN_BINARY"}
+{"type": "reasoning", "text": "HIDDEN_THOUGHT"}
+{"type": "text", "synthetic": true, "text": "HIDDEN_SYNTHETIC"}
+{broken

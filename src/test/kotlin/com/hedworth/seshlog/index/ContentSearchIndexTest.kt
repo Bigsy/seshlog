@@ -42,6 +42,26 @@ class ContentSearchIndexTest {
     }
 
     @Test
+    fun `terms span titles paths and messages and title beats repeated body matches`() {
+        val body = session("body", "Other", listOf("needle ".repeat(1000), "exact phrase"))
+        val title = session("title", "Needle", listOf("exact phrase"))
+        val query = "needle \"exact phrase\" " + tmp.root.name
+        assertEquals(listOf("title", "body"), index.search(query, listOf(body, title)).map { it.session.id })
+        assertTrue(index.search(query + " absent", listOf(body, title)).isEmpty())
+    }
+
+    @Test
+    fun `recency breaks equal ranking and phrases beat incidental repetition`() {
+        val old = session("old", "Other", listOf("word"), "2026-08-19T00:00:00Z")
+        val recent = session("recent", "Other", listOf("word"))
+        assertEquals(listOf("recent", "old"), index.search("word", listOf(old, recent)).map { it.session.id })
+        val pathPhrase = old.copy(cwd = Path.of("/exact phrase"))
+        val contentPhrase = recent.copy(id = "phrase")
+        contents[contentPhrase.transcriptPath!!] = listOf("word exact phrase")
+        assertEquals("phrase", index.search("word \"exact phrase\"", listOf(pathPhrase, contentPhrase)).first().session.id)
+    }
+
+    @Test
     fun `local title is searchable without losing the provider title`() {
         val s = session("renamed", "Original", emptyList())
         val renamed = ContentSearchIndex({ emptyList() }, { 1 }, { "Local name" })

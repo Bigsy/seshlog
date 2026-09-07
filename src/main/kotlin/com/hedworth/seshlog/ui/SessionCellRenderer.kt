@@ -54,11 +54,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         }
         val hit = hits[session.id]
         if (hit != null) {
-            val contentHits = hit.score - if (hit.titleMatch) com.hedworth.seshlog.index.ContentSearchIndex.TITLE_BONUS else 0
-            val label = when {
-                contentHits > 0 -> "  $contentHits match${if (contentHits == 1) "" else "es"}"
-                else -> "  title"
-            }
+            val label = if (hit.snippet != null) "  content match" else "  title/path match"
             append(label, SimpleTextAttributes(SimpleTextAttributes.STYLE_SMALLER, HIT_COLOR))
             hit.snippet?.let { append("  $it", SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES) }
         }

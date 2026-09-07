@@ -6,18 +6,10 @@ import com.hedworth.seshlog.model.Role
 /** Plain text and match offsets share the same source, including Unicode character offsets. */
 data class ConversationDocument(val text: String, val messageRanges: List<IntRange>) {
     fun matches(query: String): List<IntRange> {
-        if (query.isBlank()) return emptyList()
-        val matches = ArrayList<IntRange>()
-        for (range in messageRanges) {
-            var start = range.first
-            while (start + query.length - 1 <= range.last) {
-                if (text.regionMatches(start, query, 0, query.length, ignoreCase = true)) {
-                    matches += start until start + query.length
-                    start += query.length
-                } else start++
-            }
+        val parsed = com.hedworth.seshlog.index.TextQuery.parse(query)
+        return messageRanges.flatMap { range ->
+            parsed.ranges(text.substring(range)).map { (it.first + range.first)..(it.last + range.first) }
         }
-        return matches
     }
 
     companion object {

@@ -46,6 +46,7 @@ class ConversationDialog(private val project: Project, private val session: Sess
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
         preferredSize = Dimension(850, 650)
         add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+            toolTipText = com.hedworth.seshlog.index.TextQuery.HINT
             add(JLabel("Find")); add(search); add(previous); add(next)
             add(JButton("Retry").apply { addActionListener { load() } })
         }, BorderLayout.NORTH)
@@ -80,7 +81,7 @@ class ConversationDialog(private val project: Project, private val session: Sess
         status.text = when {
             document.text.isEmpty() -> "No conversation yet."
             search.text.isBlank() -> "${document.messageRanges.size} messages"
-            matches.isEmpty() -> "No content matches (the session title may match)."
+            matches.isEmpty() -> "No content matches. This result may match only the title or project path."
             else -> "${matches.size} matches"
         }
         if (matches.isNotEmpty()) navigate(1)

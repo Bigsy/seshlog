@@ -134,7 +134,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val contextMenu = ActionManager.getInstance().getAction("Seshlog.ContextMenu") as DefaultActionGroup
         PopupHandler.installPopupMenu(tree, contextMenu, "SeshlogPopup")
 
-        searchField.textEditor.emptyText.text = "Search titles and transcript content"
+        searchField.textEditor.emptyText.text = "Search titles, paths and content"
+        searchField.toolTipText = com.hedworth.seshlog.index.TextQuery.HINT
         searchField.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = scheduleSearch()
         })
@@ -142,6 +143,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val header = JPanel(BorderLayout()).apply {
             add(createToolbar().component, BorderLayout.WEST)
             add(searchField, BorderLayout.CENTER)
+            add(javax.swing.JLabel(com.hedworth.seshlog.index.TextQuery.HINT), BorderLayout.SOUTH)
         }
         add(header, BorderLayout.NORTH)
         splitter.firstComponent = ScrollPaneFactory.createScrollPane(tree)

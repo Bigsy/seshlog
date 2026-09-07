@@ -17,8 +17,14 @@ picker. Seshlog makes it a click.
   prompt count, and a live indicator for sessions running right now.
 - **Agent filter** which defaults to the provider with the most sessions in this project. Force All,
   or a single agent, from the toolbar; the choice is remembered per project.
-- **Full-text search** across your prompts and the assistant's replies, not just titles. Results are
-  ranked by hit count with a snippet of the first match.
+- **Flexible search** across provider titles, local names, project paths and conversation text.
+  Words match in any order, including across messages; use `"quoted phrases"` for contiguous text.
+  Title and phrase matches rank first, with recency breaking ties and snippets opening in the viewer.
+- **Conversation viewer** with term highlighting and previous/next match navigation.
+- **Pin, rename and hide** sessions locally; Show Hidden lets you restore them.
+- **Sibling worktrees** can be included in the project filter. Collapsed groups and selection survive refresh.
+- **Missing-directory recovery** lets you choose a working directory when resuming old work.
+- **Loading and provider diagnostics** show scan/search progress and offer retry for unreadable storage.
 - **Preview pane** showing the last messages of the selected session without opening anything.
 - **Resume or fork** into a terminal tab. If the session is already running in one of this project's
   tabs, Seshlog focuses that tab instead of starting a duplicate.
@@ -121,7 +127,6 @@ database from.
 - **Titles for the untitled.** Around 7% of sessions never get an `ai-title`; generate one from the
   first exchange and store it on the Seshlog side.
 - **Housekeeping.** Delete or archive old transcripts from the UI, and show disk usage per project.
-- **Rename.** A Seshlog-side title override — never a write into Claude's own files.
 
 ## Contributing
 

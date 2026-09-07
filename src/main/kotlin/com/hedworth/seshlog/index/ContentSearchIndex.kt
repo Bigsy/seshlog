@@ -20,8 +20,7 @@ data class SearchHit(
  * [search] re-extracts any session whose stamp is new or changed before matching against it, so the
  * first query pays the extraction cost and later ones are pure string scans.
  *
- * Matching is a case-insensitive substring search — the `rg`-style "find the phrase" the plan asks
- * for, without a query language.
+ * Matching uses literal AND terms and quoted phrases shared with conversation navigation.
  *
  * @param extractor    reads one session into its list of message texts (may throw: skipped and retried on the next search)
  * @param contentStamp cheap change token for a session; null means "unknown", which disables caching for it
@@ -32,7 +31,7 @@ class ContentSearchIndex(
     private val localTitle: (Session) -> String = { "" },
 ) {
 
-    private class Entry(val stamp: Any?, val texts: List<String>, val lower: List<String>)
+    private class Entry(val stamp: Any?, val texts: List<String>)
 
     private val entries = ConcurrentHashMap<String, Entry>()
 
@@ -45,25 +44,29 @@ class ContentSearchIndex(
      * Results are ranked best first.
      */
     fun search(query: String, sessions: List<Session>, isCancelled: () -> Boolean = { false }): List<SearchHit> {
-        val needle = query.trim().lowercase()
-        if (needle.isEmpty()) return emptyList()
+        val parsed = TextQuery.parse(query)
+        if (parsed.terms.isEmpty()) return emptyList()
         val hits = ArrayList<SearchHit>()
         for (session in sessions) {
             if (isCancelled()) break
             val entry = entryFor(session)
-            val titleMatch = session.title.lowercase().contains(needle) || localTitle(session).lowercase().contains(needle)
+            val titles = listOf(session.title, localTitle(session))
+            val texts = entry?.texts.orEmpty()
+            if (!parsed.matches(titles + session.cwd.toString() + texts)) continue
+            val titleTerms = parsed.terms.filter { term -> titles.any(term::matches) }
             var count = 0
             var snippet: String? = null
-            if (entry != null) {
-                for (i in entry.lower.indices) {
-                    val c = countOccurrences(entry.lower[i], needle)
-                    if (c == 0) continue
-                    if (snippet == null) snippet = snippet(entry.texts[i], entry.lower[i].indexOf(needle), needle.length)
-                    count += c
+            for (text in texts) {
+                val ranges = parsed.ranges(text)
+                count = (count + ranges.size).coerceAtMost(9)
+                if (snippet == null && ranges.isNotEmpty()) {
+                    val first = ranges.first()
+                    snippet = snippet(text, first.first, first.last - first.first + 1)
                 }
             }
-            if (count == 0 && !titleMatch) continue
-            hits += SearchHit(session, count + if (titleMatch) TITLE_BONUS else 0, titleMatch, snippet)
+            val phraseBonus = parsed.terms.count { it.phrase && texts.any(it::matches) } * 20
+            hits += SearchHit(session, titleTerms.size * TITLE_BONUS + phraseBonus + count,
+                titleTerms.isNotEmpty(), snippet)
         }
         hits.sortWith(compareByDescending<SearchHit> { it.score }.thenByDescending { it.session.lastActivityAt })
         return hits
@@ -83,7 +86,7 @@ class ContentSearchIndex(
             entries.remove(session.id)
             return null
         }
-        val entry = Entry(stamp, texts, texts.map { it.lowercase() })
+        val entry = Entry(stamp, texts)
         // No stamp means we cannot tell when the content changes: use the extraction once, never cache it.
         if (stamp == null) entries.remove(session.id) else entries[session.id] = entry
         return entry
@@ -91,7 +94,7 @@ class ContentSearchIndex(
 
     companion object {
         /** A title match outranks a handful of incidental content matches. */
-        const val TITLE_BONUS = 10
+        const val TITLE_BONUS = 100
         private const val SNIPPET_CONTEXT = 60
 
         internal fun countOccurrences(haystack: String, needle: String): Int {

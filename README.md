@@ -2,7 +2,7 @@
 
 https://plugins.jetbrains.com/plugin/33850-seshlog--coding-agent-session-manager
 
-An IntelliJ plugin that lists your local Claude Code, Codex and opencode sessions, titled the way
+An IntelliJ plugin that lists your local Claude Code, Codex, opencode and Pi sessions, titled the way
 the agent titled them, with one click to resume any of them in a terminal tab.
 
 Restarting your IDE closes every terminal tab, and with them your running coding-agent sessions.
@@ -53,7 +53,7 @@ picker. Seshlog makes it a click.
 
 - IntelliJ IDEA 2024.1 or newer (any IntelliJ Platform IDE with the bundled Terminal plugin).
 - Any of [Claude Code](https://claude.com/claude-code),
-  [Codex](https://developers.openai.com/codex/cli/) or [opencode](https://opencode.ai) installed,
+  [Codex](https://developers.openai.com/codex/cli/), [opencode](https://opencode.ai) or [Pi](https://pi.dev) installed,
   with the corresponding executable on the PATH of the shell your Terminal tool window uses.
 - JDK 17 to build from source.
 
@@ -70,13 +70,32 @@ then in the IDE: **Settings → Plugins → ⚙ → Install Plugin from Disk…*
 
 Open the tool window with **View → Tool Windows → Seshlog** (it docks on the right).
 
+### Pi sessions
+
+Pi support requires **0.84.2 or newer**. Seshlog reads JSONL files in the sessions directory
+and its immediate project subdirectories without migrating or modifying them. Configure a custom
+`--session-dir` location under **Tools → Seshlog → Pi sessions directory**; per-project Pi
+settings and arbitrary storage locations are not discovered automatically.
+
+Search, preview, prompt counts and fallback titles use the persisted active branch, retaining
+original conversation history across compaction. Other branches are not searched, and branch
+switches that Pi has not saved cannot be inferred. Only user and assistant text is included;
+images, thinking, tools and extension content are omitted. Explicit session names take precedence.
+Pi has no live badges or restart recovery. Manual Resume and Fork work through the terminal;
+forks are saved beside the source so custom-root sessions remain discoverable.
+
+CLI acceptance was checked offline with [Pi v0.84.2](https://github.com/badlogic/pi-mono/tree/914cf1472e715297caa30db4b9535d534a9eb718)
+using disposable synthetic sessions: exact-file resume and a new fork ID with `--session-dir`,
+including paths containing spaces and apostrophes.
+
 ## Privacy
 
 Seshlog is entirely local. It makes no network requests of any kind — there is no telemetry, no
 analytics, and no remote service involved.
 
 It reads the agents' data directories — `$CLAUDE_CONFIG_DIR`/`~/.claude`,
-`$CODEX_HOME`/`~/.codex` and `$XDG_DATA_HOME/opencode`/`~/.local/share/opencode` — **read-only** and
+`$CODEX_HOME`/`~/.codex`, Pi’s sessions directory (normally `~/.pi/agent/sessions`)
+and `$XDG_DATA_HOME/opencode`/`~/.local/share/opencode` — **read-only** and
 never writes to them. opencode's SQLite database is opened read-only, so a session running
 alongside is never disturbed — reading it does update `opencode.db-shm`, the shared-memory index
 every SQLite reader maintains, which holds no session data of its own. Its own state lives in the IDE's own storage:
@@ -98,6 +117,8 @@ every SQLite reader maintains, which holds no session data of its own. Its own s
 | Claude executable | `claude` | Resolved via the terminal shell's PATH |
 | Codex data directory | auto | `$CODEX_HOME`, else `~/.codex` |
 | Codex executable | `codex` | Resolved via the terminal shell's PATH |
+| Pi sessions directory | auto | `$PI_CODING_AGENT_SESSION_DIR`, else `$PI_CODING_AGENT_DIR/sessions`, else `~/.pi/agent/sessions` |
+| Pi executable | `pi` | Pi 0.84.2 or newer; resolved via the terminal shell's PATH |
 | opencode data directory | auto | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` |
 | opencode executable | `opencode` | Resolved via the terminal shell's PATH |
 | Show archived sessions (opencode) | off | Sessions archived inside opencode stay hidden unless on |

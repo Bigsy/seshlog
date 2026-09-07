@@ -30,6 +30,24 @@ class PiTranscriptParserTest {
         assertEquals(1, result.info.promptCount)
     }
 
+    @Test fun `explicit v1 and missing version have identical history even without final newline`() {
+        val path = fixture("linear-v1-unterminated")
+        assertFalse(Files.readString(path).endsWith("\n"))
+        assertEquals(PiTranscriptParser.read(fixture("linear")), PiTranscriptParser.read(path))
+    }
+
+    @Test fun `only string text blocks are visible and invalid metadata does not overwrite a valid name`() {
+        val result = parse(
+            message("a", "null", "Prompt"),
+            """{"type":"session_info","id":"name","parentId":"a","name":"Valid name"}""",
+            """{"type":"session_info","id":"bad-name","parentId":"name","name":42}""",
+            """{"type":"message","id":"b","parentId":"bad-name","timestamp":"invalid","message":{"role":"assistant","timestamp":1767312000000,"content":[null,42,{"type":"text","text":{}},{"type":"text","text":"Answer"},{"type":"text","text":"More"},{"type":"toolCall","name":"Ignored"}]}}""",
+        )
+        assertEquals(listOf("Prompt", "Answer\nMore"), result.messages.map { it.text })
+        assertEquals("Valid name", result.info.explicitTitle)
+        assertEquals(Instant.ofEpochMilli(1767312000000), result.info.lastActivityAt)
+    }
+
     @Test fun `invalid and truncated records do not hide valid leaf`() {
         assertEquals(listOf("Safe prompt"), PiTranscriptParser.read(fixture("malformed")).messages.map { it.text })
     }
@@ -64,7 +82,7 @@ class PiTranscriptParserTest {
     }
 
     @Test fun `reading fixtures never changes bytes including unterminated legacy`() {
-        for (name in listOf("branch", "linear", "malformed")) {
+        for (name in listOf("branch", "linear", "linear-v1-unterminated", "malformed")) {
             val path = fixture(name)
             val before = Files.readAllBytes(path)
             PiTranscriptParser.read(path)

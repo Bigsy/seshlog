@@ -4,7 +4,7 @@
     <vendor url="https://github.com/Bigsy/seshlog">Bill Hedworth</vendor>
 
     <description><![CDATA[
-    List, search and resume your local Claude Code, Codex and opencode sessions from a tool window,
+    List, search and resume your local Claude Code, Codex, opencode and Pi sessions from a tool window,
     titled the way the agent titles them, with one click to reopen any of them in a terminal tab.
     <br><br>
     <ul>

@@ -19,9 +19,18 @@ import javax.swing.event.DocumentEvent
 import javax.swing.text.DefaultHighlighter
 
 /** Full conversation stays in memory; loading never blocks the EDT. */
-class ConversationDialog(private val project: Project, private val session: Session, query: String) : DialogWrapper(project, false) {
+class ConversationDialog(
+    private val project: Project,
+    private val session: Session,
+    query: String,
+    private val loader: (Session) -> List<com.hedworth.seshlog.model.ConversationEntry> =
+        { SessionIndex.getInstance().providerFor(it).conversationEntries(it) },
+    private val copy: (String) -> Unit = {
+        com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(it))
+    },
+) : DialogWrapper(project, false) {
     private val scope = SearchRequestScope()
-    private val editor = JBTextArea().apply { isEditable = false; lineWrap = true; wrapStyleWord = true }
+    internal val editor = JBTextArea().apply { isEditable = false; lineWrap = true; wrapStyleWord = true }
     private val search = JBTextField(query, 24)
     private val status = JLabel("Loading conversation…")
     private val previous = JButton("Previous match")
@@ -29,6 +38,8 @@ class ConversationDialog(private val project: Project, private val session: Sess
     private var document = ConversationDocument("", emptyList())
     private var matches = emptyList<EntryMatch>()
     private val toggleTool = JButton("Expand/collapse tool")
+    internal val copyMessageButton = JButton("Copy Message")
+    internal val copyDialogueButton = JButton("Copy Conversation (dialogue only)")
     private var loading = true
     private var current = -1
 
@@ -48,6 +59,18 @@ class ConversationDialog(private val project: Project, private val session: Sess
                 editor.caretPosition = document.entryRanges[index].first
             }
         }
+        copyMessageButton.addActionListener {
+            if (!loading) document.copyMessage(editor.caretPosition)?.let {
+                copy(it)
+                status.text = "Message copied." + coverageStatus()
+            }
+        }
+        copyDialogueButton.addActionListener {
+            if (!loading && document.hasDialogue) {
+                copy(document.copyDialogue())
+                status.text = "Loaded dialogue copied." + coverageStatus()
+            }
+        }
         editor.addCaretListener { updateActions() }
         updateActions()
         search.document.addDocumentListener(object : DocumentAdapter() {
@@ -59,10 +82,15 @@ class ConversationDialog(private val project: Project, private val session: Sess
     override fun createActions(): Array<Action> = arrayOf(cancelAction)
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
         preferredSize = Dimension(850, 650)
-        add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
-            toolTipText = com.hedworth.seshlog.index.TextQuery.HINT
-            add(JLabel("Find")); add(search); add(previous); add(next); add(toggleTool)
-            add(JButton("Retry").apply { addActionListener { load() } })
+        add(JPanel(java.awt.GridLayout(0, 1)).apply {
+            add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+                toolTipText = com.hedworth.seshlog.index.TextQuery.HINT
+                add(JLabel("Find")); add(search); add(previous); add(next)
+            })
+            add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+                add(toggleTool); add(copyMessageButton); add(copyDialogueButton)
+                add(JButton("Retry").apply { addActionListener { load() } })
+            })
         }, BorderLayout.NORTH)
         add(ScrollPaneFactory.createScrollPane(editor), BorderLayout.CENTER)
         add(status, BorderLayout.SOUTH)
@@ -75,7 +103,7 @@ class ConversationDialog(private val project: Project, private val session: Sess
         val cancelled = scope.begin()
         val app = ApplicationManager.getApplication()
         app.executeOnPooledThread {
-            val result = runCatching { ConversationDocument.buildEntries(SessionIndex.getInstance().providerFor(session).conversationEntries(session)) }
+            val result = runCatching { ConversationDocument.buildEntries(loader(session)) }
             app.invokeLater {
                 if (cancelled() || project.isDisposed) return@invokeLater
                 loading = false
@@ -130,6 +158,8 @@ class ConversationDialog(private val project: Project, private val session: Sess
         if (document.entries.any { it.truncated || !it.searchable }) " · Partial content/search coverage (see notice)" else ""
 
     private fun updateActions() {
+        copyMessageButton.isEnabled = !loading && document.copyMessage(editor.caretPosition) != null
+        copyDialogueButton.isEnabled = !loading && document.hasDialogue
         previous.isEnabled = !loading && matches.isNotEmpty()
         next.isEnabled = previous.isEnabled
         toggleTool.isEnabled = !loading && document.entryAt(editor.caretPosition)?.let { document.entries[it].isTool } == true

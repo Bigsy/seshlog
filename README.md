@@ -31,6 +31,10 @@ picker. Seshlog makes it a click.
   500,000 characters / 2,000 entries per session. JSON records above 1,000,000 characters are
   skipped and extraction scans at most 16,000,000 source characters. Truncation and partial
   search coverage are shown explicitly; text beyond these limits is not searchable.
+- **Copy Message** copies the entry at the viewer caret or current match, including an explicitly
+  selected tool entry. **Copy Conversation (dialogue only)** copies loaded user/assistant text with
+  role labels, preserving code blocks and blank lines. Ordinary selection copying still works.
+  Copy actions are disabled during loading; partial content is reported when limits apply.
 - **Pin, rename and hide** sessions locally; Show Hidden lets you restore them.
 - **Sibling worktrees** can be included in the project filter. Collapsed groups and selection survive refresh.
 - **Missing-directory recovery** lets you choose a working directory when resuming old work.

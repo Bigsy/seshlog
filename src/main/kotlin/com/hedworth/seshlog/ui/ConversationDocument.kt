@@ -30,6 +30,15 @@ data class ConversationDocument(
 
     fun entryAt(caret: Int): Int? = entryRanges.indexOfFirst { caret in it }.takeIf { it >= 0 }
 
+    /** Copy source text, including whitespace/code blocks, without display labels or separators. */
+    fun copyMessage(caret: Int): String? =
+        entryAt(caret)?.let { entries.getOrNull(it) }?.takeIf { it.searchable && it.text.isNotEmpty() }?.text
+
+    fun copyDialogue(): String = entries.filter { it.kind == EntryKind.DIALOGUE && it.text.isNotEmpty() }
+        .joinToString("\n\n") { "${it.label}:\n${it.text}" }
+
+    val hasDialogue: Boolean get() = entries.any { it.kind == EntryKind.DIALOGUE && it.text.isNotEmpty() }
+
     /** Expands just the target, retaining the original text offset for a search match. */
     fun reveal(match: EntryMatch): Pair<ConversationDocument, IntRange> {
         val entry = entries[match.entryIndex]

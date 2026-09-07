@@ -5,4 +5,5 @@ enum class AgentKind(val displayName: String) {
     CODEX("Codex"),
     /** opencode styles its own name lowercase. */
     OPENCODE("opencode"),
+    PI("Pi"),
 }

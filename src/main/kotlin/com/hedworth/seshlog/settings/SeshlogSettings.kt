@@ -26,6 +26,9 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         /** Empty = auto (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`). */
         var opencodeDataDir: String = ""
         var opencodeExecutable: String = "opencode"
+        /** Empty = environment overrides or ~/.pi/agent/sessions. */
+        var piSessionsDir: String = ""
+        var piExecutable: String = "pi"
         /** opencode lets the user archive a session to hide it from its own list; hidden here too unless set. */
         var opencodeShowArchived: Boolean = false
         var showAllProjects: Boolean = false
@@ -66,6 +69,16 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var opencodeExecutable: String
         get() = state.opencodeExecutable.ifBlank { "opencode" }
         set(value) { state.opencodeExecutable = value }
+
+    var piSessionsDir: String
+        get() = state.piSessionsDir
+        set(value) { state.piSessionsDir = value }
+
+    var piExecutable: String
+        get() = state.piExecutable.ifBlank { "pi" }
+        set(value) { state.piExecutable = value }
+
+    fun resolvedPiSessionsDir(): Path = resolvePiSessionsDir(state.piSessionsDir)
 
     var opencodeShowArchived: Boolean
         get() = state.opencodeShowArchived
@@ -128,6 +141,14 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
 
         fun resolveOpenCodeDataDir(configured: String, env: Map<String, String> = System.getenv()): Path =
             if (configured.isBlank()) defaultOpenCodeDataDir(env) else Paths.get(expandTilde(configured.trim()))
+
+        fun resolvePiSessionsDir(configured: String, env: Map<String, String> = System.getenv()): Path {
+            val selected = configured.takeIf { it.isNotBlank() }
+                ?: env["PI_CODING_AGENT_SESSION_DIR"]?.takeIf { it.isNotBlank() }
+                ?: env["PI_CODING_AGENT_DIR"]?.takeIf { it.isNotBlank() }?.let { "${it.trim()}/sessions" }
+                ?: "~/.pi/agent/sessions"
+            return Paths.get(expandTilde(selected.trim())).toAbsolutePath().normalize()
+        }
 
         private fun expandTilde(p: String): String =
             if (p == "~" || p.startsWith("~/")) System.getProperty("user.home") + p.substring(1) else p

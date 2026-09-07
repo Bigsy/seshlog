@@ -40,6 +40,11 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                         .comment("Sessions archived in opencode's own session list are hidden unless this is on.")
                 }
             }
+            agentGroup(
+                "Pi", settings::piSessionsDir, settings::piExecutable,
+                "Leave empty to use PI_CODING_AGENT_SESSION_DIR, PI_CODING_AGENT_DIR/sessions or ~/.pi/agent/sessions (currently ${settings.resolvedPiSessionsDir()}).",
+                directoryLabel = "Pi sessions directory:",
+            )
             group("Session List") {
                 row {
                     checkBox("Show sessions from all projects by default")
@@ -84,10 +89,11 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
         dataDir: KMutableProperty0<String>,
         executable: KMutableProperty0<String>,
         dataDirComment: String,
+        directoryLabel: String = "Data directory:",
         extraRows: Panel.() -> Unit = {},
     ) {
         group(title) {
-            row("Data directory:") {
+            row(directoryLabel) {
                 // Row.textFieldWithBrowseButton's signature differs between 2024.1 (sinceBuild) and 2026.x
                 // (old overload is a compile error); a plain field + FileChooser works on both.
                 val field = TextFieldWithBrowseButton().apply {

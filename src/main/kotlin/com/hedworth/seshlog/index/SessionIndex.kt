@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.index
 
 import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
+import com.hedworth.seshlog.pi.PiSessionProvider
 import com.hedworth.seshlog.codex.CodexSessionProvider
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
@@ -51,6 +52,11 @@ class SessionIndex : Disposable {
             dataDir = { settings.resolvedOpenCodeDataDir() },
             executable = { settings.opencodeExecutable },
             showArchived = { settings.opencodeShowArchived },
+        ),
+        PiSessionProvider(
+            sessionsDir = { settings.resolvedPiSessionsDir() },
+            executable = { settings.piExecutable },
+            cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "pi-index.json"),
         ),
     )
 

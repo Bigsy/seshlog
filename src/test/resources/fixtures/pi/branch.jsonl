@@ -1,0 +1,7 @@
+{"type":"session","version":3,"id":"synthetic-pi","cwd":"/synthetic/project","timestamp":"2026-01-01T00:00:00Z","parentSession":"/synthetic/parent.jsonl"}
+{"type":"message","id":"a","parentId":null,"timestamp":"2026-01-01T01:00:00Z","message":{"role":"user","content":"First prompt"}}
+{"type":"message","id":"abandoned","parentId":"a","timestamp":"2026-01-03T00:00:00Z","message":{"role":"assistant","content":"Abandoned reply"}}
+{"type":"future_type","id":"link","parentId":"a","payload":"ignored"}
+{"type":"compaction","id":"compact","parentId":"link","summary":"Never search summary"}
+{"type":"message","id":"b","parentId":"compact","message":{"role":"assistant","timestamp":1767312000000,"content":[{"type":"thinking","thinking":"secret"},{"type":"text","text":"Selected reply"},{"type":"image","data":"secret"}]}}
+{"type":"session_info","id":"name","parentId":"b","name":"Named session"}

@@ -1,0 +1,7 @@
+{"type":"session","id":"legacy","cwd":"/synthetic/project","timestamp":"bad"}
+{"type":"message","message":{"role":"user","content":"Legacy prompt"}}
+{"type":"message","message":{"role":"user","content":"/help"}}
+{"type":"message","message":{"role":"user","content":[{"type":"image","data":"ignored"}]}}
+{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"Legacy answer"},{"type":"toolCall","name":"ignored"}]}}
+{"type":"session_info","name":"Old title"}
+{"type":"session_info","name":""}

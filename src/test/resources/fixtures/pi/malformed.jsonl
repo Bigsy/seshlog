@@ -1,0 +1,7 @@
+{"type":"session","version":2,"id":"malformed","cwd":"/synthetic/project"}
+null
+[]
+{"type":12}
+{"type":"message","id":"good","parentId":null,"timestamp":{},"message":{"role":"user","content":"Safe prompt"}}
+{"type":"message","id":"bad","parentId":42,"message":{"role":"user","content":"Wrong parent type"}}
+{"type":"message","id":"tail"

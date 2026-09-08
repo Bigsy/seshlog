@@ -56,6 +56,41 @@ class CodexSessionProviderTest {
     }
 
     @Test
+    fun `guardian rollouts sharing a session id are excluded across cache reloads`() {
+        val root = tmp.root.toPath()
+        val day = Files.createDirectories(root.resolve("sessions/2026/09/08"))
+        val id = "019a1111-2222-7333-8444-555555555555"
+        val userRollout = day.resolve("rollout-user.jsonl")
+        Files.writeString(userRollout,
+            """{"type":"session_meta","payload":{"id":"$id","session_id":"$id","cwd":"/project","source":"cli","thread_source":"user"}}""")
+        // Either metadata marker is sufficient; old rollouts can lack thread_source.
+        val markers = listOf(
+            """"thread_source":"guardian_review"""",
+            """"source":{"subagent":{"other":"guardian"}}""",
+            """"thread_source":"guardian_review","source":{"subagent":{"other":"guardian"}}""",
+        )
+        markers.forEachIndexed { index, marker ->
+            Files.writeString(day.resolve("rollout-guardian-$index.jsonl"),
+                """{"type":"session_meta","payload":{"id":"guardian-$index","session_id":"$id","cwd":"/project",$marker}}""")
+        }
+        Files.writeString(root.resolve("session_index.jsonl"),
+            """{"id":"$id","thread_name":"Make error numbers clickable"}""")
+        val cacheFile = root.resolve("cache.json")
+        repeat(2) {
+            val session = CodexSessionProvider({ root }, { "codex" }, cacheFile).scan(emptyMap()).single()
+            assertEquals(id, session.id)
+            assertEquals("Make error numbers clickable", session.title)
+            assertEquals(userRollout, session.transcriptPath)
+        }
+        assertEquals(4, CodexTranscriptInfoStore.load(cacheFile).size)
+    }
+
+    @Test
+    fun `previous cache version is discarded so guardian metadata is reparsed`() {
+        assertTrue(CodexTranscriptInfoStore.fromJson("""{"version":1,"entries":[{"path":"/rollout.jsonl","size":1,"mtime":1}]}""").isEmpty())
+    }
+
+    @Test
     fun `resume and fork commands quote executable and id`() {
         val root = tmp.root.toPath()
         val provider = CodexSessionProvider({ root }, { "/opt/Codex CLI/codex" })

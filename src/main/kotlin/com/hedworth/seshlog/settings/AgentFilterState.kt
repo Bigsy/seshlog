@@ -10,23 +10,26 @@ import com.intellij.openapi.components.StoragePathMacros
 import com.intellij.openapi.project.Project
 
 /**
- * Which agent's sessions the tool window shows. [Only] wraps an [AgentKind] so adding an agent
- * never touches this class; the persisted form is `"AUTO"`, `"ALL"` or the kind's name.
+ * Which agents the tool window shows. Legacy Auto, All and single-agent preferences remain readable.
  */
 sealed class AgentFilterMode(val displayName: String) {
     /** The agent with the most sessions in the current scope. */
     object Auto : AgentFilterMode("Auto")
     object All : AgentFilterMode("All agents")
     data class Only(val kind: AgentKind) : AgentFilterMode(kind.displayName)
+    data class Selected(val kinds: Set<AgentKind>) : AgentFilterMode(
+        AgentKind.entries.filter { it in kinds }.joinToString(" and ") { it.displayName },
+    )
 
     fun serialize(): String = when (this) {
         Auto -> "AUTO"
         All -> "ALL"
         is Only -> kind.name
+        is Selected -> "SELECTED:" + AgentKind.entries.filter { it in kinds }.joinToString(",") { it.name }
     }
 
     companion object {
-        /** Auto, All, then one entry per agent — the order the toolbar popup shows them in. */
+        /** Built-in presets, followed by each individual agent. */
         val entries: List<AgentFilterMode>
             get() = listOf(Auto, All) + AgentKind.entries.map(::Only)
 
@@ -34,7 +37,10 @@ sealed class AgentFilterMode(val displayName: String) {
         fun parse(value: String): AgentFilterMode = when (value) {
             "AUTO" -> Auto
             "ALL" -> All
-            else -> AgentKind.entries.firstOrNull { it.name == value }?.let(::Only) ?: Auto
+            else -> if (value.startsWith("SELECTED:")) {
+                val names = value.removePrefix("SELECTED:").split(',')
+                Selected(AgentKind.entries.filter { it.name in names }.toSet())
+            } else AgentKind.entries.firstOrNull { it.name == value }?.let(::Only) ?: Auto
         }
     }
 }
@@ -71,16 +77,17 @@ class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
 /** Pure provider-selection logic used by the tool window and tests. */
 object AgentSessionFilter {
     fun apply(sessions: List<Session>, mode: AgentFilterMode): List<Session> {
-        val kind = when (mode) {
-            AgentFilterMode.All -> null
-            is AgentFilterMode.Only -> mode.kind
-            AgentFilterMode.Auto -> sessions.groupingBy { it.kind }.eachCount()
-                .maxWithOrNull(compareBy<Map.Entry<AgentKind, Int>> { it.value }.thenByDescending { it.key.ordinal })
-                ?.key
-        }
-        return if (kind == null) sessions else sessions.filter { it.kind == kind }
+        val kinds = effectiveKinds(sessions, mode)
+        return sessions.filter { it.kind in kinds }
     }
 
-    fun effectiveKind(sessions: List<Session>, mode: AgentFilterMode): AgentKind? =
-        apply(sessions, mode).firstOrNull()?.kind
+    fun effectiveKinds(sessions: List<Session>, mode: AgentFilterMode): Set<AgentKind> =
+        when (mode) {
+            AgentFilterMode.All -> AgentKind.entries.toSet()
+            is AgentFilterMode.Only -> setOf(mode.kind)
+            is AgentFilterMode.Selected -> mode.kinds
+            AgentFilterMode.Auto -> sessions.groupingBy { it.kind }.eachCount()
+                .maxWithOrNull(compareBy<Map.Entry<AgentKind, Int>> { it.value }.thenByDescending { it.key.ordinal })
+                ?.key?.let { setOf(it) } ?: emptySet()
+        }
 }

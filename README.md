@@ -15,8 +15,8 @@ picker. Seshlog makes it a click.
 
 - **Sessions grouped by project**, sorted by last activity, with the agent's own title, git branch,
   prompt count, and a live indicator for sessions running right now.
-- **Agent filter** which defaults to the provider with the most sessions in this project. Force All,
-  or a single agent, from the toolbar; the choice is remembered per project.
+- **Agent toggle buttons** let you show any combination, such as Claude Code and Codex together.
+  Auto defaults to the provider with the most sessions; All selects every agent. Choices are remembered per project.
 - **Flexible search** across provider titles, local names, project paths and conversation text.
   Words match in any order, including across messages; use `"quoted phrases"` for contiguous text.
   Title and phrase matches rank first, with recency breaking ties and snippets opening in the viewer.
@@ -122,7 +122,7 @@ every SQLite reader maintains, which holds no session data of its own. Its own s
 | opencode data directory | auto | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` |
 | opencode executable | `opencode` | Resolved via the terminal shell's PATH |
 | Show archived sessions (opencode) | off | Sessions archived inside opencode stay hidden unless on |
-| Agent toolbar filter | Auto | Shows the provider with the most sessions; a forced choice is stored per project |
+| Agent toggle buttons | Auto | Show any combination of agents, all agents, or automatically the provider with the most sessions; stored per project |
 | Show sessions from all projects | off | Otherwise only sessions whose cwd is under the open project |
 | Hide untitled sessions with fewer than *n* prompts | 1 | Filters out aborted starts; 0 shows everything |
 | Sessions live at shutdown | Ask | Ask / Always restore / Never restore |

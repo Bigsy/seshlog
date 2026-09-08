@@ -7,6 +7,7 @@ import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SessionFilter
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.SeshlogSettingsListener
 import com.hedworth.seshlog.settings.AgentFilterMode
@@ -26,7 +27,6 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.options.ShowSettingsUtil
-import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
@@ -112,6 +112,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val index get() = SessionIndex.getInstance()
     private val agentFilter get() = AgentFilterState.getInstance(project)
 
+    internal val agentButtons = AgentKind.entries.associateWith {
+        javax.swing.JToggleButton(if (it == AgentKind.CLAUDE_CODE) "Claude" else it.displayName)
+    }
+    private val autoAgentButton = javax.swing.JToggleButton("Auto")
+    private val allAgentsButton = javax.swing.JButton("All")
+
     private val statusLabel = javax.swing.JLabel()
     private val retryButton = javax.swing.JButton("Retry")
     private var searching = false
@@ -183,6 +189,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         dateButton.addActionListener { chooseDateFilter() }
         clearDate.addActionListener { setDateFilter(com.hedworth.seshlog.index.SessionDateFilter()) }
         val header = JPanel(BorderLayout()).apply {
+            add(createAgentButtons(), BorderLayout.NORTH)
             add(createToolbar().component, BorderLayout.WEST)
             add(searchField, BorderLayout.CENTER)
             add(JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0)).apply {
@@ -276,7 +283,6 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 override fun isSelected(e: AnActionEvent) = agentFilter.includeWorktrees
                 override fun setSelected(e: AnActionEvent, state: Boolean) { agentFilter.includeWorktrees = state; rerender() }
             })
-            add(AgentFilterAction())
             add(TogglePreviewAction())
             add(ActionManager.getInstance().getAction("Seshlog.OpenConversation"))
             add(object : ToggleAction("Show Hidden", "Include locally hidden sessions", AllIcons.Actions.Show) {
@@ -315,37 +321,40 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
     }
 
-    private inner class AgentFilterAction :
-        DumbAwareAction("Agent: Auto", "Choose which coding agent's sessions to show", null) {
-        override fun getActionUpdateThread() = ActionUpdateThread.BGT
-
-        override fun update(e: AnActionEvent) {
-            val mode = agentFilter.mode
-            val effective = AgentSessionFilter.effectiveKind(unfilteredSessions(index.sessions), mode)
-            e.presentation.text = when (mode) {
-                AgentFilterMode.Auto -> "Agent: ${effective?.displayName ?: "Auto"} (Auto)"
-                else -> "Agent: ${mode.displayName}"
-            }
+    private fun createAgentButtons(): JComponent = JPanel(java.awt.GridLayout(1, 0, 4, 0)).apply {
+        autoAgentButton.toolTipText = "Automatically show the agent with the most sessions"
+        autoAgentButton.addActionListener {
+            agentFilter.mode = AgentFilterMode.Auto
+            rerender()
         }
-
-        override fun actionPerformed(e: AnActionEvent) {
-            val group = DefaultActionGroup()
-            AgentFilterMode.entries.forEach { mode ->
-                group.add(object : ToggleAction(mode.displayName) {
-                    override fun getActionUpdateThread() = ActionUpdateThread.BGT
-                    override fun isSelected(e: AnActionEvent): Boolean = agentFilter.mode == mode
-                    override fun setSelected(e: AnActionEvent, state: Boolean) {
-                        if (state) {
-                            agentFilter.mode = mode
-                            rerender()
-                        }
-                    }
-                })
-            }
-            JBPopupFactory.getInstance()
-                .createActionGroupPopup("Show Agent", group, e.dataContext, false, null, -1)
-                .showInBestPositionFor(e.dataContext)
+        add(autoAgentButton)
+        allAgentsButton.toolTipText = "Show all agents"
+        allAgentsButton.addActionListener {
+            agentFilter.mode = AgentFilterMode.All
+            rerender()
         }
+        add(allAgentsButton)
+        agentButtons.forEach { (kind, button) ->
+            button.toolTipText = "Show or hide ${kind.displayName} sessions; select multiple agents"
+            button.addActionListener {
+                val selected = AgentSessionFilter.effectiveKinds(unfilteredSessions(latestSessions), agentFilter.mode)
+                agentFilter.mode = AgentFilterMode.Selected(
+                    if (button.isSelected) selected + kind else selected - kind,
+                )
+                rerender()
+            }
+            add(button)
+        }
+        components.filterIsInstance<javax.swing.AbstractButton>().forEach {
+            it.margin = java.awt.Insets(2, 6, 2, 6)
+        }
+        updateAgentButtons(latestSessions)
+    }
+
+    private fun updateAgentButtons(all: List<Session>) {
+        val selected = AgentSessionFilter.effectiveKinds(unfilteredSessions(all), agentFilter.mode)
+        autoAgentButton.isSelected = agentFilter.mode == AgentFilterMode.Auto
+        agentButtons.forEach { (kind, button) -> button.isSelected = kind in selected }
     }
 
     /** Settings may have changed (configurable Apply): re-read preview visibility and count. */
@@ -386,7 +395,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     private fun runSearch() {
+        latestSessions = index.sessions
         preparePaths(index.sessions)
+        updateAgentButtons(index.sessions)
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) return
         activeQuery = query
@@ -448,6 +459,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     fun render(all: List<Session>) {
         latestSessions = all
         preparePaths(all)
+        updateAgentButtons(all)
         val filtered = baseFilter(all)
         visibleSessions = filtered
         renderer.hits = emptyMap()
@@ -526,7 +538,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 index.dataRootDescriptions().forEach { text.appendLine(it) }
             }
             baseFilter(all).isEmpty() && unfilteredSessions(all).isNotEmpty() -> {
-                text.appendText("No ${agentFilter.mode.displayName} sessions in the current scope.")
+                text.appendText(if (agentFilter.mode == AgentFilterMode.Selected(emptySet()))
+                    "No agents selected." else "No sessions for the selected agents in the current scope.")
                 text.appendLine("Show all agents", com.intellij.ui.SimpleTextAttributes.LINK_ATTRIBUTES) {
                     agentFilter.mode = AgentFilterMode.All
                     rerender()

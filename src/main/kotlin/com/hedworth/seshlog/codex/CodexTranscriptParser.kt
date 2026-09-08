@@ -20,6 +20,7 @@ data class CodexTranscriptInfo(
     val promptTitle: String?,
     val startedAt: Instant?,
     val promptCount: Int,
+    val isGuardianReview: Boolean = false,
 )
 
 /**
@@ -48,6 +49,7 @@ object CodexTranscriptParser {
         var promptTitle: String? = null
         var startedAt: Instant? = null
         var promptCount = 0
+        var isGuardianReview = false
 
         fun offer(line: String) {
             if (line.isBlank()) return
@@ -61,6 +63,9 @@ object CodexTranscriptParser {
             val obj = parseObject(line) ?: return
             if (obj.string("type") != "session_meta") return
             val payload = obj.objectValue("payload") ?: return
+            // Internal approval reviews share the user's session_id but have their own rollout.
+            isGuardianReview = isGuardianReview || payload.string("thread_source") == "guardian_review" ||
+                payload.objectValue("source")?.objectValue("subagent")?.string("other") == "guardian"
             if (sessionId == null) sessionId = payload.string("session_id") ?: payload.string("id")
             if (cwd == null) cwd = payload.string("cwd")
             if (gitBranch == null) gitBranch = payload.objectValue("git")?.string("branch")
@@ -82,7 +87,7 @@ object CodexTranscriptParser {
             if (startedAt == null) startedAt = instant(obj.string("timestamp"))
         }
 
-        fun build() = CodexTranscriptInfo(sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount)
+        fun build() = CodexTranscriptInfo(sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isGuardianReview)
     }
 
     internal fun parseObject(line: String): JsonObject? = try {

@@ -37,6 +37,23 @@ class AgentSessionFilterTest {
     }
 
     @Test
+    fun `selected agents filter together and persist including an empty selection`() {
+        val sessions = AgentKind.entries.map { session(it.name, it) }
+        val selected = setOf(AgentKind.CLAUDE_CODE, AgentKind.CODEX)
+        val original = AgentFilterState().apply { mode = AgentFilterMode.Selected(selected) }
+        val restored = AgentFilterState().apply {
+            loadState(AgentFilterState.State().also { it.mode = original.state.mode })
+        }
+        assertEquals(original.mode, restored.mode)
+        assertEquals(sessions.take(2), AgentSessionFilter.apply(sessions, restored.mode))
+        assertEquals(selected, AgentSessionFilter.effectiveKinds(emptyList(), restored.mode))
+        val none = AgentFilterMode.Selected(emptySet())
+        assertEquals(none, AgentFilterMode.parse(none.serialize()))
+        assertEquals(emptyList<Session>(), AgentSessionFilter.apply(sessions, none))
+        assertEquals(AgentKind.entries.toSet(), AgentSessionFilter.effectiveKinds(emptyList(), AgentFilterMode.All))
+    }
+
+    @Test
     fun `auto tie is deterministic`() {
         val sessions = listOf(session("codex", AgentKind.CODEX), session("claude", AgentKind.CLAUDE_CODE))
         assertEquals(listOf("claude"), AgentSessionFilter.apply(sessions, AgentFilterMode.Auto).map { it.id })

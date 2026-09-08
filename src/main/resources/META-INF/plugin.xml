@@ -9,7 +9,7 @@
     <br><br>
     <ul>
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
-        <li>Per-project agent filter with an automatic most-sessions default</li>
+        <li>Per-project agent toggle buttons: show any combination of agents, or use the automatic most-sessions default</li>
         <li>Full-text search across prompts and replies, not just titles</li>
         <li>Preview pane showing the last messages of the selected session</li>
         <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
@@ -23,6 +23,14 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.5.2</b>
+    <ul>
+        <li>Select any combination of agents with individual toggle buttons, such as Claude Code and Codex together. Selections are remembered per project; Auto and All shortcuts remain available.</li>
+    </ul>
+    <b>0.5.1</b>
+    <ul>
+        <li>Fix duplicate Codex sessions by excluding internal guardian review transcripts. Existing session caches refresh automatically after upgrading.</li>
+    </ul>
     <b>0.5.0</b>
     <ul>
         <li>Pi support: discover, search, preview, resume and fork local sessions, with configurable executable and sessions directory. Requires Pi 0.84.2 or newer.</li>

@@ -65,6 +65,7 @@ class CodexSessionProvider(
             val modified = Instant.ofEpochMilli(attrs.lastModifiedTime().toMillis())
             val idFromName = idFromFileName(path)
             val info = cache.get(path, attrs) ?: continue
+            if (info.isGuardianReview) continue
             val id = info.sessionId ?: idFromName ?: continue
             val cwd = info.cwd?.let { runCatching { Path.of(it) }.getOrNull() } ?: continue
             val promptTitle = info.promptTitle

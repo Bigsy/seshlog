@@ -181,6 +181,36 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         } finally { Disposer.dispose(disposable) }
     }
 
+    fun `test agent buttons independently add and remove agents`() {
+        val disposable = Disposer.newDisposable()
+        val state = com.hedworth.seshlog.settings.AgentFilterState.getInstance(project)
+        val previous = state.mode
+        try {
+            state.mode = com.hedworth.seshlog.settings.AgentFilterMode.Only(AgentKind.CODEX)
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val sessions = AgentKind.entries.map { session(it.name, base, Instant.EPOCH).copy(kind = it) }
+            panel.render(sessions)
+            assertTrue(panel.agentButtons.getValue(AgentKind.CODEX).isSelected)
+            assertFalse(panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).isSelected)
+            panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).doClick()
+            panel.render(sessions)
+            assertEquals(listOf(AgentKind.CLAUDE_CODE, AgentKind.CODEX), panel.visibleSessions.map { it.kind })
+            assertTrue(panel.agentButtons.getValue(AgentKind.CODEX).isSelected)
+            assertTrue(panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).isSelected)
+            panel.agentButtons.getValue(AgentKind.CODEX).doClick()
+            panel.render(sessions)
+            assertEquals(listOf(AgentKind.CLAUDE_CODE), panel.visibleSessions.map { it.kind })
+            panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).doClick()
+            panel.render(sessions)
+            assertTrue(panel.visibleSessions.isEmpty())
+            assertTrue(panel.tree.emptyText.text.contains("No agents selected."))
+        } finally {
+            state.mode = previous
+            Disposer.dispose(disposable)
+        }
+    }
+
     private fun session(id: String, cwd: java.nio.file.Path, at: Instant) = Session(
         kind = AgentKind.CLAUDE_CODE, id = id, title = "Title $id", cwd = cwd, gitBranch = "main",
         startedAt = at, lastActivityAt = at, transcriptPath = cwd.resolve("$id.jsonl"),

@@ -7,7 +7,7 @@ import com.hedworth.seshlog.cache.InfoStore.Companion.string
 import java.time.Instant
 
 /** Persistent metadata-only cache for parsed Codex rollouts (see [InfoStore]). */
-private const val CACHE_VERSION = 1
+private const val CACHE_VERSION = 2
 
 object CodexTranscriptInfoStore : InfoStore<CodexTranscriptInfo>(CACHE_VERSION, ::write, ::read) {
     const val VERSION = CACHE_VERSION
@@ -20,6 +20,7 @@ private fun write(i: CodexTranscriptInfo, o: JsonObject) {
     o.addProperty("promptTitle", i.promptTitle)
     i.startedAt?.let { o.addProperty("startedAt", it.toEpochMilli()) }
     o.addProperty("promptCount", i.promptCount)
+    o.addProperty("isGuardianReview", i.isGuardianReview)
 }
 
 private fun read(o: JsonObject) = CodexTranscriptInfo(
@@ -29,4 +30,5 @@ private fun read(o: JsonObject) = CodexTranscriptInfo(
     promptTitle = o.string("promptTitle"),
     startedAt = o.long("startedAt")?.let(Instant::ofEpochMilli),
     promptCount = o.long("promptCount")?.toInt() ?: 0,
+    isGuardianReview = o.string("isGuardianReview") == "true",
 )

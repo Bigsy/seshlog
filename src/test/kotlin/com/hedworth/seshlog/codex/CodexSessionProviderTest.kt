@@ -91,6 +91,28 @@ class CodexSessionProviderTest {
     }
 
     @Test
+    fun `fork lineage distinguishes identical titles across cache reloads`() {
+        val root = tmp.root.toPath()
+        val day = Files.createDirectories(root.resolve("sessions/2026/09/08"))
+        Files.writeString(day.resolve("rollout-parent.jsonl"),
+            """{"type":"session_meta","payload":{"id":"parent","cwd":"/project"}}""")
+        Files.writeString(day.resolve("rollout-child.jsonl"),
+            """{"type":"session_meta","payload":{"id":"child","cwd":"/project","forked_from_id":"parent"}}""")
+        Files.writeString(root.resolve("session_index.jsonl"),
+            """{"id":"parent","thread_name":"Review access record"}
+{"id":"child","thread_name":"Review access record"}""")
+        val cacheFile = root.resolve("cache.json")
+        repeat(2) {
+            val sessions = CodexSessionProvider({ root }, { "codex" }, cacheFile)
+                .scan(emptyMap()).associateBy { it.id }
+            assertEquals(2, sessions.size)
+            assertEquals(sessions.getValue("parent").title, sessions.getValue("child").title)
+            assertEquals(null, sessions.getValue("parent").forkedFromId)
+            assertEquals("parent", sessions.getValue("child").forkedFromId)
+        }
+    }
+
+    @Test
     fun `resume and fork commands quote executable and id`() {
         val root = tmp.root.toPath()
         val provider = CodexSessionProvider({ root }, { "/opt/Codex CLI/codex" })

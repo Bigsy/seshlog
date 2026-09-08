@@ -21,6 +21,7 @@ class CodexTranscriptInfoStoreTest {
         promptTitle = "Add Codex support",
         startedAt = Instant.ofEpochMilli(1_700_000_000_000),
         promptCount = 3,
+        forkedFromId = "parent",
     )
 
     @Test

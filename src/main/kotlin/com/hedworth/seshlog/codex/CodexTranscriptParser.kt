@@ -21,6 +21,7 @@ data class CodexTranscriptInfo(
     val startedAt: Instant?,
     val promptCount: Int,
     val isGuardianReview: Boolean = false,
+    val forkedFromId: String? = null,
 )
 
 /**
@@ -50,6 +51,7 @@ object CodexTranscriptParser {
         var startedAt: Instant? = null
         var promptCount = 0
         var isGuardianReview = false
+        var forkedFromId: String? = null
 
         fun offer(line: String) {
             if (line.isBlank()) return
@@ -67,6 +69,7 @@ object CodexTranscriptParser {
             isGuardianReview = isGuardianReview || payload.string("thread_source") == "guardian_review" ||
                 payload.objectValue("source")?.objectValue("subagent")?.string("other") == "guardian"
             if (sessionId == null) sessionId = payload.string("session_id") ?: payload.string("id")
+            if (forkedFromId == null) forkedFromId = payload.string("forked_from_id")?.takeIf { it.isNotBlank() }
             if (cwd == null) cwd = payload.string("cwd")
             if (gitBranch == null) gitBranch = payload.objectValue("git")?.string("branch")
             if (startedAt == null) startedAt = instant(payload.string("timestamp") ?: obj.string("timestamp"))
@@ -87,7 +90,7 @@ object CodexTranscriptParser {
             if (startedAt == null) startedAt = instant(obj.string("timestamp"))
         }
 
-        fun build() = CodexTranscriptInfo(sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isGuardianReview)
+        fun build() = CodexTranscriptInfo(sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isGuardianReview, forkedFromId)
     }
 
     internal fun parseObject(line: String): JsonObject? = try {

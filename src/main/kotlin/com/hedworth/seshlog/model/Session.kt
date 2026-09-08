@@ -21,6 +21,8 @@ data class Session(
     val promptCount: Int,
     /** True when the title came from the agent (a `custom-title`/`ai-title` record, a session name, …) rather than a fallback. */
     val hasExplicitTitle: Boolean,
+    /** Original session from which this session was forked, when recorded by the agent. */
+    val forkedFromId: String? = null,
 ) {
     /** Branch worth showing: not empty and not a detached `HEAD`. */
     val displayBranch: String?

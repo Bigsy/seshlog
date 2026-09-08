@@ -7,7 +7,7 @@ import com.hedworth.seshlog.cache.InfoStore.Companion.string
 import java.time.Instant
 
 /** Persistent metadata-only cache for parsed Codex rollouts (see [InfoStore]). */
-private const val CACHE_VERSION = 2
+private const val CACHE_VERSION = 3
 
 object CodexTranscriptInfoStore : InfoStore<CodexTranscriptInfo>(CACHE_VERSION, ::write, ::read) {
     const val VERSION = CACHE_VERSION
@@ -15,6 +15,7 @@ object CodexTranscriptInfoStore : InfoStore<CodexTranscriptInfo>(CACHE_VERSION, 
 
 private fun write(i: CodexTranscriptInfo, o: JsonObject) {
     o.addProperty("sessionId", i.sessionId)
+    o.addProperty("forkedFromId", i.forkedFromId)
     o.addProperty("cwd", i.cwd)
     o.addProperty("gitBranch", i.gitBranch)
     o.addProperty("promptTitle", i.promptTitle)
@@ -25,6 +26,7 @@ private fun write(i: CodexTranscriptInfo, o: JsonObject) {
 
 private fun read(o: JsonObject) = CodexTranscriptInfo(
     sessionId = o.string("sessionId"),
+    forkedFromId = o.string("forkedFromId"),
     cwd = o.string("cwd"),
     gitBranch = o.string("gitBranch"),
     promptTitle = o.string("promptTitle"),

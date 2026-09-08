@@ -84,6 +84,7 @@ class CodexSessionProvider(
                 promptTitle = promptTitle,
                 promptCount = info.promptCount,
                 hasExplicitTitle = explicitTitle != null,
+                forkedFromId = info.forkedFromId,
             )
         }
         cache.persist()

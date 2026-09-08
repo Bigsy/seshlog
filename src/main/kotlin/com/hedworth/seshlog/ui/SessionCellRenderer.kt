@@ -45,6 +45,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         val metadata = organisation.metadata(session.id)
         if (metadata.pinned) append("★ ", titleAttrs)
         append(organisation.title(session), titleAttrs)
+        if (session.forkedFromId != null) append(" (fork)", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         if (metadata.hidden) append("  hidden", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
         append("  " + DateFormatUtil.formatPrettyDateTime(session.lastActivityAt.toEpochMilli()), SimpleTextAttributes.GRAYED_ATTRIBUTES)
@@ -69,6 +70,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
             append("<html><b>").append(esc(session.title)).append("</b><br>")
             append("Agent: ").append(session.kind.displayName).append("<br>")
             append("Session: ").append(session.id).append("<br>")
+            session.forkedFromId?.let { append("Forked from: ").append(esc(it)).append("<br>") }
             append("Directory: ").append(esc(session.cwd.toString())).append("<br>")
             session.displayBranch?.let { append("Branch: ").append(esc(it)).append("<br>") }
             append("Started: ").append(fmt(session.startedAt)).append("<br>")

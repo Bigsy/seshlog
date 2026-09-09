@@ -181,7 +181,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         } finally { Disposer.dispose(disposable) }
     }
 
-    fun `test agent buttons independently add and remove agents`() {
+    fun `test agent menu independently adds and removes agents`() {
         val disposable = Disposer.newDisposable()
         val state = com.hedworth.seshlog.settings.AgentFilterState.getInstance(project)
         val previous = state.mode
@@ -191,20 +191,53 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             val base = Paths.get(project.basePath!!)
             val sessions = AgentKind.entries.map { session(it.name, base, Instant.EPOCH).copy(kind = it) }
             panel.render(sessions)
-            assertTrue(panel.agentButtons.getValue(AgentKind.CODEX).isSelected)
-            assertFalse(panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).isSelected)
-            panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).doClick()
+            fun item(kind: AgentKind) = panel.createAgentMenu().components
+                .filterIsInstance<javax.swing.JCheckBoxMenuItem>().single { it.text == kind.displayName }
+            assertTrue(item(AgentKind.CODEX).isSelected)
+            assertFalse(item(AgentKind.CLAUDE_CODE).isSelected)
+            item(AgentKind.CLAUDE_CODE).doClick()
             panel.render(sessions)
             assertEquals(listOf(AgentKind.CLAUDE_CODE, AgentKind.CODEX), panel.visibleSessions.map { it.kind })
-            assertTrue(panel.agentButtons.getValue(AgentKind.CODEX).isSelected)
-            assertTrue(panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).isSelected)
-            panel.agentButtons.getValue(AgentKind.CODEX).doClick()
+            assertTrue(item(AgentKind.CODEX).isSelected)
+            assertTrue(item(AgentKind.CLAUDE_CODE).isSelected)
+            item(AgentKind.CODEX).doClick()
             panel.render(sessions)
             assertEquals(listOf(AgentKind.CLAUDE_CODE), panel.visibleSessions.map { it.kind })
-            panel.agentButtons.getValue(AgentKind.CLAUDE_CODE).doClick()
+            item(AgentKind.CLAUDE_CODE).doClick()
             panel.render(sessions)
             assertTrue(panel.visibleSessions.isEmpty())
             assertTrue(panel.tree.emptyText.text.contains("No agents selected."))
+        } finally {
+            state.mode = previous
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun `test agent menu hides unavailable providers and restores project selection on reopening`() {
+        val disposable = Disposer.newDisposable()
+        val state = com.hedworth.seshlog.settings.AgentFilterState.getInstance(project)
+        val previous = state.mode
+        try {
+            state.mode = com.hedworth.seshlog.settings.AgentFilterMode.Selected(
+                setOf(AgentKind.CLAUDE_CODE, AgentKind.CODEX))
+            val sessions = listOf(
+                session("claude", Paths.get(project.basePath!!), Instant.EPOCH),
+                session("codex", Paths.get(project.basePath!!), Instant.EPOCH).copy(kind = AgentKind.CODEX),
+                session("outside", Paths.get("/elsewhere"), Instant.EPOCH).copy(kind = AgentKind.PI),
+            )
+            repeat(2) {
+                val panel = SessionTreePanel(project, disposable)
+                panel.render(sessions)
+                val items = panel.createAgentMenu().components.filterIsInstance<javax.swing.JCheckBoxMenuItem>()
+                assertEquals(listOf("All agents", "Auto", AgentKind.CLAUDE_CODE.displayName, AgentKind.CODEX.displayName),
+                    items.map { it.text })
+                assertTrue(items.takeLast(2).all { it.isSelected })
+                assertEquals(listOf("claude", "codex"), panel.visibleSessions.map { it.id })
+                panel.render(emptyList())
+                assertEquals(2, panel.createAgentMenu().componentCount)
+                assertEquals(com.hedworth.seshlog.settings.AgentFilterMode.Selected(
+                    setOf(AgentKind.CLAUDE_CODE, AgentKind.CODEX)), state.mode)
+            }
         } finally {
             state.mode = previous
             Disposer.dispose(disposable)

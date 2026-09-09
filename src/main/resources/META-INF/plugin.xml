@@ -9,7 +9,7 @@
     <br><br>
     <ul>
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
-        <li>Per-project agent toggle buttons: show any combination of agents, or use the automatic most-sessions default</li>
+        <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Full-text search across prompts and replies, not just titles</li>
         <li>Preview pane showing the last messages of the selected session</li>
         <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
@@ -23,6 +23,12 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.5.3</b>
+    <ul>
+        <li>Replace the agent button row with a compact Agents menu. Select any combination, such as Claude Code and Codex together, or use Auto and All.</li>
+        <li>Only list agents with sessions in the current project scope.</li>
+        <li>Remember the last agent selection per project and restore it when reopened, retaining choices even when an agent temporarily has no sessions.</li>
+    </ul>
     <b>0.5.2</b>
     <ul>
         <li>Select any combination of agents with individual toggle buttons, such as Claude Code and Codex together. Selections are remembered per project; Auto and All shortcuts remain available.</li>

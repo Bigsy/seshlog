@@ -112,11 +112,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val index get() = SessionIndex.getInstance()
     private val agentFilter get() = AgentFilterState.getInstance(project)
 
-    internal val agentButtons = AgentKind.entries.associateWith {
-        javax.swing.JToggleButton(if (it == AgentKind.CLAUDE_CODE) "Claude" else it.displayName)
-    }
-    private val autoAgentButton = javax.swing.JToggleButton("Auto")
-    private val allAgentsButton = javax.swing.JButton("All")
+    internal val agentMenuButton = javax.swing.JButton("Agents ▾")
 
     private val statusLabel = javax.swing.JLabel()
     private val retryButton = javax.swing.JButton("Retry")
@@ -186,14 +182,16 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             override fun textChanged(e: DocumentEvent) = scheduleSearch()
         })
 
+        agentMenuButton.addActionListener {
+            createAgentMenu().show(agentMenuButton, 0, agentMenuButton.height)
+        }
         dateButton.addActionListener { chooseDateFilter() }
         clearDate.addActionListener { setDateFilter(com.hedworth.seshlog.index.SessionDateFilter()) }
         val header = JPanel(BorderLayout()).apply {
-            add(createAgentButtons(), BorderLayout.NORTH)
             add(createToolbar().component, BorderLayout.WEST)
             add(searchField, BorderLayout.CENTER)
             add(JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0)).apply {
-                add(dateButton); add(clearDate)
+                add(agentMenuButton); add(dateButton); add(clearDate)
                 add(javax.swing.JLabel(com.hedworth.seshlog.index.TextQuery.HINT))
                 add(javax.swing.JLabel("Limited coverage").apply { toolTipText = com.hedworth.seshlog.model.ConversationLimits.NOTICE })
             }, BorderLayout.SOUTH)
@@ -321,40 +319,47 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
     }
 
-    private fun createAgentButtons(): JComponent = JPanel(java.awt.GridLayout(1, 0, 4, 0)).apply {
-        autoAgentButton.toolTipText = "Automatically show the agent with the most sessions"
-        autoAgentButton.addActionListener {
-            agentFilter.mode = AgentFilterMode.Auto
-            rerender()
-        }
-        add(autoAgentButton)
-        allAgentsButton.toolTipText = "Show all agents"
-        allAgentsButton.addActionListener {
-            agentFilter.mode = AgentFilterMode.All
-            rerender()
-        }
-        add(allAgentsButton)
-        agentButtons.forEach { (kind, button) ->
-            button.toolTipText = "Show or hide ${kind.displayName} sessions; select multiple agents"
-            button.addActionListener {
-                val selected = AgentSessionFilter.effectiveKinds(unfilteredSessions(latestSessions), agentFilter.mode)
-                agentFilter.mode = AgentFilterMode.Selected(
-                    if (button.isSelected) selected + kind else selected - kind,
-                )
+    internal fun createAgentMenu(): javax.swing.JPopupMenu = javax.swing.JPopupMenu().apply {
+        val scoped = unfilteredSessions(latestSessions)
+        val available = scoped.map { it.kind }.toSet()
+        val selected = AgentSessionFilter.effectiveKinds(scoped, agentFilter.mode)
+        add(javax.swing.JCheckBoxMenuItem("All agents", agentFilter.mode == AgentFilterMode.All).apply {
+            addActionListener {
+                agentFilter.mode = AgentFilterMode.All
                 rerender()
             }
-            add(button)
+        })
+        add(javax.swing.JCheckBoxMenuItem("Auto", agentFilter.mode == AgentFilterMode.Auto).apply {
+            toolTipText = "Automatically show the agent with the most sessions"
+            addActionListener {
+                agentFilter.mode = AgentFilterMode.Auto
+                rerender()
+            }
+        })
+        if (available.isNotEmpty()) addSeparator()
+        AgentKind.entries.filter { it in available }.forEach { kind ->
+            add(javax.swing.JCheckBoxMenuItem(kind.displayName, kind in selected).apply {
+                addActionListener {
+                    val current = AgentSessionFilter.effectiveKinds(unfilteredSessions(latestSessions), agentFilter.mode)
+                    agentFilter.mode = AgentFilterMode.Selected(
+                        if (isSelected) current + kind else current - kind,
+                    )
+                    rerender()
+                }
+            })
         }
-        components.filterIsInstance<javax.swing.AbstractButton>().forEach {
-            it.margin = java.awt.Insets(2, 6, 2, 6)
-        }
-        updateAgentButtons(latestSessions)
     }
 
-    private fun updateAgentButtons(all: List<Session>) {
-        val selected = AgentSessionFilter.effectiveKinds(unfilteredSessions(all), agentFilter.mode)
-        autoAgentButton.isSelected = agentFilter.mode == AgentFilterMode.Auto
-        agentButtons.forEach { (kind, button) -> button.isSelected = kind in selected }
+    private fun updateAgentMenu(all: List<Session>) {
+        val scoped = unfilteredSessions(all)
+        val selected = AgentSessionFilter.effectiveKinds(scoped, agentFilter.mode)
+        agentMenuButton.text = when (agentFilter.mode) {
+            AgentFilterMode.All -> "Agents: All ▾"
+            AgentFilterMode.Auto -> "Agents: Auto ▾"
+            else -> "Agents: ${selected.size} ▾"
+        }
+        agentMenuButton.toolTipText = if (selected.isEmpty()) "No agents selected" else
+            "Selected agents: " + AgentKind.entries.filter { it in selected }.joinToString { it.displayName }
     }
 
     /** Settings may have changed (configurable Apply): re-read preview visibility and count. */
@@ -397,7 +402,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private fun runSearch() {
         latestSessions = index.sessions
         preparePaths(index.sessions)
-        updateAgentButtons(index.sessions)
+        updateAgentMenu(index.sessions)
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) return
         activeQuery = query
@@ -459,7 +464,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     fun render(all: List<Session>) {
         latestSessions = all
         preparePaths(all)
-        updateAgentButtons(all)
+        updateAgentMenu(all)
         val filtered = baseFilter(all)
         visibleSessions = filtered
         renderer.hits = emptyMap()

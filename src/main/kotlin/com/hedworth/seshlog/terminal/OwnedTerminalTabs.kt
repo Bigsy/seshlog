@@ -37,6 +37,15 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     fun owns(sessionId: String): Boolean = registry.owns(sessionId)
 
+    /** Dispose just this session's terminal tab. Must run on the EDT. */
+    fun close(sessionId: String): Boolean {
+        val content = registry.tabFor(sessionId) ?: return true
+        val manager = content.manager
+        if (manager != null && !manager.removeContent(content, true)) return false
+        registry.forget(content)
+        return true
+    }
+
     /** The id of the session running in terminal tab [content], if we know one. */
     fun sessionFor(content: Content): String? = registry.sessionFor(content)
 

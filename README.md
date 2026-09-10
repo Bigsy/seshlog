@@ -42,6 +42,9 @@ picker. Seshlog makes it a click.
 - **Preview pane** showing the last messages of the selected session without opening anything.
 - **Resume or fork** into a terminal tab. If the session is already running in one of this project's
   tabs, Seshlog focuses that tab instead of starting a duplicate.
+- **Kill Session** in the session context menu closes its terminal tab in this project, stops its
+  processes (including lingering processes from closed tabs), and refreshes the live status and PID.
+  Available when Seshlog knows the tab or PID; session transcripts remain available to resume later.
 - **Restore after restart** — sessions that were live when the IDE closed are offered for resuming
   when the project reopens (Ask / Always / Never).
 

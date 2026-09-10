@@ -1,10 +1,15 @@
 package com.hedworth.seshlog.ui.actions
 
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.claude.LiveSessionReader
+import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.SessionRestoreManager
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.hedworth.seshlog.terminal.TerminalTabs
+import com.hedworth.seshlog.terminal.SessionProcesses
+import com.intellij.openapi.application.ApplicationManager
 import com.hedworth.seshlog.ui.SeshlogDataKeys
 import com.intellij.icons.AllIcons
 import com.intellij.ide.actions.RevealFileAction
@@ -125,6 +130,55 @@ class ForkTerminalTabSessionAction : ForkSessionActionBase() {
         val content = toolWindow.contentManager.selectedContent ?: return null
         val sessionId = OwnedTerminalTabs.getInstance(project).sessionFor(content) ?: return null
         return SessionIndex.getInstance().sessionById(sessionId)
+    }
+}
+
+class KillSessionAction : SessionAction("Kill Session", "Stop this session and close its terminal tab", AllIcons.Actions.Suspend) {
+    override fun update(e: AnActionEvent) {
+        super.update(e)
+        val session = e.getData(SeshlogDataKeys.SESSION) ?: return
+        val project = e.project ?: return
+        e.presentation.isEnabled = session.livePid != null || OwnedTerminalTabs.getInstance(project).owns(session.id)
+    }
+
+    override fun perform(project: Project, session: Session) {
+        val index = SessionIndex.getInstance()
+        val current = index.sessionById(session.id) ?: session
+        val owned = OwnedTerminalTabs.getInstance(project)
+        try {
+            val shellPid = owned.widgetFor(current.id)?.let(TerminalTabs::shellPid)
+            val pid = current.livePid?.takeIf { pid ->
+                if (current.kind != AgentKind.CLAUDE_CODE) true else {
+                    val file = SeshlogSettings.getInstance().resolvedClaudeDataDir().resolve("sessions/$pid.json")
+                    val live = LiveSessionReader.parse(file)
+                    live != null && live.sessionId == current.id && live.pid == pid && LiveSessionReader.isCurrent(file, live)
+                }
+            }
+            val processes = SessionProcesses.capture(listOfNotNull(shellPid, pid))
+            if (!owned.close(current.id)) {
+                notify(project, "Could not close the session's terminal tab", NotificationType.WARNING)
+                return
+            }
+            SessionRestoreManager.getInstance(project).recordStop(current.id)
+            val app = ApplicationManager.getApplication()
+            app.executeOnPooledThread {
+                try {
+                    val remaining = SessionProcesses.terminate(processes)
+                    if (remaining.isNotEmpty()) app.invokeLater {
+                        if (!project.isDisposed) notify(project, "Could not stop session processes: ${remaining.joinToString()}", NotificationType.WARNING)
+                    }
+                } catch (e: Exception) {
+                    app.invokeLater {
+                        if (!project.isDisposed) notify(project, "Could not stop session: ${e.message}", NotificationType.ERROR)
+                    }
+                } finally {
+                    index.refresh()
+                }
+            }
+        } catch (e: Exception) {
+            notify(project, "Could not stop session: ${e.message}", NotificationType.ERROR)
+            index.refresh()
+        }
     }
 }
 

@@ -134,7 +134,7 @@ object TerminalTabs {
         emptyList()
     }
 
-    private fun shellPid(widget: TerminalWidget): Long? = try {
+    fun shellPid(widget: TerminalWidget): Long? = try {
         ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget).processTtyConnector?.process?.pid()
     } catch (_: Throwable) {
         null // not a local shell widget (SSH, new engine, not started yet…)

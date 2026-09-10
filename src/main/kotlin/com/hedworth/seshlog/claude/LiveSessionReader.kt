@@ -14,7 +14,7 @@ data class LiveSession(val pid: Long, val sessionId: String, val cwd: String?, v
 object LiveSessionReader {
     private val LOG = logger<LiveSessionReader>()
 
-    fun read(sessionsDir: Path, isAlive: (Long) -> Boolean = ::processAlive): Map<String, LiveSession> {
+    fun read(sessionsDir: Path, isAlive: ((Long) -> Boolean)? = null): Map<String, LiveSession> {
         if (!Files.isDirectory(sessionsDir)) return emptyMap()
         val result = HashMap<String, LiveSession>()
         val files = try {
@@ -25,7 +25,7 @@ object LiveSessionReader {
         }
         for (file in files) {
             val live = parse(file) ?: continue
-            if (!isAlive(live.pid)) continue
+            if (!(isAlive?.invoke(live.pid) ?: isCurrent(file, live))) continue
             result[live.sessionId] = live
         }
         return result
@@ -46,9 +46,15 @@ object LiveSessionReader {
         null
     }
 
-    private fun processAlive(pid: Long): Boolean =
+    /** A reused PID starts after the old marker was written and must not be shown or killed. */
+    fun isCurrent(file: Path, expected: LiveSession): Boolean =
         try {
-            ProcessHandle.of(pid).map { it.isAlive }.orElse(false)
+            if (parse(file) != expected) false else {
+                val process = ProcessHandle.of(expected.pid).orElse(null)
+                val started = process?.info()?.startInstant()?.orElse(null)
+                process?.isAlive == true && (started == null ||
+                    !started.isAfter(Files.getLastModifiedTime(file).toInstant()))
+            }
         } catch (_: Exception) {
             false
         }

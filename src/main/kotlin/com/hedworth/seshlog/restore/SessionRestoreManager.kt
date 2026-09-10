@@ -59,6 +59,13 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         remember((state.liveSessionIds + session.id).distinct())
     }
 
+    fun recordStop(sessionId: String) {
+        launched.remove(sessionId)
+        awaitingLive.remove(sessionId)
+        pending = pending.filterNot { it == sessionId }
+        remember(state.liveSessionIds.filterNot { it == sessionId })
+    }
+
     /** Called once from the startup activity, on a background thread. */
     fun start() {
         if (!started.compareAndSet(false, true)) return

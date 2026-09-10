@@ -23,6 +23,12 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.5.4</b>
+    <ul>
+        <li>Add Kill Session to the session context menu when a terminal tab or PID is known. Close the associated terminal tab in this project, stop its processes, and refresh the live status and PID while preserving the transcript.</li>
+        <li>Stop lingering processes from closed terminal tabs, with forced termination if they ignore a normal stop signal. Report processes that could not be stopped.</li>
+        <li>Ignore stale Claude Code PID files when the PID has been reused by a newer process.</li>
+    </ul>
     <b>0.5.3</b>
     <ul>
         <li>Replace the agent button row with a compact Agents menu. Select any combination, such as Claude Code and Codex together, or use Auto and All.</li>
@@ -101,6 +107,8 @@
                     text="Resume" description="Resume this session in a new terminal tab" icon="AllIcons.Actions.Execute"/>
             <action id="Seshlog.Fork" class="com.hedworth.seshlog.ui.actions.ForkSessionAction"
                     text="Fork Session" description="Continue this session's conversation in a new session" icon="AllIcons.Vcs.Branch"/>
+            <action id="Seshlog.Kill" class="com.hedworth.seshlog.ui.actions.KillSessionAction"
+                    text="Kill Session" description="Stop this session and close its terminal tab"/>
             <separator/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
             <action id="Seshlog.Pin" class="com.hedworth.seshlog.ui.actions.PinSessionAction" text="Pin / Unpin"/>

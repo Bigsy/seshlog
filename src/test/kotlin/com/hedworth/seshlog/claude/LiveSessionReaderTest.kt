@@ -27,4 +27,15 @@ class LiveSessionReaderTest {
         val dead = LiveSessionReader.read(dir) { false }
         assertTrue(dead.isEmpty())
     }
+
+    @Test
+    fun `a reused PID does not make an old marker live`() {
+        val dir = tmp.newFolder("reused").toPath()
+        val pid = ProcessHandle.current().pid()
+        val file = dir.resolve("$pid.json")
+        Files.writeString(file, """{"pid":$pid,"sessionId":"old-session"}""")
+        assertEquals(setOf("old-session"), LiveSessionReader.read(dir).keys)
+        Files.setLastModifiedTime(file, java.nio.file.attribute.FileTime.fromMillis(0))
+        assertTrue(LiveSessionReader.read(dir).isEmpty())
+    }
 }

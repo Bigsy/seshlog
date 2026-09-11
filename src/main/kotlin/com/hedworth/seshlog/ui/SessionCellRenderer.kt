@@ -19,6 +19,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
     /** Content-search hits by session id; empty when not searching. Set by the panel on the EDT. */
     var hits: Map<String, SearchHit> = emptyMap()
     var query: String = ""
+    var activeSessionId: String? = null
 
     override fun customizeCellRenderer(
         tree: JTree, value: Any?, selected: Boolean, expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean,
@@ -26,7 +27,13 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         val userObject = (value as? DefaultMutableTreeNode)?.userObject
         when (userObject) {
             is ProjectGroup -> renderGroup(userObject)
-            is Session -> renderSession(userObject)
+            is Session -> {
+                renderSession(userObject)
+                if (userObject.id == activeSessionId && !selected) {
+                    background = ACTIVE_BACKGROUND
+                    isOpaque = true
+                }
+            }
         }
     }
 
@@ -45,6 +52,9 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         val metadata = organisation.metadata(session.id)
         if (metadata.pinned) append("★ ", titleAttrs)
         append(organisation.title(session), titleAttrs)
+        if (session.id == activeSessionId) {
+            append("  active terminal", SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
+        }
         if (session.forkedFromId != null) append(" (fork)", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         if (metadata.hidden) append("  hidden", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
@@ -84,6 +94,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
     }
 
     companion object {
+        private val ACTIVE_BACKGROUND: Color = JBColor(Color(0xEAF2FF), Color(0x323F53))
         private val LIVE_COLOR: Color = JBColor(Color(0x2E8B57), Color(0x6CBF84))
         private val HIT_COLOR: Color = JBColor(Color(0x3574F0), Color(0x548AF7))
         private val TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

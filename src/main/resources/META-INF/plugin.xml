@@ -23,6 +23,10 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.5.5</b>
+    <ul>
+        <li>Highlight the session associated with the selected IDE terminal tab and show an active terminal label. Switching tabs updates the highlight independently of the session selection and preview.</li>
+    </ul>
     <b>0.5.4</b>
     <ul>
         <li>Add Kill Session to the session context menu when a terminal tab or PID is known. Close the associated terminal tab in this project, stop its processes, and refresh the live status and PID while preserving the transcript.</li>

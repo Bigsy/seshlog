@@ -14,6 +14,7 @@ import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
+import com.intellij.util.messages.Topic
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -29,10 +30,17 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     private val registry = TabRegistry<Content>()
     private val started = AtomicBoolean(false)
-    private val listening = AtomicBoolean(false)
+    private var listeningManager: ContentManager? = null
+    var activeSessionId: String? = null
+        private set
 
     private val removalListener = object : ContentManagerListener {
-        override fun contentRemoved(event: ContentManagerEvent) = registry.forget(event.content)
+        override fun contentRemoved(event: ContentManagerEvent) {
+            registry.forget(event.content)
+            updateActiveSession()
+        }
+
+        override fun selectionChanged(event: ContentManagerEvent) = updateActiveSession()
     }
 
     fun owns(sessionId: String): Boolean = registry.owns(sessionId)
@@ -43,6 +51,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val manager = content.manager
         if (manager != null && !manager.removeContent(content, true)) return false
         registry.forget(content)
+        updateActiveSession()
         return true
     }
 
@@ -65,6 +74,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         }
         registry.register(session.id, content)
         listenForRemovals()
+        updateActiveSession()
     }
 
     /** Bring the tab running [sessionId] to the front. Returns false when we do not own one. */
@@ -99,18 +109,36 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             LOG.debug("Retitling terminal tab '${content.displayName}' -> '$title'")
             content.displayName = title
         }
+        updateActiveSession()
     }
 
     private fun listenForRemovals() {
-        if (listening.get()) return
         val manager: ContentManager = ToolWindowManager.getInstance(project)
             .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.contentManager ?: return
-        if (listening.compareAndSet(false, true)) manager.addContentManagerListener(removalListener)
+        if (listeningManager === manager) return
+        listeningManager?.removeContentManagerListener(removalListener)
+        listeningManager = manager
+        manager.addContentManagerListener(removalListener)
     }
 
-    override fun dispose() = Unit
+    private fun updateActiveSession() {
+        val sessionId = listeningManager?.selectedContent?.let(registry::sessionFor)
+        if (sessionId == activeSessionId) return
+        activeSessionId = sessionId
+        project.messageBus.syncPublisher(ACTIVE_SESSION_TOPIC).activeSessionChanged(sessionId)
+    }
+
+    override fun dispose() {
+        listeningManager?.removeContentManagerListener(removalListener)
+        listeningManager = null
+    }
+
+    interface ActiveSessionListener {
+        fun activeSessionChanged(sessionId: String?)
+    }
 
     companion object {
+        val ACTIVE_SESSION_TOPIC = Topic.create("Seshlog active terminal", ActiveSessionListener::class.java)
         fun getInstance(project: Project): OwnedTerminalTabs = project.getService(OwnedTerminalTabs::class.java)
     }
 }

@@ -15,6 +15,7 @@ import com.hedworth.seshlog.settings.AgentFilterState
 import com.hedworth.seshlog.settings.AgentSessionFilter
 import com.hedworth.seshlog.ui.actions.ResumeSessionAction
 import com.hedworth.seshlog.ui.actions.SessionAction
+import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.actionSystem.ActionManager
@@ -150,6 +151,20 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         tree.showsRootHandles = true
         tree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
         tree.cellRenderer = renderer
+        renderer.activeSessionId = OwnedTerminalTabs.getInstance(project).activeSessionId
+        project.messageBus.connect(this).subscribe(OwnedTerminalTabs.ACTIVE_SESSION_TOPIC,
+            object : OwnedTerminalTabs.ActiveSessionListener {
+                override fun activeSessionChanged(sessionId: String?) {
+                    val previous = renderer.activeSessionId
+                    renderer.activeSessionId = sessionId
+                    // Invalidate row widths as well as paint: the label changes preferred size.
+                    val root = treeModel.root as DefaultMutableTreeNode
+                    for (node in root.depthFirstEnumeration()) {
+                        val session = (node as DefaultMutableTreeNode).userObject as? Session ?: continue
+                        if (session.id == previous || session.id == sessionId) treeModel.nodeChanged(node)
+                    }
+                }
+            })
         TreeSpeedSearch.installOn(tree, true) { path ->
             when (val obj = (path.lastPathComponent as? DefaultMutableTreeNode)?.userObject) {
                 is Session -> organisation.title(obj) + " " + obj.title + " " + (obj.displayBranch ?: "")

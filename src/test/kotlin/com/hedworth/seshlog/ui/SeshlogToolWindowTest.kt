@@ -11,6 +11,48 @@ import java.time.Instant
 
 class SeshlogToolWindowTest : BasePlatformTestCase() {
 
+    fun `test active terminal highlight follows changes without changing selection or preview`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val a = session("terminal-a", base, Instant.EPOCH)
+            val b = session("terminal-b", base, Instant.EPOCH)
+            panel.render(listOf(a, b))
+            val root = panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode
+            val node = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(root, b)!!
+            panel.tree.selectionPath = javax.swing.tree.TreePath(node.path)
+            val publisher = project.messageBus.syncPublisher(
+                com.hedworth.seshlog.terminal.OwnedTerminalTabs.ACTIVE_SESSION_TOPIC)
+            val renderer = panel.tree.cellRenderer as SessionCellRenderer
+            fun render(s: Session, selected: Boolean = false): String {
+                renderer.getTreeCellRendererComponent(panel.tree,
+                    javax.swing.tree.DefaultMutableTreeNode(s), selected, false, true, 1, false)
+                return renderer.toString()
+            }
+            publisher.activeSessionChanged(a.id)
+            assertTrue(render(a).contains("active terminal"))
+            val activeBackground = renderer.background
+            assertFalse(render(b).contains("active terminal"))
+            assertFalse(activeBackground == renderer.background)
+            assertEquals(b.id, panel.selectedSession()?.id)
+            assertEquals(b.id, panel.preview.session?.id)
+
+            panel.render(listOf(a, b))
+            assertTrue(render(a).contains("active terminal"))
+            publisher.activeSessionChanged(b.id)
+            assertFalse(render(a).contains("active terminal"))
+            assertTrue(render(b, selected = true).contains("active terminal"))
+            assertFalse(activeBackground == renderer.background)
+            publisher.activeSessionChanged(null)
+            assertFalse(render(b).contains("active terminal"))
+            assertEquals(b.id, panel.selectedSession()?.id)
+            assertEquals(b.id, panel.preview.session?.id)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
     fun `test panel renders grouped sessions and filters to the project`() {
         val disposable = Disposer.newDisposable()
         try {

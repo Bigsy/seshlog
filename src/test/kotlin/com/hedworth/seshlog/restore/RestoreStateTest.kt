@@ -18,6 +18,37 @@ class RestoreStateTest : BasePlatformTestCase() {
         state.liveSessionIds = emptyList()
     }
 
+    fun `test restored session is remembered before the first live scan and quick shutdown`() {
+        val manager = SessionRestoreManager.getInstance(project)
+        val restored = Session(
+            kind = AgentKind.CLAUDE_CODE, id = "restored", title = "Restored", cwd = Paths.get("/synthetic"), gitBranch = null,
+            startedAt = null, lastActivityAt = Instant.EPOCH, transcriptPath = null,
+            isLive = false, livePid = null, promptTitle = null, promptCount = 1, hasExplicitTitle = true,
+        )
+        var launched = false
+        manager.resumeRestored(restored) { launched = true }
+        assertTrue(launched)
+        assertEquals(listOf("restored"), RestoreState.getInstance(project).liveSessionIds)
+        manager.snapshotAtClose(emptyList())
+        assertEquals(listOf("restored"), RestoreState.getInstance(project).liveSessionIds)
+        RestoreState.getInstance(project).liveSessionIds = emptyList()
+    }
+
+    fun `test failed restore does not remember an unlaunched session`() {
+        val manager = SessionRestoreManager.getInstance(project)
+        val restored = Session(
+            kind = AgentKind.CLAUDE_CODE, id = "failed", title = "Failed", cwd = Paths.get("/synthetic"), gitBranch = null,
+            startedAt = null, lastActivityAt = Instant.EPOCH, transcriptPath = null,
+            isLive = false, livePid = null, promptTitle = null, promptCount = 1, hasExplicitTitle = true,
+        )
+        try {
+            manager.resumeRestored(restored) { throw IllegalStateException("Synthetic launch failure") }
+            fail("Expected launch failure")
+        } catch (_: IllegalStateException) {
+            assertTrue(RestoreState.getInstance(project).liveSessionIds.isEmpty())
+        }
+    }
+
     fun `test recordLaunch remembers the session before the asynchronous live scan`() {
         val manager = SessionRestoreManager.getInstance(project)
         val live = Session(

@@ -17,6 +17,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectCloseListener
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.terminal.ui.TerminalWidget
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -45,6 +46,13 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     private val awaitingLive: MutableSet<String> = Collections.synchronizedSet(HashSet())
 
     private val started = AtomicBoolean(false)
+    private var closing = false
+    private val snapshots = RestoreSnapshotCollector<TerminalWidget>(
+        background = { ApplicationManager.getApplication().executeOnPooledThread(it) },
+        ui = { ApplicationManager.getApplication().invokeLater(it) },
+        isBusy = TerminalTabs::isBusy,
+        tree = ProcessTree.System,
+    )
 
     /** Ids that were live when the project was last open; consumed by [offerRestore]. */
     @Volatile
@@ -54,12 +62,14 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         // Without a liveness signal the session would sit in awaitingLive for good and be offered
         // for restoring whether or not it was still running when the IDE closed.
         if (!index.providerFor(session).detectsLiveSessions) return
+        snapshots.invalidate()
         launched += session.id
         awaitingLive += session.id
         remember((state.liveSessionIds + session.id).distinct())
     }
 
     fun recordStop(sessionId: String) {
+        snapshots.invalidate()
         launched.remove(sessionId)
         awaitingLive.remove(sessionId)
         pending = pending.filterNot { it == sessionId }
@@ -85,7 +95,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
             override fun projectClosing(closing: Project) {
                 // Terminal teardown can race this callback. Never replace a useful last-known
                 // snapshot with empty merely because the widgets/agent locks vanished first.
-                if (closing == project) snapshot(index.sessions, preserveExisting = true)
+                if (closing == project) snapshotAtClose(index.sessions)
             }
         })
         // Always wait for the refresh requested below. SessionIndex is application-scoped, so its
@@ -94,9 +104,9 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         index.refresh()
     }
 
-    /** Persist what runs in this project's terminals now. Called on the EDT (index updates arrive there). */
-    private fun snapshot(sessions: List<Session>, preserveExisting: Boolean = false) {
-        if (project.isDisposed) return
+    /** Capture UI handles on the EDT, then inspect terminal/process state on a worker. */
+    private fun snapshot(sessions: List<Session>) {
+        if (project.isDisposed || closing) return
         val byId = sessions.associateBy { it.id }
         val nowConfirmed = awaitingLive.filter { byId[it]?.isLive == true }
         awaitingLive.removeAll(nowConfirmed.toSet())
@@ -104,18 +114,22 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         val owned = OwnedTerminalTabs.getInstance(project)
         val stillStarting = awaitingLive.filter { owned.owns(it) }
         awaitingLive.retainAll(stillStarting.toSet())
-        val busyLaunched = launched.filter { id ->
-            owned.widgetFor(id)?.let(TerminalTabs::isBusy) == true
+        val launchedIds = launched.toSet()
+        val widgets = launchedIds.mapNotNull { id -> owned.widgetFor(id)?.let { id to it } }.toMap()
+        snapshots.collect(sessions, launchedIds, stillStarting, TerminalTabs.shellPids(project), widgets) { ids ->
+            if (!project.isDisposed && !closing) remember(ids)
         }
-        val detected = RestoreCandidates.snapshot(
-            sessions,
-            launched.toSet(),
-            TerminalTabs.shellPids(project),
-            ProcessTree.System,
-        )
-        val ids = (detected + busyLaunched + stillStarting).distinct()
-        val next = if (preserveExisting) (state.liveSessionIds + ids).distinct() else ids
-        remember(next)
+    }
+
+    /** Teardown must not query terminal processes or wait for a worker while holding UI locks. */
+    internal fun snapshotAtClose(sessions: List<Session>) {
+        closing = true
+        snapshots.dispose()
+        if (project.isDisposed) return
+        val owned = OwnedTerminalTabs.getInstance(project)
+        val detected = sessions.filter { it.isLive && (it.id in launched || owned.owns(it.id)) }.map { it.id }
+        val starting = awaitingLive.filter { owned.owns(it) }
+        remember((state.liveSessionIds + pending + detected + starting).distinct())
     }
 
     private fun remember(ids: List<String>) {
@@ -180,14 +194,21 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         for (session in plan.restore) {
             com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
                 try {
-                    TerminalTabs.resume(project, target, index.resumeCommand(target))
-                    launched += session.id
+                    resumeRestored(target)
                 } catch (t: Throwable) {
                     LOG.warn("Could not restore session ${session.id}", t)
                     notification("Could not restore '${session.title}': ${t.message}", NotificationType.ERROR).notify(project)
                 }
             }
         }
+    }
+
+    internal fun resumeRestored(
+        session: Session,
+        resume: (Session) -> Unit = { TerminalTabs.resume(project, it, index.resumeCommand(it)) },
+    ) {
+        resume(session)
+        recordLaunch(session)
     }
 
     private fun describe(sessions: List<Session>): String {
@@ -198,7 +219,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     private fun notification(content: String, type: NotificationType) =
         NotificationGroupManager.getInstance().getNotificationGroup("Seshlog").createNotification(content, type)
 
-    override fun dispose() = Unit
+    override fun dispose() = snapshots.dispose()
 
     companion object {
         fun getInstance(project: Project): SessionRestoreManager = project.getService(SessionRestoreManager::class.java)

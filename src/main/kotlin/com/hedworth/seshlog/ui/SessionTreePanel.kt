@@ -259,9 +259,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             com.intellij.ProjectTopics.PROJECT_ROOTS,
             object : com.intellij.openapi.roots.ModuleRootListener {
                 override fun rootsChanged(event: com.intellij.openapi.roots.ModuleRootEvent) {
-                    requestedPaths = emptySet()
-                    preparePaths(index.sessions)
-                    rerender()
+                    projectRootsChanged()
                 }
             },
         )
@@ -474,6 +472,19 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         project.basePath?.let { roots.add(Paths.get(it)) }
         ProjectRootManager.getInstance(project).contentRoots.forEach { roots.add(Paths.get(it.path)) }
         return roots
+    }
+
+    internal fun projectRootsChanged() {
+        // Since background write actions, roots notifications need not arrive on the EDT.
+        val app = ApplicationManager.getApplication()
+        val update = Runnable {
+            if (!project.isDisposed && !Disposer.isDisposed(this)) {
+                requestedPaths = emptySet()
+                preparePaths(index.sessions)
+                rerender()
+            }
+        }
+        if (app.isDispatchThread) update.run() else app.invokeLater(update)
     }
 
     fun render(all: List<Session>) {

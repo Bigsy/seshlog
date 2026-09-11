@@ -11,13 +11,37 @@ import java.time.Instant
 
 class SeshlogToolWindowTest : BasePlatformTestCase() {
 
+    fun `test background roots notification only updates the tree on EDT`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val updates = java.util.concurrent.CopyOnWriteArrayList<Boolean>()
+            panel.tree.model.addTreeModelListener(object : javax.swing.event.TreeModelListener {
+                override fun treeStructureChanged(e: javax.swing.event.TreeModelEvent) {
+                    updates += javax.swing.SwingUtilities.isEventDispatchThread()
+                }
+                override fun treeNodesChanged(e: javax.swing.event.TreeModelEvent) = Unit
+                override fun treeNodesInserted(e: javax.swing.event.TreeModelEvent) = Unit
+                override fun treeNodesRemoved(e: javax.swing.event.TreeModelEvent) = Unit
+            })
+            com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+                panel.projectRootsChanged()
+            }.get(10, java.util.concurrent.TimeUnit.SECONDS)
+            com.intellij.util.ui.UIUtil.dispatchAllInvocationEvents()
+            assertTrue("Expected a roots-triggered redraw", updates.isNotEmpty())
+            assertTrue("Every redraw must run on EDT", updates.all { it })
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
     fun `test active terminal highlight follows changes without changing selection or preview`() {
         val disposable = Disposer.newDisposable()
         try {
             val panel = SessionTreePanel(project, disposable)
             val base = Paths.get(project.basePath!!)
-            val a = session("terminal-a", base, Instant.EPOCH)
-            val b = session("terminal-b", base, Instant.EPOCH)
+            val a = session("terminal-a", base, Instant.EPOCH).copy(isLive = true)
+            val b = session("terminal-b", base, Instant.EPOCH).copy(isLive = true)
             panel.render(listOf(a, b))
             val root = panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode
             val node = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(root, b)!!
@@ -25,27 +49,36 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             val publisher = project.messageBus.syncPublisher(
                 com.hedworth.seshlog.terminal.OwnedTerminalTabs.ACTIVE_SESSION_TOPIC)
             val renderer = panel.tree.cellRenderer as SessionCellRenderer
-            fun render(s: Session, selected: Boolean = false): String {
+            fun render(s: Session, selected: Boolean = false): com.intellij.ui.SimpleTextAttributes {
                 renderer.getTreeCellRendererComponent(panel.tree,
                     javax.swing.tree.DefaultMutableTreeNode(s), selected, false, true, 1, false)
-                return renderer.toString()
+                assertFalse(renderer.toString().contains("active terminal"))
+                return renderer.iterator().let { it.next(); it.textAttributes }
             }
+            val ordinary = render(a)
+            assertEquals(com.intellij.ui.SimpleTextAttributes.STYLE_PLAIN, ordinary.style)
             publisher.activeSessionChanged(a.id)
-            assertTrue(render(a).contains("active terminal"))
-            val activeBackground = renderer.background
-            assertFalse(render(b).contains("active terminal"))
-            assertFalse(activeBackground == renderer.background)
+            val active = render(a)
+            assertTrue(active.style and com.intellij.ui.SimpleTextAttributes.STYLE_BOLD != 0)
+            assertNotNull(active.fgColor)
+            assertFalse(ordinary.fgColor == active.fgColor)
+            assertTrue(renderer.toolTipText.contains("Active terminal"))
+            assertEquals(ordinary, render(b))
             assertEquals(b.id, panel.selectedSession()?.id)
             assertEquals(b.id, panel.preview.session?.id)
 
             panel.render(listOf(a, b))
-            assertTrue(render(a).contains("active terminal"))
+            assertEquals(active, render(a))
             publisher.activeSessionChanged(b.id)
-            assertFalse(render(a).contains("active terminal"))
-            assertTrue(render(b, selected = true).contains("active terminal"))
-            assertFalse(activeBackground == renderer.background)
+            assertEquals(ordinary, render(a))
+            assertEquals(active, render(b))
+            val selected = render(b, selected = true)
+            assertTrue(selected.style and com.intellij.ui.SimpleTextAttributes.STYLE_BOLD != 0)
+            assertTrue(selected.style and com.intellij.ui.SimpleTextAttributes.STYLE_UNDERLINE != 0)
+            assertFalse(active.fgColor == selected.fgColor)
             publisher.activeSessionChanged(null)
-            assertFalse(render(b).contains("active terminal"))
+            assertEquals(ordinary, render(b))
+            assertEquals(com.intellij.ui.SimpleTextAttributes.STYLE_PLAIN, render(b, selected = true).style)
             assertEquals(b.id, panel.selectedSession()?.id)
             assertEquals(b.id, panel.preview.session?.id)
         } finally {

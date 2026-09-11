@@ -40,8 +40,9 @@ picker. Seshlog makes it a click.
 - **Missing-directory recovery** lets you choose a working directory when resuming old work.
 - **Loading and provider diagnostics** show scan/search progress and offer retry for unreadable storage.
 - **Preview pane** showing the last messages of the selected session without opening anything.
-- **Active terminal highlight** marks the session associated with the selected IDE terminal tab,
-  independently of the session you select to preview. Switching to an unrecognised tab clears it.
+- **Active terminal highlight** uses a bold blue title for the session associated with the selected IDE terminal tab,
+  independently of the session you select to preview. A selected active title is bold and underlined.
+  Switching to an unrecognised tab clears it.
 - **Resume or fork** into a terminal tab. If the session is already running in one of this project's
   tabs, Seshlog focuses that tab instead of starting a duplicate.
 - **Kill Session** in the session context menu closes its terminal tab in this project, stops its

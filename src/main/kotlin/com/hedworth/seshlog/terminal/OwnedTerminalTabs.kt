@@ -11,9 +11,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.ui.content.Content
-import com.intellij.ui.content.ContentManager
-import com.intellij.ui.content.ContentManagerEvent
-import com.intellij.ui.content.ContentManagerListener
 import com.intellij.util.messages.Topic
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import java.util.concurrent.atomic.AtomicBoolean
@@ -30,18 +27,16 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     private val registry = TabRegistry<Content>()
     private val started = AtomicBoolean(false)
-    private var listeningManager: ContentManager? = null
     var activeSessionId: String? = null
         private set
 
-    private val removalListener = object : ContentManagerListener {
-        override fun contentRemoved(event: ContentManagerEvent) {
-            registry.forget(event.content)
-            updateActiveSession()
-        }
-
-        override fun selectionChanged(event: ContentManagerEvent) = updateActiveSession()
-    }
+    private val tabObserver = TerminalTabObserver(
+        rootManager = { ToolWindowManager.getInstance(project)
+            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.contentManager },
+        openContents = { TerminalTabs.contents(project) },
+        selectionChanged = { content -> updateActiveSession(content) },
+        tabClosed = { content -> registry.forget(content) },
+    )
 
     fun owns(sessionId: String): Boolean = registry.owns(sessionId)
 
@@ -51,7 +46,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val manager = content.manager
         if (manager != null && !manager.removeContent(content, true)) return false
         registry.forget(content)
-        updateActiveSession()
+        tabObserver.refresh()
         return true
     }
 
@@ -73,8 +68,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             return
         }
         registry.register(session.id, content)
-        listenForRemovals()
-        updateActiveSession()
+        tabObserver.refresh()
     }
 
     /** Bring the tab running [sessionId] to the front. Returns false when we do not own one. */
@@ -82,11 +76,12 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val content = registry.tabFor(sessionId) ?: return false
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
             ?: return false
-        if (toolWindow.contentManager.getIndexOfContent(content) < 0) {
+        val manager = content.manager
+        if (manager == null || manager.isDisposed) {
             registry.forget(content)
             return false
         }
-        toolWindow.activate({ toolWindow.contentManager.setSelectedContent(content, true) }, true)
+        toolWindow.activate({ manager.setSelectedContent(content, true) }, true)
         return true
     }
 
@@ -104,34 +99,21 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val openTabs = TerminalTabs.tabsWithShellPids(project)
         if (openTabs.isEmpty() && registry.sessionIds.isEmpty()) return
         val retitles = registry.sync(sessions, openTabs, ProcessTree.System) { it.displayName }
-        if (registry.sessionIds.isNotEmpty()) listenForRemovals()
         for ((content, title) in retitles) {
             LOG.debug("Retitling terminal tab '${content.displayName}' -> '$title'")
             content.displayName = title
         }
-        updateActiveSession()
+        tabObserver.refresh()
     }
 
-    private fun listenForRemovals() {
-        val manager: ContentManager = ToolWindowManager.getInstance(project)
-            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.contentManager ?: return
-        if (listeningManager === manager) return
-        listeningManager?.removeContentManagerListener(removalListener)
-        listeningManager = manager
-        manager.addContentManagerListener(removalListener)
-    }
-
-    private fun updateActiveSession() {
-        val sessionId = listeningManager?.selectedContent?.let(registry::sessionFor)
+    private fun updateActiveSession(content: Content?) {
+        val sessionId = content?.let(registry::sessionFor)
         if (sessionId == activeSessionId) return
         activeSessionId = sessionId
         project.messageBus.syncPublisher(ACTIVE_SESSION_TOPIC).activeSessionChanged(sessionId)
     }
 
-    override fun dispose() {
-        listeningManager?.removeContentManagerListener(removalListener)
-        listeningManager = null
-    }
+    override fun dispose() = tabObserver.dispose()
 
     interface ActiveSessionListener {
         fun activeSessionChanged(sessionId: String?)

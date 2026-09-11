@@ -7,7 +7,6 @@ import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.text.DateFormatUtil
-import com.intellij.util.ui.UIUtil
 import java.awt.Color
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
@@ -27,13 +26,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         val userObject = (value as? DefaultMutableTreeNode)?.userObject
         when (userObject) {
             is ProjectGroup -> renderGroup(userObject)
-            is Session -> {
-                renderSession(userObject)
-                if (userObject.id == activeSessionId && !selected) {
-                    background = ACTIVE_BACKGROUND
-                    isOpaque = true
-                }
-            }
+            is Session -> renderSession(userObject, selected)
         }
     }
 
@@ -45,16 +38,18 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         toolTipText = group.cwd.toString()
     }
 
-    private fun renderSession(session: Session) {
+    private fun renderSession(session: Session, selected: Boolean) {
         icon = if (session.isLive) AllIcons.Debugger.ThreadRunning else AllIcons.Vcs.History
-        val titleAttrs = if (session.isLive) SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES else SimpleTextAttributes.REGULAR_ATTRIBUTES
+        val titleAttrs = when {
+            session.id == activeSessionId && !selected -> SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD, ACTIVE_COLOR)
+            session.id == activeSessionId -> SimpleTextAttributes(
+                SimpleTextAttributes.STYLE_BOLD or SimpleTextAttributes.STYLE_UNDERLINE, null)
+            else -> SimpleTextAttributes.REGULAR_ATTRIBUTES
+        }
         val organisation = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
         val metadata = organisation.metadata(session.id)
         if (metadata.pinned) append("★ ", titleAttrs)
         append(organisation.title(session), titleAttrs)
-        if (session.id == activeSessionId) {
-            append("  active terminal", SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
-        }
         if (session.forkedFromId != null) append(" (fork)", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         if (metadata.hidden) append("  hidden", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
@@ -78,6 +73,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         val fmt = { i: java.time.Instant? -> i?.let { TS.format(it.atZone(ZoneId.systemDefault())) } ?: "–" }
         return buildString {
             append("<html><b>").append(esc(session.title)).append("</b><br>")
+            if (session.id == activeSessionId) append("Active terminal<br>")
             append("Agent: ").append(session.kind.displayName).append("<br>")
             append("Session: ").append(session.id).append("<br>")
             session.forkedFromId?.let { append("Forked from: ").append(esc(it)).append("<br>") }
@@ -94,7 +90,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
     }
 
     companion object {
-        private val ACTIVE_BACKGROUND: Color = JBColor(Color(0xEAF2FF), Color(0x323F53))
+        private val ACTIVE_COLOR: Color = JBColor(Color(0x2458A6), Color(0x8AB4F8))
         private val LIVE_COLOR: Color = JBColor(Color(0x2E8B57), Color(0x6CBF84))
         private val HIT_COLOR: Color = JBColor(Color(0x3574F0), Color(0x548AF7))
         private val TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

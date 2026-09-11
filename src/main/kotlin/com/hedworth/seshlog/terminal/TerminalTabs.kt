@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.ui.content.Content
+import com.intellij.ui.content.ContentManager
 import org.jetbrains.plugins.terminal.ShellTerminalWidget
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
@@ -41,6 +42,28 @@ object TerminalTabs {
             result[content] = shellPid(widget)
         }
         return result
+    }
+
+    /** Include unowned/new-engine tabs too, so focusing one clears the active session. */
+    internal fun contents(project: Project): List<Content> {
+        val root = ToolWindowManager.getInstance(project)
+            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.contentManager
+        val tabs = root?.let(::contentsRecursively).orEmpty()
+        return (tabs + widgets(project).mapNotNull { contentOf(project, it) }).distinct()
+    }
+
+    private fun contentsRecursively(manager: ContentManager): List<Content> {
+        // This public API was added after our 2024.1 baseline. Use it when present to include
+        // reworked-terminal panes, which are not necessarily in the legacy widget registry.
+        return try {
+            val method = ContentManager::class.java.getMethod("getContentsRecursively")
+            (method.invoke(manager) as? List<*>)?.filterIsInstance<Content>() ?: manager.contents.toList()
+        } catch (_: NoSuchMethodException) {
+            manager.contents.toList()
+        } catch (e: ReflectiveOperationException) {
+            LOG.debug("Cannot enumerate nested terminal contents", e)
+            manager.contents.toList()
+        }
     }
 
     /** The tool-window tab that hosts [widget], or null when it is not in a tab (yet). */

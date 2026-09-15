@@ -23,7 +23,7 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
-    <b>0.5.7</b>
+    <b>0.5.8</b>
     <ul>
         <li>Select a search result to view its full loaded conversation in the bottom pane, with matching terms and phrases highlighted. Search respects the current date, agent and project filters.</li>
         <li>Use Previous/Next match or F3/Shift+F3 while focused in the conversation pane to move through occurrences, automatically scrolling and wrapping around. Matching tool entries expand automatically.</li>

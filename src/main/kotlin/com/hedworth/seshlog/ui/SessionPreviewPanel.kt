@@ -42,6 +42,12 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         background = UIUtil.getPanelBackground()
         border = JBUI.Borders.empty(6)
     }
+    internal val conversation = ConversationSearchPanel()
+    private val cards = java.awt.CardLayout()
+    private val body = JPanel(cards)
+    private val tailControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
+    internal var searchQuery = ""
+        private set
     private val header = JBLabel().apply { border = JBUI.Borders.empty(4, 6) }
     private val countSpinner = JSpinner(SpinnerNumberModel(settings.previewMessageCount, 1, MAX_MESSAGES, 1))
 
@@ -66,7 +72,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         }
         val top = JPanel(BorderLayout()).apply {
             add(header, BorderLayout.CENTER)
-            add(JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0)).apply {
+            add(tailControls.apply {
                 isOpaque = false
                 add(JBLabel("Last"))
                 add(countSpinner)
@@ -75,13 +81,20 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
             border = JBUI.Borders.customLineBottom(JBColor.border())
         }
         add(top, BorderLayout.NORTH)
-        add(ScrollPaneFactory.createScrollPane(editor, true), BorderLayout.CENTER)
+        body.add(ScrollPaneFactory.createScrollPane(editor, true), "tail")
+        body.add(conversation, "search")
+        add(body, BorderLayout.CENTER)
         showSession(null)
     }
 
     /** Called on the EDT whenever the tree selection changes. */
-    fun showSession(session: Session?) {
+    fun showSession(session: Session?, query: String = "") {
+        generation.incrementAndGet()
         this.session = session
+        searchQuery = query.trim()
+        tailControls.isVisible = searchQuery.isEmpty()
+        cards.show(body, if (searchQuery.isEmpty()) "tail" else "search")
+        conversation.clear(if (session == null) "Select a search result." else "Loading conversation…")
         if (session == null) {
             generation.incrementAndGet()
             alarm.cancelAllRequests()
@@ -94,17 +107,23 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     }
 
     private fun scheduleLoad() {
+        generation.incrementAndGet()
         alarm.cancelAllRequests()
         alarm.addRequest({ load() }, DEBOUNCE_MS)
     }
 
     private fun load() {
         val target = session ?: return
+        val query = searchQuery
         val count = settings.previewMessageCount
         val myGen = generation.incrementAndGet()
         executor.execute {
             val result = try {
-                SessionIndex.getInstance().providerFor(target).lastMessages(target, count)
+                val provider = SessionIndex.getInstance().providerFor(target)
+                if (query.isNotEmpty()) provider.conversationEntries(target)
+                else provider.lastMessages(target, count).mapIndexed { i, message ->
+                    com.hedworth.seshlog.model.ConversationEntry(message, "preview:$i")
+                }
             } catch (e: Exception) {
                 LOG.debug("Cannot read last messages of ${target.kind} session ${target.id}", e)
                 null
@@ -114,10 +133,16 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
             if (app == null || app.isDisposed) return@execute
             app.invokeLater({
                 if (generation.get() != myGen) return@invokeLater
+                if (query.isNotEmpty()) {
+                    messages = result.orEmpty().filter { !it.isTool }.map { it.message }
+                    if (result == null) conversation.clear("Transcript could not be read.")
+                    else conversation.showEntries(result, query)
+                    return@invokeLater
+                }
                 when {
                     result == null -> render(emptyList(), "Transcript could not be read.")
                     result.isEmpty() -> render(emptyList(), "No conversation yet.")
-                    else -> render(result, null)
+                    else -> render(result.map { it.message }, null)
                 }
             })
         }

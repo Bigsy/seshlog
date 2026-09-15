@@ -225,7 +225,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         tree.addTreeSelectionListener {
             selectedSession()?.let { rememberedSelection = it.id }
-            preview.showSession(selectedSession())
+            preview.showSession(selectedSession(), activeQuery)
         }
         tree.addTreeExpansionListener(object : javax.swing.event.TreeExpansionListener {
             override fun treeExpanded(event: javax.swing.event.TreeExpansionEvent) { rememberExpansion(event, false) }
@@ -378,14 +378,14 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     /** Settings may have changed (configurable Apply): re-read preview visibility and count. */
     fun settingsChanged() {
         applyPreviewVisibility()
-        preview.showSession(selectedSession())
+        preview.showSession(selectedSession(), activeQuery)
     }
 
     private fun applyPreviewVisibility() {
         val show = settings.showPreview
         preview.isVisible = show
         splitter.secondComponent = if (show) preview else null
-        if (show) preview.showSession(selectedSession())
+        if (show) preview.showSession(selectedSession(), activeQuery)
         splitter.revalidate()
         splitter.repaint()
     }
@@ -459,6 +459,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         val groups = SessionTreeModel.groupRanked(hits) { organisation.metadata(it.id).pinned }
         rebuildTree(groups)
+        preview.showSession(selectedSession(), activeQuery)
 
         val text: StatusText = tree.emptyText
         text.clear()
@@ -498,6 +499,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         val groups = SessionTreeModel.group(filtered) { organisation.metadata(it.id).pinned }
         rebuildTree(groups)
+        preview.showSession(selectedSession(), activeQuery)
         updateEmptyText(all)
     }
 

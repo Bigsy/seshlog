@@ -159,11 +159,21 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             val preview = SessionPreviewPanel(disposable)
             preview.showSession(s)
             val deadline = System.currentTimeMillis() + 10_000
-            while (panel.preview.messages.isEmpty() && System.currentTimeMillis() < deadline) {
+            while (preview.messages.isEmpty() && System.currentTimeMillis() < deadline) {
                 com.intellij.testFramework.PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
                 Thread.sleep(20)
             }
             assertEquals(listOf("Sure.", "Now also cover the reverse case."), preview.messages.map { it.text })
+
+            preview.showSession(s, "Sure")
+            val searchDeadline = System.currentTimeMillis() + 10_000
+            while (!preview.conversation.next.isEnabled && System.currentTimeMillis() < searchDeadline) {
+                com.intellij.testFramework.PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+                Thread.sleep(20)
+            }
+            assertTrue(preview.messages.size > 2)
+            assertTrue(preview.conversation.next.isEnabled)
+            assertTrue(preview.conversation.editor.highlighter.highlights.isNotEmpty())
 
             preview.showSession(null)
             assertNull(preview.session)
@@ -317,6 +327,56 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             state.mode = previous
             Disposer.dispose(disposable)
         }
+    }
+
+    fun `test search selection passes query to embedded full conversation`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val s = session("search-preview", Paths.get(project.basePath!!), Instant.EPOCH)
+            panel.render(listOf(s))
+            val node = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(
+                panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode, s)!!
+            panel.tree.selectionPath = javax.swing.tree.TreePath(node.path)
+            panel.renderSearchResults("needle", listOf(SearchHit(s, 1, false, "needle")))
+            assertEquals(s.id, panel.preview.session?.id)
+            assertEquals("needle", panel.preview.searchQuery)
+            panel.renderSearchResults("changed", listOf(SearchHit(s, 1, false, "changed")))
+            assertEquals("changed", panel.preview.searchQuery)
+            panel.searchField.text = "changed"
+            panel.searchField.text = ""
+            assertEquals("", panel.preview.searchQuery)
+        } finally { Disposer.dispose(disposable) }
+    }
+
+    fun `test embedded conversation highlights and navigates every occurrence including tools`() {
+        val panel = ConversationSearchPanel()
+        fun entry(text: String, id: String, tool: Boolean = false) =
+            com.hedworth.seshlog.model.ConversationEntry(
+                com.hedworth.seshlog.model.ConversationMessage(com.hedworth.seshlog.model.Role.USER, text, null), id,
+                if (tool) com.hedworth.seshlog.model.EntryKind.TOOL_RESULT else com.hedworth.seshlog.model.EntryKind.DIALOGUE)
+        panel.showEntries(listOf(entry("Needle in the first message", "first"),
+            entry("prefix ".repeat(100) + "needle", "tool", true),
+            entry("last needle", "last")), "needle")
+        assertEquals("Match 1 of 3", panel.status.text)
+        assertEquals("Needle", panel.editor.text.substring(panel.editor.caretPosition, panel.editor.caretPosition + 6))
+        panel.next.doClick()
+        assertEquals("Match 2 of 3", panel.status.text)
+        assertTrue(panel.editor.text.contains("[expanded]"))
+        assertEquals("needle", panel.editor.text.substring(panel.editor.caretPosition, panel.editor.caretPosition + 6))
+        panel.actionMap.get("F3").actionPerformed(null)
+        assertEquals("Match 3 of 3", panel.status.text)
+        assertEquals(4, panel.editor.highlighter.highlights.size)
+        panel.next.doClick()
+        assertEquals("Match 1 of 3", panel.status.text)
+        panel.actionMap.get("shift F3").actionPerformed(null)
+        assertEquals("Match 3 of 3", panel.status.text)
+        panel.showEntries(listOf(entry("ordinary text", "metadata")), "title")
+        assertTrue(panel.status.text.contains("title or path"))
+        assertFalse(panel.next.isEnabled)
+        assertEquals(0, panel.editor.highlighter.highlights.size)
+        panel.clear("Loading conversation…")
+        assertTrue(panel.editor.text.isEmpty())
     }
 
     private fun session(id: String, cwd: java.nio.file.Path, at: Instant) = Session(

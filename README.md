@@ -17,6 +17,9 @@ picker. Seshlog makes it a click.
   prompt count, and a live indicator for sessions running right now.
 - **Agents menu** lets you show any combination, such as Claude Code and Codex together.
   Auto defaults to the provider with the most sessions; All selects every agent. The menu only lists agents with sessions in the current project scope. Choices are remembered per project.
+- **Search results in the bottom pane** show the full loaded conversation with highlighted terms.
+  Use Previous/Next match or F3/Shift+F3 with focus in the pane to jump and scroll through occurrences.
+  Clearing search restores the last-message preview. Search respects the current date, agent and project filters.
 - **Flexible search** across provider titles, local names, project paths and conversation text.
   Words match in any order, including across messages; use `"quoted phrases"` for contiguous text.
   Title and phrase matches rank first, with recency breaking ties and snippets opening in the viewer.

@@ -11,7 +11,7 @@
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Full-text search across prompts and replies, not just titles</li>
-        <li>Preview pane showing the last messages of the selected session</li>
+        <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>
         <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
         <li>Restore the sessions that were running when the IDE was closed</li>
     </ul>
@@ -23,6 +23,13 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.5.7</b>
+    <ul>
+        <li>Select a search result to view its full loaded conversation in the bottom pane, with matching terms and phrases highlighted. Search respects the current date, agent and project filters.</li>
+        <li>Use Previous/Next match or F3/Shift+F3 while focused in the conversation pane to move through occurrences, automatically scrolling and wrapping around. Matching tool entries expand automatically.</li>
+        <li>Clear search to return to the recent-message preview. Prevent pending preview loads from displaying an outdated selection or query.</li>
+        <li>Existing transcript size limits continue to apply; partial content and search coverage are indicated in the conversation pane.</li>
+    </ul>
     <b>0.5.6</b>
     <ul>
         <li>Keep active-session tracking when opening, closing, splitting or dragging terminal tabs between panes, and follow focus between panes.</li>

@@ -181,3 +181,12 @@ synthetic rather than a real transcript.
 ## License
 
 [MIT](LICENSE)
+
+### Publishing a release
+
+In GitHub Actions, choose **Release → Run workflow → main**. The manual run increments
+`pluginVersion` by one patch (for example, 0.5.7 → 0.5.8), updates the plugin changelog,
+runs tests and Plugin Verifier, commits and tags the version, then signs and publishes it.
+Use an **Unreleased** heading in `plugin.xml` for pending release notes. An untagged current
+version's notes are carried forward; otherwise a maintenance entry is added and history retained.
+Pushing a `v*` tag still publishes the version already committed at that tag.

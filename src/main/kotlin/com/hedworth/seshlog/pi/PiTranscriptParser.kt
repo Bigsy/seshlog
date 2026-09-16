@@ -4,6 +4,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.hedworth.seshlog.claude.TranscriptParser
+import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
 import com.intellij.openapi.diagnostic.logger
@@ -14,6 +15,8 @@ import java.time.Instant
 data class PiTranscriptInfo(
     val sessionId: String?, val cwd: String?, val explicitTitle: String?, val promptTitle: String?,
     val startedAt: Instant?, val lastActivityAt: Instant?, val promptCount: Int,
+    /** From the last message record: an assistant `stopReason`, or a pending prompt/tool result. */
+    val activity: Activity = Activity.UNKNOWN, val activityAt: Instant? = null,
 )
 
 data class PiTranscript(val info: PiTranscriptInfo, val messages: List<ConversationMessage>)
@@ -31,6 +34,8 @@ object PiTranscriptParser {
         var linear = true
         var name: String? = null
         var activity: Instant? = null
+        var state = Activity.UNKNOWN
+        var stateAt: Instant? = null
         val entries = linkedMapOf<String, Entry>()
         val ambiguous = hashSetOf<String>()
         var leaf: String? = null
@@ -62,6 +67,13 @@ object PiTranscriptParser {
             val role = when (message?.string("role")) { "user" -> Role.USER; "assistant" -> Role.ASSISTANT; else -> null }
             val time = if (role != null) instant(obj.get("timestamp")) ?: instant(message?.get("timestamp")) else null
             if (time != null && (activity == null || time > activity)) activity = time
+            if (message != null) {
+                message.string("role")?.let { raw ->
+                    state = if (raw == "assistant") stopReasonActivity(message.string("stopReason"))
+                        else Activity.WORKING // a prompt or tool result the assistant has not answered yet
+                    stateAt = instant(obj.get("timestamp")) ?: instant(message.get("timestamp"))
+                }
+            }
             val text = message?.get("content")?.let(::text)
             val visible = if (role != null && text != null && (role != Role.USER || realPrompt(text)))
                 ConversationMessage(role, text, time) else null
@@ -85,7 +97,15 @@ object PiTranscriptParser {
         val id = header?.string("id")?.takeIf { it.matches(Regex("[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?")) }
         val cwd = header?.string("cwd")?.takeIf { it.isNotBlank() && runCatching { Path.of(it).isAbsolute }.getOrDefault(false) }
         return PiTranscript(PiTranscriptInfo(id, cwd, name, prompts.firstOrNull()?.text?.let(TranscriptParser::promptToTitle),
-            instant(header?.get("timestamp")), activity, prompts.size), branch)
+            instant(header?.get("timestamp")), activity, prompts.size, state, stateAt), branch)
+    }
+
+    /** Pi's assistant `stopReason`: `toolUse` keeps the turn going; anything else ends it. */
+    private fun stopReasonActivity(reason: String?): Activity = when (reason) {
+        null -> Activity.UNKNOWN
+        "toolUse" -> Activity.WORKING
+        "aborted" -> Activity.INTERRUPTED
+        else -> Activity.WAITING // stop, length, error
     }
 
     private fun realPrompt(text: String) = TranscriptParser.isRealPrompt(text) &&

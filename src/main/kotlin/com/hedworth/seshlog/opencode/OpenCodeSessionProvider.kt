@@ -75,7 +75,7 @@ class OpenCodeSessionProvider(
                 for (row in rows) {
                     val cwd = row.directory.takeIf { it.isNotBlank() }?.let { runCatching { Path.of(it) }.getOrNull() } ?: continue
                     val updated = Instant.ofEpochMilli(row.timeUpdated)
-                    // Prompt stats only change together with time_updated: reuse the last scan's.
+                    // Prompt stats and activity only change together with time_updated: reuse the last scan's.
                     val prev = previous[row.id]?.takeIf { it.kind == kind && it.lastActivityAt == updated }
                     val stats = if (prev != null) {
                         OpenCodeDatabase.PromptStats(prev.promptCount, prev.promptTitle)
@@ -87,6 +87,16 @@ class OpenCodeSessionProvider(
                         } catch (e: Exception) {
                             LOG.debug("Cannot read prompts of opencode session ${row.id}", e)
                             OpenCodeDatabase.PromptStats(0, null)
+                        }
+                    }
+                    val state = if (prev != null) {
+                        OpenCodeDatabase.ActivityState(prev.activity, prev.activitySince)
+                    } else {
+                        try {
+                            db.activity(conn, row.id)
+                        } catch (e: Exception) {
+                            LOG.debug("Cannot read activity of opencode session ${row.id}", e)
+                            OpenCodeDatabase.ActivityState.UNKNOWN
                         }
                     }
                     val explicitTitle = row.title.takeIf { it.isNotBlank() && !isPlaceholderTitle(it) }
@@ -104,6 +114,8 @@ class OpenCodeSessionProvider(
                         promptTitle = stats.promptTitle,
                         promptCount = stats.promptCount,
                         hasExplicitTitle = explicitTitle != null,
+                        activity = state.activity,
+                        activitySince = state.since,
                     )
                 }
                 result

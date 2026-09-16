@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.opencode
 
+import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
@@ -168,5 +169,57 @@ class OpenCodeSessionProviderTest {
     fun `placeholder titles are recognised`() {
         assertTrue(OpenCodeSessionProvider.isPlaceholderTitle("New session - 2026-09-02T09:00:00.000Z"))
         assertFalse(OpenCodeSessionProvider.isPlaceholderTitle("New session handling"))
+    }
+
+    private fun execute(sql: String) {
+        val db = tmp.root.toPath().resolve(OpenCodeSessionProvider.DATABASE_FILE)
+        org.sqlite.JDBC.createConnection("jdbc:sqlite:$db", java.util.Properties()).use { conn ->
+            conn.createStatement().use { it.execute(sql) }
+        }
+    }
+
+    @Test
+    fun `activity follows the newest message and is reused while time_updated is unchanged`() {
+        val provider = provider()
+        val first = provider.scan(emptyMap()).associateBy { it.id }
+        // ses_a ends with a completed assistant message that stopped.
+        assertEquals(Activity.WAITING, first.getValue("ses_a").activity)
+        assertEquals(Instant.ofEpochMilli(1788000500000), first.getValue("ses_a").activitySince)
+        // ses_c has only a user prompt: opencode owes a reply.
+        assertEquals(Activity.WORKING, first.getValue("ses_c").activity)
+        assertEquals(Instant.ofEpochMilli(1788001001000), first.getValue("ses_c").activitySince)
+        // ses_e has no messages at all.
+        assertEquals(Activity.UNKNOWN, first.getValue("ses_e").activity)
+        assertNull(first.getValue("ses_e").activitySince)
+
+        // An assistant message still streaming: no time.completed.
+        execute("""INSERT INTO message VALUES ('msg_c2', 'ses_c', 1788001002000, 1788001002000,
+            '{"role":"assistant","time":{"created":1788001002000}}')""")
+        execute("UPDATE session SET time_updated = 1788001002000 WHERE id = 'ses_c'")
+        val streaming = provider.scan(first).single { it.id == "ses_c" }
+        assertEquals(Activity.WORKING, streaming.activity)
+        assertEquals(Instant.ofEpochMilli(1788001002000), streaming.activitySince)
+
+        // Finished with tool calls: another step follows, so still working.
+        execute("""UPDATE message SET data = '{"role":"assistant","time":{"created":1788001002000,"completed":1788001003000},"finish":"tool-calls"}' WHERE id = 'msg_c2'""")
+        execute("UPDATE session SET time_updated = 1788001003000 WHERE id = 'ses_c'")
+        assertEquals(Activity.WORKING, provider.scan(first).single { it.id == "ses_c" }.activity)
+
+        // Aborted by the user.
+        execute("""UPDATE message SET data = '{"role":"assistant","time":{"created":1788001002000,"completed":1788001004000},"error":{"name":"MessageAbortedError"}}' WHERE id = 'msg_c2'""")
+        execute("UPDATE session SET time_updated = 1788001004000 WHERE id = 'ses_c'")
+        val aborted = provider.scan(first).single { it.id == "ses_c" }
+        assertEquals(Activity.INTERRUPTED, aborted.activity)
+        assertEquals(Instant.ofEpochMilli(1788001004000), aborted.activitySince)
+
+        // Ended by an API error: the turn is over and the user must act.
+        execute("""UPDATE message SET data = '{"role":"assistant","time":{"created":1788001002000,"completed":1788001006000},"error":{"name":"APIError"}}' WHERE id = 'msg_c2'""")
+        // time_updated deliberately unchanged: the previous scan's activity is reused.
+        val stale = provider.scan(listOf(aborted).associateBy { it.id })
+        assertEquals(Activity.INTERRUPTED, stale.single { it.id == "ses_c" }.activity)
+        execute("UPDATE session SET time_updated = 1788001006000 WHERE id = 'ses_c'")
+        val failed = provider.scan(first).single { it.id == "ses_c" }
+        assertEquals(Activity.WAITING, failed.activity)
+        assertEquals(Instant.ofEpochMilli(1788001006000), failed.activitySince)
     }
 }

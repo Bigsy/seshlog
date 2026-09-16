@@ -69,6 +69,13 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                     }).bindItem(settings::restoreMode.toNullableProperty())
                 }.comment("When a project opens, sessions that were running in it when the IDE closed can be resumed in new terminal tabs.")
             }
+            group("Notifications") {
+                row {
+                    checkBox(NOTIFY_WAITING_LABEL)
+                        .bindSelected(settings::notifyWhenWaiting)
+                        .comment("A balloon names the session when its agent finishes a turn or is interrupted, unless you are already looking at its terminal tab.")
+                }
+            }
             group("Preview") {
                 row {
                     checkBox("Show preview pane below the session list")
@@ -132,5 +139,6 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
 
     companion object {
         internal const val EXTRA_ARGS_LABEL = "Additional arguments:"
+        internal const val NOTIFY_WAITING_LABEL = "Notify when a running session is waiting for input"
     }
 }

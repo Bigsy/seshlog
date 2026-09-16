@@ -4,6 +4,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.hedworth.seshlog.claude.TranscriptParser
+import com.hedworth.seshlog.model.Activity
 import com.intellij.openapi.diagnostic.logger
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -22,6 +23,9 @@ data class CodexTranscriptInfo(
     val promptCount: Int,
     val isGuardianReview: Boolean = false,
     val forkedFromId: String? = null,
+    /** From the last `task_started` / `task_complete` / `turn_aborted` event, see [Activity]. */
+    val activity: Activity = Activity.UNKNOWN,
+    val activityAt: Instant? = null,
 )
 
 /**
@@ -52,6 +56,8 @@ object CodexTranscriptParser {
         var promptCount = 0
         var isGuardianReview = false
         var forkedFromId: String? = null
+        var activity = Activity.UNKNOWN
+        var activityAt: Instant? = null
 
         fun offer(line: String) {
             if (line.isBlank()) return
@@ -59,6 +65,18 @@ object CodexTranscriptParser {
                 line.contains("session_meta") -> offerSessionMeta(line)
                 line.contains("response_item") -> offerResponseItem(line)
             }
+            // Independent of the dispatch above: a tool output quoting "response_item" must not hide a task event.
+            if (line.contains("event_msg") && TASK_EVENTS.keys.any(line::contains)) offerEvent(line)
+        }
+
+        /** Codex brackets every turn with task events; the last one says whether it is still working. */
+        private fun offerEvent(line: String) {
+            val obj = parseObject(line) ?: return
+            if (obj.string("type") != "event_msg") return
+            val payload = obj.objectValue("payload") ?: return
+            val next = TASK_EVENTS[payload.string("type")] ?: return
+            activity = next
+            activityAt = instant(obj.string("timestamp"))
         }
 
         private fun offerSessionMeta(line: String) {
@@ -90,8 +108,16 @@ object CodexTranscriptParser {
             if (startedAt == null) startedAt = instant(obj.string("timestamp"))
         }
 
-        fun build() = CodexTranscriptInfo(sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isGuardianReview, forkedFromId)
+        fun build() = CodexTranscriptInfo(
+            sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isGuardianReview, forkedFromId, activity, activityAt,
+        )
     }
+
+    private val TASK_EVENTS = mapOf(
+        "task_started" to Activity.WORKING,
+        "task_complete" to Activity.WAITING,
+        "turn_aborted" to Activity.INTERRUPTED,
+    )
 
     internal fun parseObject(line: String): JsonObject? = try {
         JsonParser.parseString(line).takeIf { it.isJsonObject }?.asJsonObject

@@ -24,7 +24,10 @@ class TabRegistry<T : Any> {
     fun sessionFor(tab: T): String? = synchronized(bySession) { bySession.entries.firstOrNull { it.value == tab }?.key }
 
     fun register(sessionId: String, tab: T) {
-        synchronized(bySession) { bySession[sessionId] = tab }
+        synchronized(bySession) {
+            bySession.entries.removeAll { it.value == tab && it.key != sessionId }
+            bySession[sessionId] = tab
+        }
     }
 
     /** The tab was closed: drop every session that pointed at it. */
@@ -56,7 +59,7 @@ class TabRegistry<T : Any> {
                 val shell = tree.firstAncestorIn(pid, tabByShell.keys)
                 val owner = bySession[session.id]
                 when {
-                    shell != null -> bySession[session.id] = tabByShell.getValue(shell)
+                    shell != null -> register(session.id, tabByShell.getValue(shell))
                     owner != null && openTabs[owner] != null -> bySession.remove(session.id) // runs elsewhere
                 }
                 val tab = bySession[session.id] ?: continue

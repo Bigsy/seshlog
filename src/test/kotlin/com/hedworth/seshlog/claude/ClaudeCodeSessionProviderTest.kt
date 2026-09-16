@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.claude
 
+import java.time.Instant
+import com.hedworth.seshlog.model.Activity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -68,5 +70,41 @@ class ClaudeCodeSessionProviderTest {
         Files.delete(transcript)
         ClaudeCodeSessionProvider({ root }, { "claude" }, cacheFile).scan(emptyMap())
         assertTrue(TranscriptInfoStore.load(cacheFile).isEmpty())
+    }
+
+    @Test
+    fun `live status maps to activity with its timestamp`() {
+        val root = tmp.newFolder("activity").toPath()
+        val proj = root.resolve("projects/-Users-tester-workspace-acme-api")
+        Files.createDirectories(proj)
+        Files.createDirectories(root.resolve("sessions"))
+        val id = "425fc66d-def4-46ed-9d10-10b64b7788d2"
+        val fixtures = Paths.get(javaClass.getResource("/fixtures/ai_title_only.jsonl")!!.toURI()).parent
+        Files.copy(fixtures.resolve("ai_title_only.jsonl"), proj.resolve("$id.jsonl"))
+        val pid = ProcessHandle.current().pid()
+        val live = root.resolve("sessions/$pid.json")
+        val provider = ClaudeCodeSessionProvider({ root }, { "claude" })
+
+        fun scan(): com.hedworth.seshlog.model.Session = provider.scan(emptyMap()).single { it.id == id }
+
+        Files.writeString(live, """{"pid":$pid,"sessionId":"$id","status":"busy","statusUpdatedAt":1000,"updatedAt":2000}""")
+        val working = scan()
+        assertTrue(working.isLive)
+        assertEquals(Activity.WORKING, working.activity)
+        assertEquals(Instant.ofEpochMilli(1000), working.activitySince)
+
+        Files.writeString(live, """{"pid":$pid,"sessionId":"$id","status":"idle","statusUpdatedAt":3000}""")
+        val waiting = scan()
+        assertEquals(Activity.WAITING, waiting.activity)
+        assertEquals(Instant.ofEpochMilli(3000), waiting.activitySince)
+
+        Files.writeString(live, """{"pid":$pid,"sessionId":"$id","status":"something-new"}""")
+        assertEquals(Activity.UNKNOWN, scan().activity)
+
+        Files.delete(live)
+        val gone = scan()
+        assertTrue(!gone.isLive)
+        assertEquals(Activity.UNKNOWN, gone.activity)
+        assertEquals(null, gone.activitySince)
     }
 }

@@ -126,6 +126,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
     val tree: Tree = Tree(treeModel)
     private val renderer = SessionCellRenderer()
+    /** Refreshes the "waiting N min" badges; nothing else in the tree depends on wall-clock time. */
+    private val badgeClock = javax.swing.Timer(60_000) { refreshBadges(renderer.runningOwned) }
 
     /** Bottom pane showing the selected session's last messages. */
     val preview = SessionPreviewPanel(this)
@@ -152,6 +154,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         tree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
         tree.cellRenderer = renderer
         renderer.activeSessionId = OwnedTerminalTabs.getInstance(project).activeSessionId
+        badgeClock.start()
+        renderer.runningOwned = OwnedTerminalTabs.getInstance(project).runningSessionIds()
+        project.messageBus.connect(this).subscribe(OwnedTerminalTabs.RUNNING_TOPIC,
+            object : OwnedTerminalTabs.RunningListener {
+                override fun runningChanged(ids: Set<String>) = refreshBadges(ids)
+            })
         project.messageBus.connect(this).subscribe(OwnedTerminalTabs.ACTIVE_SESSION_TOPIC,
             object : OwnedTerminalTabs.ActiveSessionListener {
                 override fun activeSessionChanged(sessionId: String?) {
@@ -243,6 +251,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 updateLoadingState()
                 requestedPaths = emptySet() // Refresh symlinks and missing ancestors on every scan.
                 preparePaths(sessions)
+                // Agents without a pid file show their activity only while their owned tab still runs them.
+                renderer.runningOwned = OwnedTerminalTabs.getInstance(project).runningSessionIds()
                 // A rescan while searching: re-run the query so new/changed transcripts are included.
                 if (activeQuery.isNotEmpty()) runSearch() else render(sessions)
             }
@@ -600,7 +610,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         else -> null
     }
 
-    override fun dispose() { searchScope.dispose(); pathScope.dispose() }
+    internal fun refreshBadges(ids: Set<String>) {
+        renderer.runningOwned = ids
+        val root = treeModel.root as DefaultMutableTreeNode
+        for (node in root.depthFirstEnumeration()) {
+            if ((node as DefaultMutableTreeNode).userObject is Session) treeModel.nodeChanged(node)
+        }
+    }
+
+    override fun dispose() { badgeClock.stop(); searchScope.dispose(); pathScope.dispose() }
 
     companion object {
         const val MIN_QUERY_LENGTH = 2

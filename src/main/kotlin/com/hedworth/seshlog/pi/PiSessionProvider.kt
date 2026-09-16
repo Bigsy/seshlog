@@ -68,7 +68,8 @@ class PiSessionProvider(
             val cwd = info.cwd?.let { runCatching { Path.of(it).takeIf(Path::isAbsolute) }.getOrNull() } ?: continue
             sessions.putIfAbsent(id, Session(kind, id, info.explicitTitle ?: info.promptTitle ?: "Untitled session",
                 cwd, null, info.startedAt, info.lastActivityAt ?: attrs.lastModifiedTime().toInstant(), path,
-                false, null, info.promptTitle, info.promptCount, info.explicitTitle != null))
+                false, null, info.promptTitle, info.promptCount, info.explicitTitle != null,
+                activity = info.activity, activitySince = info.activityAt))
         }
         cache.persist()
         return sessions.values.toList()

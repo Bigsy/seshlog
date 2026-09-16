@@ -56,6 +56,8 @@ class SeshlogConfigurableTest : BasePlatformTestCase() {
             assertEquals(AgentKind.entries.size, argumentLabels.size)
             val archived = components(root).filterIsInstance<JCheckBox>().single { it.text == "Show archived sessions" }
             assertFalse(archived.isSelected)
+            val notify = components(root).filterIsInstance<JCheckBox>().single { it.text == SeshlogConfigurable.NOTIFY_WAITING_LABEL }
+            assertTrue(notify.isSelected)
         } finally {
             configurable.disposeUIResources()
         }

@@ -24,6 +24,10 @@ data class Session(
     val hasExplicitTitle: Boolean,
     /** Original session from which this session was forked, when recorded by the agent. */
     val forkedFromId: String? = null,
+    /** What the agent is doing according to its storage; see [Activity]. Shown only while the session runs. */
+    val activity: Activity = Activity.UNKNOWN,
+    /** When [activity] last changed, when the agent records that. */
+    val activitySince: Instant? = null,
 ) {
     /** Branch worth showing: not empty and not a detached `HEAD`. */
     val displayBranch: String?

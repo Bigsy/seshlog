@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.pi
 
+import com.hedworth.seshlog.model.Activity
 import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Files
@@ -88,5 +89,43 @@ class PiTranscriptParserTest {
             PiTranscriptParser.read(path)
             assertArrayEquals(before, Files.readAllBytes(path))
         }
+    }
+
+    private fun user(id: String, parent: String, at: String) =
+        """{"type":"message","id":"$id","parentId":$parent,"timestamp":"$at","message":{"role":"user","content":"Prompt $id"}}"""
+    private fun assistant(id: String, parent: String, at: String, stop: String?) =
+        """{"type":"message","id":"$id","parentId":"$parent","timestamp":"$at","message":{"role":"assistant","content":[{"type":"text","text":"Reply"}]""" +
+            (stop?.let { ""","stopReason":"$it"""" } ?: "") + "}}"
+    private fun toolResult(id: String, parent: String, at: String) =
+        """{"type":"message","id":"$id","parentId":"$parent","timestamp":"$at","message":{"role":"toolResult","toolCallId":"c1","content":[{"type":"text","text":"ok"}]}}"""
+
+    @Test fun `the last message record decides the activity`() {
+        assertEquals(Activity.UNKNOWN, parse().info.activity)
+
+        val prompted = parse(user("m1", "null", "2026-01-01T00:00:00Z")).info
+        assertEquals(Activity.WORKING, prompted.activity)
+        assertEquals(Instant.parse("2026-01-01T00:00:00Z"), prompted.activityAt)
+
+        val stopped = parse(user("m1", "null", "2026-01-01T00:00:00Z"), assistant("m2", "m1", "2026-01-01T00:01:00Z", "stop")).info
+        assertEquals(Activity.WAITING, stopped.activity)
+        assertEquals(Instant.parse("2026-01-01T00:01:00Z"), stopped.activityAt)
+
+        val calling = parse(user("m1", "null", "2026-01-01T00:00:00Z"), assistant("m2", "m1", "2026-01-01T00:01:00Z", "toolUse")).info
+        assertEquals(Activity.WORKING, calling.activity)
+
+        val resulted = parse(user("m1", "null", "2026-01-01T00:00:00Z"), assistant("m2", "m1", "2026-01-01T00:01:00Z", "toolUse"),
+            toolResult("m3", "m2", "2026-01-01T00:01:05Z")).info
+        assertEquals(Activity.WORKING, resulted.activity)
+        assertEquals(Instant.parse("2026-01-01T00:01:05Z"), resulted.activityAt)
+
+        assertEquals(Activity.INTERRUPTED, parse(user("m1", "null", "2026-01-01T00:00:00Z"), assistant("m2", "m1", "2026-01-01T00:01:00Z", "aborted")).info.activity)
+        assertEquals(Activity.WAITING, parse(user("m1", "null", "2026-01-01T00:00:00Z"), assistant("m2", "m1", "2026-01-01T00:01:00Z", "error")).info.activity)
+        assertEquals(Activity.WAITING, parse(user("m1", "null", "2026-01-01T00:00:00Z"), assistant("m2", "m1", "2026-01-01T00:01:00Z", "length")).info.activity)
+        assertEquals(Activity.UNKNOWN, parse(user("m1", "null", "2026-01-01T00:00:00Z"), assistant("m2", "m1", "2026-01-01T00:01:00Z", null)).info.activity)
+    }
+
+    @Test fun `fixtures without stop reasons report unknown activity`() {
+        assertEquals(Activity.UNKNOWN, PiTranscriptParser.read(fixture("branch")).info.activity)
+        assertEquals(Activity.UNKNOWN, PiTranscriptParser.read(fixture("linear")).info.activity)
     }
 }

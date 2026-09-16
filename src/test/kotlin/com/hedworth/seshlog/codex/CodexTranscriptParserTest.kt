@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.codex
 
+import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.claude.TranscriptTailReader
 import com.hedworth.seshlog.claude.TranscriptTextExtractor
 import org.junit.Assert.assertEquals
@@ -53,5 +54,47 @@ class CodexTranscriptParserTest {
         assertNull(info.sessionId)
         assertNull(info.cwd)
         assertEquals(0, info.promptCount)
+    }
+
+    private fun event(type: String, at: String, extra: String = "") =
+        """{"timestamp":"$at","type":"event_msg","payload":{"type":"$type"$extra}}"""
+
+    @Test
+    fun `task events decide the activity and the last one wins`() {
+        val meta = """{"timestamp":"2026-08-29T10:00:00Z","type":"session_meta","payload":{"id":"s1","cwd":"/p"}}"""
+        assertEquals(Activity.UNKNOWN, CodexTranscriptParser.parseLines(sequenceOf(meta)).activity)
+
+        val working = CodexTranscriptParser.parseLines(sequenceOf(meta, event("task_started", "2026-08-29T10:01:00Z")))
+        assertEquals(Activity.WORKING, working.activity)
+        assertEquals(Instant.parse("2026-08-29T10:01:00Z"), working.activityAt)
+
+        val waiting = CodexTranscriptParser.parseLines(sequenceOf(
+            meta, event("task_started", "2026-08-29T10:01:00Z"),
+            event("item_completed", "2026-08-29T10:01:30Z"), event("token_count", "2026-08-29T10:01:31Z"),
+            event("task_complete", "2026-08-29T10:02:00Z", ""","last_agent_message":"done"""")))
+        assertEquals(Activity.WAITING, waiting.activity)
+        assertEquals(Instant.parse("2026-08-29T10:02:00Z"), waiting.activityAt)
+
+        val aborted = CodexTranscriptParser.parseLines(sequenceOf(
+            meta, event("task_started", "2026-08-29T10:01:00Z"), event("turn_aborted", "2026-08-29T10:01:10Z")))
+        assertEquals(Activity.INTERRUPTED, aborted.activity)
+        assertEquals(Instant.parse("2026-08-29T10:01:10Z"), aborted.activityAt)
+    }
+
+    @Test
+    fun `task events are not mistaken for tool output that quotes them, and malformed events are ignored`() {
+        val meta = """{"timestamp":"2026-08-29T10:00:00Z","type":"session_meta","payload":{"id":"s1","cwd":"/p"}}"""
+        val quoted = """{"timestamp":"2026-08-29T10:03:00Z","type":"response_item","payload":{"type":"function_call_output","output":"saw event_msg task_complete in a log"}}"""
+        val info = CodexTranscriptParser.parseLines(sequenceOf(meta, event("task_started", "2026-08-29T10:01:00Z"), quoted))
+        assertEquals(Activity.WORKING, info.activity)
+        assertEquals(Instant.parse("2026-08-29T10:01:00Z"), info.activityAt)
+
+        val broken = CodexTranscriptParser.parseLines(sequenceOf(
+            meta, event("task_complete", "2026-08-29T10:02:00Z"), """{"type":"event_msg","payload":{"type":"task_started""""))
+        assertEquals(Activity.WAITING, broken.activity)
+
+        val noStamp = CodexTranscriptParser.parseLines(sequenceOf(meta, """{"type":"event_msg","payload":{"type":"task_started"}}"""))
+        assertEquals(Activity.WORKING, noStamp.activity)
+        assertNull(noStamp.activityAt)
     }
 }

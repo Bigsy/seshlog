@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.claude
 
+import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -37,5 +38,25 @@ class LiveSessionReaderTest {
         assertEquals(setOf("old-session"), LiveSessionReader.read(dir).keys)
         Files.setLastModifiedTime(file, java.nio.file.attribute.FileTime.fromMillis(0))
         assertTrue(LiveSessionReader.read(dir).isEmpty())
+    }
+
+    @Test
+    fun `status and its timestamp are read, falling back to updatedAt`() {
+        val dir = tmp.newFolder("status").toPath()
+        val fixture = Paths.get(javaClass.getResource("/fixtures/live_session.json")!!.toURI())
+        val live = LiveSessionReader.parse(fixture)!!
+        assertEquals("idle", live.status)
+        assertEquals(Instant.ofEpochMilli(1787672885210), live.statusUpdatedAt)
+
+        val file = dir.resolve("1.json")
+        Files.writeString(file, """{"pid":1,"sessionId":"s","status":"busy","updatedAt":42}""")
+        val fallback = LiveSessionReader.parse(file)!!
+        assertEquals("busy", fallback.status)
+        assertEquals(Instant.ofEpochMilli(42), fallback.statusUpdatedAt)
+
+        Files.writeString(file, """{"pid":1,"sessionId":"s"}""")
+        val bare = LiveSessionReader.parse(file)!!
+        assertEquals(null, bare.status)
+        assertEquals(null, bare.statusUpdatedAt)
     }
 }

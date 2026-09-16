@@ -267,7 +267,9 @@ class SeshlogStartupActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
         OwnedTerminalTabs.getInstance(project).start()
         ApplicationManager.getApplication().invokeLater {
-            if (!project.isDisposed) SessionRestoreManager.getInstance(project).start()
+            if (project.isDisposed) return@invokeLater
+            SessionRestoreManager.getInstance(project).start()
+            com.hedworth.seshlog.ui.WaitingSessionNotifier.getInstance(project).start()
         }
     }
 }

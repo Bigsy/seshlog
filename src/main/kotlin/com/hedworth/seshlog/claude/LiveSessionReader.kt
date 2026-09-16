@@ -4,8 +4,20 @@ import com.google.gson.JsonParser
 import com.intellij.openapi.diagnostic.logger
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Instant
 
-data class LiveSession(val pid: Long, val sessionId: String, val cwd: String?, val status: String?)
+/**
+ * One `~/.claude/sessions/<pid>.json`. [status] is Claude Code's own view of the session, observed
+ * as `busy` (generating or running tools) and `idle` (waiting for a prompt); [statusUpdatedAt] is
+ * when it last changed.
+ */
+data class LiveSession(
+    val pid: Long,
+    val sessionId: String,
+    val cwd: String?,
+    val status: String?,
+    val statusUpdatedAt: Instant? = null,
+)
 
 /**
  * Reads `~/.claude/sessions/<pid>.json`. A session counts as live only when the file exists
@@ -40,6 +52,8 @@ object LiveSessionReader {
             sessionId = sessionId,
             cwd = obj.get("cwd")?.takeIf { it.isJsonPrimitive }?.asString,
             status = obj.get("status")?.takeIf { it.isJsonPrimitive }?.asString,
+            statusUpdatedAt = (obj.get("statusUpdatedAt") ?: obj.get("updatedAt"))
+                ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong?.let(Instant::ofEpochMilli),
         )
     } catch (e: Exception) {
         LOG.debug("Skipping unreadable live-session file $file", e)

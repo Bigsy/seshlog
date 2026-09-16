@@ -2,6 +2,7 @@ package com.hedworth.seshlog.claude
 
 import com.hedworth.seshlog.cache.FileBackedParseCache
 import com.hedworth.seshlog.cache.FileStamp
+import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
@@ -91,6 +92,8 @@ class ClaudeCodeSessionProvider(
                 promptTitle = info.promptTitle,
                 promptCount = info.promptCount,
                 hasExplicitTitle = info.hasExplicitTitle,
+                activity = activityOf(liveEntry?.status),
+                activitySince = liveEntry?.statusUpdatedAt,
             )
         }
         cache.persist()
@@ -112,6 +115,13 @@ class ClaudeCodeSessionProvider(
     override fun contentStamp(session: Session): Any? = FileStamp.of(session.transcriptPath)
 
     /** `projects/<escaped-cwd>/<uuid>.jsonl` only — subagent dirs, memory/ and index files are skipped. */
+    /** Claude Code writes `busy` while generating or running tools and `idle` at its prompt. */
+    private fun activityOf(status: String?): Activity = when (status) {
+        "busy" -> Activity.WORKING
+        "idle" -> Activity.WAITING
+        else -> Activity.UNKNOWN
+    }
+
     private fun listTranscripts(projects: Path): List<Path> {
         val result = ArrayList<Path>()
         try {

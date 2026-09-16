@@ -11,6 +11,38 @@ import java.time.Instant
 
 class SeshlogToolWindowTest : BasePlatformTestCase() {
 
+    fun `test running badges clear without a session scan and invalidate row widths`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val item = session("owned", Paths.get(project.basePath!!), Instant.EPOCH)
+                .copy(isLive = false, activity = com.hedworth.seshlog.model.Activity.WAITING)
+            panel.render(listOf(item))
+            var changed = 0
+            panel.tree.model.addTreeModelListener(object : javax.swing.event.TreeModelListener {
+                override fun treeNodesChanged(e: javax.swing.event.TreeModelEvent) { changed++ }
+                override fun treeStructureChanged(e: javax.swing.event.TreeModelEvent) = Unit
+                override fun treeNodesInserted(e: javax.swing.event.TreeModelEvent) = Unit
+                override fun treeNodesRemoved(e: javax.swing.event.TreeModelEvent) = Unit
+            })
+            val renderer = panel.tree.cellRenderer as SessionCellRenderer
+            fun label(): String {
+                renderer.getTreeCellRendererComponent(panel.tree,
+                    javax.swing.tree.DefaultMutableTreeNode(item), false, false, true, 1, false)
+                return renderer.toString()
+            }
+            val publisher = project.messageBus.syncPublisher(
+                com.hedworth.seshlog.terminal.OwnedTerminalTabs.RUNNING_TOPIC)
+            publisher.runningChanged(setOf(item.id))
+            assertTrue(label().contains("waiting"))
+            publisher.runningChanged(emptySet())
+            assertFalse(label().contains("waiting"))
+            assertTrue(changed >= 2)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
     fun `test background roots notification only updates the tree on EDT`() {
         val disposable = Disposer.newDisposable()
         try {

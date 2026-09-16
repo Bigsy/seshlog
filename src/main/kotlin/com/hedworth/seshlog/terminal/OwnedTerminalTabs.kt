@@ -62,6 +62,45 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         return widget
     }
 
+    private var running = emptySet<String>()
+    private var checkingProcesses = false
+    private var disposed = false
+    private val processClock = javax.swing.Timer(2_000) { refreshRunning() }
+
+    /** Cached process evidence; collecting it must never block the EDT. */
+    fun runningSessionIds(): Set<String> = running.intersect(registry.sessionIds)
+
+    private fun refreshRunning() {
+        if (disposed || checkingProcesses) return
+        val sessions = SessionIndex.getInstance().sessions.associateBy { it.id }
+        val candidates = registry.sessionIds.mapNotNull { id ->
+            val session = sessions[id] ?: return@mapNotNull null
+            val shell = terminalFor(id)?.shellPid() ?: return@mapNotNull null
+            Triple(id, shell, session)
+        }
+        checkingProcesses = true
+        val app = ApplicationManager.getApplication()
+        app.executeOnPooledThread {
+            val found = candidates.filter { (_, shell, session) ->
+                SessionProcess.isRunning(shell, session)
+            }.mapTo(HashSet()) { it.first }
+            app.invokeLater {
+                checkingProcesses = false
+                if (!disposed && !project.isDisposed) {
+                    // Ignore results for tabs replaced or closed while the check ran.
+                    val valid = found.filterTo(HashSet()) { id ->
+                        val shell = candidates.first { it.first == id }.second
+                        terminalFor(id)?.shellPid() == shell
+                    }
+                    if (running != valid) {
+                        running = valid
+                        project.messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningSessionIds())
+                    }
+                }
+            }
+        }
+    }
+
     /** Remember that [widget]'s tab runs [session]. Must be called on the EDT. */
     fun track(session: Session, widget: TerminalHandle) {
         val content = widget.content ?: run {
@@ -70,6 +109,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         }
         registry.register(session.id, content)
         tabObserver.refresh()
+        refreshRunning()
     }
 
     /** Bring the tab running [sessionId] to the front. Returns false when we do not own one. */
@@ -89,6 +129,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** Subscribe to index updates; idempotent. */
     fun start() {
         if (!started.compareAndSet(false, true)) return
+        processClock.start()
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
             override fun sessionsUpdated(sessions: List<Session>) = sync(sessions)
         })
@@ -114,13 +155,22 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         project.messageBus.syncPublisher(ACTIVE_SESSION_TOPIC).activeSessionChanged(sessionId)
     }
 
-    override fun dispose() = tabObserver.dispose()
+    override fun dispose() {
+        disposed = true
+        processClock.stop()
+        tabObserver.dispose()
+    }
+
+    interface RunningListener {
+        fun runningChanged(ids: Set<String>)
+    }
 
     interface ActiveSessionListener {
         fun activeSessionChanged(sessionId: String?)
     }
 
     companion object {
+        val RUNNING_TOPIC = Topic.create("Seshlog running terminals", RunningListener::class.java)
         val ACTIVE_SESSION_TOPIC = Topic.create("Seshlog active terminal", ActiveSessionListener::class.java)
         fun getInstance(project: Project): OwnedTerminalTabs = project.getService(OwnedTerminalTabs::class.java)
     }

@@ -44,6 +44,8 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         /** Whether the preview pane is shown below the session list. */
         var showPreview: Boolean = true
         var restoreMode: String = RestoreMode.ASK.name
+        /** Balloon when a running session's agent finishes a turn and waits for input. */
+        var notifyWhenWaiting: Boolean = true
     }
 
     private var state = State()
@@ -124,6 +126,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var restoreMode: RestoreMode
         get() = runCatching { RestoreMode.valueOf(state.restoreMode) }.getOrDefault(RestoreMode.ASK)
         set(value) { state.restoreMode = value.name }
+
+    var notifyWhenWaiting: Boolean
+        get() = state.notifyWhenWaiting
+        set(value) { state.notifyWhenWaiting = value }
 
     /** Resolved Claude data directory. */
     fun resolvedClaudeDataDir(): Path = resolveClaudeDataDir(state.claudeDataDir)

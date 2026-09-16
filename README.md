@@ -14,7 +14,16 @@ picker. Seshlog makes it a click.
 ## Features
 
 - **Sessions grouped by project**, sorted by last activity, with the agent's own title, git branch,
-  prompt count, and a live indicator for sessions with a verified running process ID.
+  prompt count, and an activity badge for running sessions: **working**, **waiting** for your input
+  (with how long), or **interrupted**.
+- **Activity and waiting notifications.** Claude Code reports busy/idle itself in its sessions
+  directory, so every running Claude session shows its state. Codex, opencode and Pi keep no process
+  file; their state is read from the end of the transcript or database and shown only while a tab
+  Seshlog owns has a process with matching resume arguments. Process checks run in the background
+  every two seconds; if the OS hides process arguments, no activity badge is shown for these agents.
+  When a running session stops working and waits for you, a balloon
+  names it, unless its terminal tab is already on screen; **Settings → Tools → Seshlog → Notifications**
+  turns this off. A permission prompt cannot be told apart from a running tool and shows as working.
 - **Agents menu** lets you show any combination, such as Claude Code and Codex together.
   Auto defaults to the provider with the most sessions; All selects every agent. The menu only lists agents with sessions in the current project scope. Choices are remembered per project.
 - **Search results in the bottom pane** show the full loaded conversation with highlighted terms.
@@ -95,7 +104,8 @@ Search, preview, prompt counts and fallback titles use the persisted active bran
 original conversation history across compaction. Other branches are not searched, and branch
 switches that Pi has not saved cannot be inferred. Only user and assistant text is included;
 images, thinking, tools and extension content are omitted. Explicit session names take precedence.
-Pi has no live badges or restart recovery. Manual Resume and Fork work through the terminal;
+Pi keeps no process file, so its sessions are never live and are not restored after a restart; its
+activity badge appears only in tabs Seshlog started. Manual Resume and Fork work through the terminal;
 forks are saved beside the source so custom-root sessions remain discoverable.
 
 CLI acceptance was checked offline with [Pi v0.84.2](https://github.com/badlogic/pi-mono/tree/914cf1472e715297caa30db4b9535d534a9eb718)
@@ -141,6 +151,7 @@ every SQLite reader maintains, which holds no session data of its own. Its own s
 | Show sessions from all projects | off | Otherwise only sessions whose cwd is under the open project |
 | Hide untitled sessions with fewer than *n* prompts | 1 | Filters out aborted starts; 0 shows everything |
 | Sessions live at shutdown | Ask | Ask / Always restore / Never restore |
+| Notify when a running session is waiting for input | on | Balloon when a session goes from working to waiting or interrupted; skipped while its tab is on screen |
 | Preview pane | on, 2 messages | Shown below the session list |
 
 ## Development

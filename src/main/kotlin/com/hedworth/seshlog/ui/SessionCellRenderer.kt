@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.Session
 import com.intellij.icons.AllIcons
 import com.intellij.ui.ColoredTreeCellRenderer
@@ -8,6 +9,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.text.DateFormatUtil
 import java.awt.Color
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 import javax.swing.JTree
@@ -19,6 +21,8 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
     var hits: Map<String, SearchHit> = emptyMap()
     var query: String = ""
     var activeSessionId: String? = null
+    /** Sessions of agents without a pid file whose Seshlog-owned tab still runs them. Set by the panel on the EDT. */
+    var runningOwned: Set<String> = emptySet()
 
     override fun customizeCellRenderer(
         tree: JTree, value: Any?, selected: Boolean, expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean,
@@ -55,8 +59,10 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
         append("  " + DateFormatUtil.formatPrettyDateTime(session.lastActivityAt.toEpochMilli()), SimpleTextAttributes.GRAYED_ATTRIBUTES)
         session.displayBranch?.let { append("  $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
-        if (session.isLive) {
-            append("  ● live", SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, LIVE_COLOR))
+        if (isRunning(session)) {
+            val color = if (ActivityLabel.isIdle(session.activity)) WAITING_COLOR else LIVE_COLOR
+            append("  " + ActivityLabel.badge(session.activity, session.activitySince, Instant.now()),
+                SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, color))
         }
         val hit = hits[session.id]
         if (hit != null) {
@@ -82,6 +88,11 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
             append("Started: ").append(fmt(session.startedAt)).append("<br>")
             append("Last activity: ").append(fmt(session.lastActivityAt)).append("<br>")
             append("Prompts: ").append(session.promptCount).append("<br>")
+            if (isRunning(session)) {
+                append(ActivityLabel.describe(session.activity))
+                if (session.activity != Activity.UNKNOWN) session.activitySince?.let { append(" since ").append(fmt(it)) }
+                append("<br>")
+            }
             if (session.isLive) append("Running, pid ").append(session.livePid).append("<br>")
             hit?.snippet?.let { append("Match: <i>").append(esc(it)).append("</i><br>") }
             session.transcriptPath?.let { append("<span style='color:gray'>").append(esc(it.toString())).append("</span>") }
@@ -89,9 +100,13 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         }
     }
 
+    /** Live by the agent's own pid file, or still running in a tab Seshlog owns. */
+    private fun isRunning(session: Session): Boolean = session.isLive || session.id in runningOwned
+
     companion object {
         private val ACTIVE_COLOR: Color = JBColor(Color(0x2458A6), Color(0x8AB4F8))
         private val LIVE_COLOR: Color = JBColor(Color(0x2E8B57), Color(0x6CBF84))
+        private val WAITING_COLOR: Color = JBColor(Color(0xB86E00), Color(0xE8A33D))
         private val HIT_COLOR: Color = JBColor(Color(0x3574F0), Color(0x548AF7))
         private val TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }

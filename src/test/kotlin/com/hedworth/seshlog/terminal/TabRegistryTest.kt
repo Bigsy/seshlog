@@ -55,7 +55,8 @@ class TabRegistryTest {
         registry.register("a", tabA)
         registry.register("a2", tabA)
         registry.register("b", tabB)
-        assertTrue(registry.owns("a"))
+        assertFalse(registry.owns("a"))
+        assertEquals("a2", registry.sessionFor(tabA))
         assertEquals(tabB, registry.tabFor("b"))
         registry.forget(tabA)
         assertFalse(registry.owns("a"))
@@ -94,6 +95,16 @@ class TabRegistryTest {
         assertFalse(registry.owns("other"))
         assertFalse(registry.owns("dead"))
         assertTrue("titles already match, nothing to retitle", retitles.isEmpty())
+    }
+
+    @Test
+    fun `adopting a new session evicts the previous owner of its tab`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("old", tabA)
+        registry.sync(listOf(session("a", 111)), mapOf(tabA to 110L), tree) { it.title }
+        assertFalse(registry.owns("old"))
+        assertEquals(setOf("a"), registry.sessionIds)
+        assertEquals("a", registry.sessionFor(tabA))
     }
 
     @Test

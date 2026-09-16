@@ -2,6 +2,7 @@ package com.hedworth.seshlog.opencode
 
 import com.hedworth.seshlog.claude.TranscriptParser
 import com.hedworth.seshlog.claude.TranscriptTextExtractor
+import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
 import org.sqlite.JDBC
@@ -41,6 +42,11 @@ class OpenCodeDatabase(private val file: Path) {
 
     /** Real prompts of a session: how many, and the first one reduced to a title line. */
     data class PromptStats(val promptCount: Int, val promptTitle: String?)
+
+    /** Where the agent stands after its most recent message. */
+    data class ActivityState(val activity: Activity, val since: Instant?) {
+        companion object { val UNKNOWN = ActivityState(Activity.UNKNOWN, null) }
+    }
 
     /** Run [block] against a fresh read-only connection, then close it. SQL errors propagate. */
     fun <T> read(block: (Connection) -> T): T {
@@ -92,6 +98,44 @@ class OpenCodeDatabase(private val file: Path) {
             st.executeQuery().use { rs ->
                 val prompts = fold(rs)
                 return PromptStats(prompts.size, prompts.firstOrNull()?.let { TranscriptParser.promptToTitle(it.text) })
+            }
+        }
+    }
+
+    /**
+     * The newest message decides: a user message or an assistant message without `time.completed`
+     * means opencode is still working, as does an assistant step that ended in `tool-calls`. A
+     * completed assistant message otherwise ends the turn — by `stop`, by an error, or by the user
+     * aborting it (`error.name` = `MessageAbortedError`).
+     */
+    fun activity(conn: Connection, sessionId: String): ActivityState {
+        val sql = """
+            SELECT json_extract(data, '$.role'), json_extract(data, '$.time.completed'),
+                   json_extract(data, '$.finish'), json_extract(data, '$.error.name'), time_created
+            FROM message
+            WHERE session_id = ?
+            ORDER BY time_created DESC, id DESC
+            LIMIT 1
+        """.trimIndent()
+        conn.prepareStatement(sql).use { st ->
+            st.setString(1, sessionId)
+            st.executeQuery().use { rs ->
+                if (!rs.next()) return ActivityState.UNKNOWN
+                val role = rs.getString(1)
+                val completed = rs.getLong(2).takeIf { !rs.wasNull() }
+                val finish = rs.getString(3)
+                val error = rs.getString(4)
+                val created = Instant.ofEpochMilli(rs.getLong(5))
+                return when (role) {
+                    "user" -> ActivityState(Activity.WORKING, created)
+                    "assistant" -> when {
+                        completed == null -> ActivityState(Activity.WORKING, created)
+                        error != null && error.contains("Abort") -> ActivityState(Activity.INTERRUPTED, Instant.ofEpochMilli(completed))
+                        error == null && finish == "tool-calls" -> ActivityState(Activity.WORKING, Instant.ofEpochMilli(completed))
+                        else -> ActivityState(Activity.WAITING, Instant.ofEpochMilli(completed))
+                    }
+                    else -> ActivityState.UNKNOWN
+                }
             }
         }
     }

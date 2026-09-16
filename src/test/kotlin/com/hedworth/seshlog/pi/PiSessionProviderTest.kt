@@ -107,4 +107,16 @@ class PiSessionProviderTest {
         assertEquals("${ShellQuote.quote(executable)} --session ${ShellQuote.quote(path.toString())}", provider.resumeCommand(session))
         assertEquals("${ShellQuote.quote(executable)} --fork ${ShellQuote.quote(path.toString())} --session-dir ${ShellQuote.quote(root.toString())}", provider.forkCommand(session))
     }
+
+    @Test fun `additional arguments are appended to resume and fork commands`() {
+        val root = tmp.newFolder("plain").toPath()
+        val path = fixture(root)
+        val provider = PiSessionProvider({ root }, { "pi" }, extraArgs = { " --model gpt-5 " })
+        val session = provider.scan(emptyMap()).single()
+        assertEquals("pi --session ${ShellQuote.quote(path.toString())} --model gpt-5", provider.resumeCommand(session))
+        assertEquals(
+            "pi --fork ${ShellQuote.quote(path.toString())} --session-dir ${ShellQuote.quote(root.toString())} --model gpt-5",
+            provider.forkCommand(session),
+        )
+    }
 }

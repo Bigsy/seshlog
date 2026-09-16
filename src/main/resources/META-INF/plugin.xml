@@ -23,6 +23,10 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Add an Additional arguments field per agent under Tools &rarr; Seshlog. It is appended as typed to resume and fork commands, including Copy Resume Command and restore after restart, so a default model or permission mode can follow every resumed session.</li>
+    </ul>
     <b>0.5.8</b>
     <ul>
         <li>Select a search result to view its full loaded conversation in the bottom pane, with matching terms and phrases highlighted. Search respects the current date, agent and project filters.</li>

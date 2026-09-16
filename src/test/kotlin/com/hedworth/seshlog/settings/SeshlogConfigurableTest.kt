@@ -46,12 +46,14 @@ class SeshlogConfigurableTest : BasePlatformTestCase() {
         }
     }
 
-    fun `test every agent has a data-directory group and opencode has its archived toggle`() {
+    fun `test every agent has a data-directory group, an additional-arguments field and opencode has its archived toggle`() {
         val configurable = SeshlogConfigurable()
         try {
             val root = configurable.createComponent()
             val browseFields = components(root).filterIsInstance<TextFieldWithBrowseButton>()
             assertEquals(AgentKind.entries.size, browseFields.size)
+            val argumentLabels = components(root).filterIsInstance<JLabel>().filter { it.text == SeshlogConfigurable.EXTRA_ARGS_LABEL }
+            assertEquals(AgentKind.entries.size, argumentLabels.size)
             val archived = components(root).filterIsInstance<JCheckBox>().single { it.text == "Show archived sessions" }
             assertFalse(archived.isSelected)
         } finally {

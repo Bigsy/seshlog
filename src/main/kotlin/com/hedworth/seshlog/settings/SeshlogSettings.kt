@@ -20,15 +20,20 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         /** Empty = auto (`$CLAUDE_CONFIG_DIR` or `~/.claude`). */
         var claudeDataDir: String = ""
         var claudeExecutable: String = "claude"
+        /** Appended verbatim to Claude Code resume and fork commands. */
+        var claudeExtraArgs: String = ""
         /** Empty = auto (`$CODEX_HOME` or `~/.codex`). */
         var codexDataDir: String = ""
         var codexExecutable: String = "codex"
+        var codexExtraArgs: String = ""
         /** Empty = auto (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`). */
         var opencodeDataDir: String = ""
         var opencodeExecutable: String = "opencode"
+        var opencodeExtraArgs: String = ""
         /** Empty = environment overrides or ~/.pi/agent/sessions. */
         var piSessionsDir: String = ""
         var piExecutable: String = "pi"
+        var piExtraArgs: String = ""
         /** opencode lets the user archive a session to hide it from its own list; hidden here too unless set. */
         var opencodeShowArchived: Boolean = false
         var showAllProjects: Boolean = false
@@ -54,6 +59,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         get() = state.claudeExecutable.ifBlank { "claude" }
         set(value) { state.claudeExecutable = value }
 
+    var claudeExtraArgs: String
+        get() = state.claudeExtraArgs
+        set(value) { state.claudeExtraArgs = value }
+
     var codexDataDir: String
         get() = state.codexDataDir
         set(value) { state.codexDataDir = value }
@@ -61,6 +70,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var codexExecutable: String
         get() = state.codexExecutable.ifBlank { "codex" }
         set(value) { state.codexExecutable = value }
+
+    var codexExtraArgs: String
+        get() = state.codexExtraArgs
+        set(value) { state.codexExtraArgs = value }
 
     var opencodeDataDir: String
         get() = state.opencodeDataDir
@@ -70,6 +83,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         get() = state.opencodeExecutable.ifBlank { "opencode" }
         set(value) { state.opencodeExecutable = value }
 
+    var opencodeExtraArgs: String
+        get() = state.opencodeExtraArgs
+        set(value) { state.opencodeExtraArgs = value }
+
     var piSessionsDir: String
         get() = state.piSessionsDir
         set(value) { state.piSessionsDir = value }
@@ -77,6 +94,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var piExecutable: String
         get() = state.piExecutable.ifBlank { "pi" }
         set(value) { state.piExecutable = value }
+
+    var piExtraArgs: String
+        get() = state.piExtraArgs
+        set(value) { state.piExtraArgs = value }
 
     fun resolvedPiSessionsDir(): Path = resolvePiSessionsDir(state.piSessionsDir)
 

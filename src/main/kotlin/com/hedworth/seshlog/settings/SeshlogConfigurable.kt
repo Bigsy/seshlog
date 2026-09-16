@@ -23,15 +23,15 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
         val settings = SeshlogSettings.getInstance()
         return panel {
             agentGroup(
-                "Claude Code", settings::claudeDataDir, settings::claudeExecutable,
+                "Claude Code", settings::claudeDataDir, settings::claudeExecutable, settings::claudeExtraArgs,
                 "Leave empty to use \$CLAUDE_CONFIG_DIR or ~/.claude (currently ${settings.resolvedClaudeDataDir()}).",
             )
             agentGroup(
-                "Codex", settings::codexDataDir, settings::codexExecutable,
+                "Codex", settings::codexDataDir, settings::codexExecutable, settings::codexExtraArgs,
                 "Leave empty to use \$CODEX_HOME or ~/.codex (currently ${settings.resolvedCodexDataDir()}).",
             )
             agentGroup(
-                "opencode", settings::opencodeDataDir, settings::opencodeExecutable,
+                "opencode", settings::opencodeDataDir, settings::opencodeExecutable, settings::opencodeExtraArgs,
                 "Leave empty to use \$XDG_DATA_HOME/opencode or ~/.local/share/opencode (currently ${settings.resolvedOpenCodeDataDir()}).",
             ) {
                 row {
@@ -41,7 +41,7 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                 }
             }
             agentGroup(
-                "Pi", settings::piSessionsDir, settings::piExecutable,
+                "Pi", settings::piSessionsDir, settings::piExecutable, settings::piExtraArgs,
                 "Leave empty to use PI_CODING_AGENT_SESSION_DIR, PI_CODING_AGENT_DIR/sessions or ~/.pi/agent/sessions (currently ${settings.resolvedPiSessionsDir()}).",
                 directoryLabel = "Pi sessions directory:",
             )
@@ -83,11 +83,12 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
         }
     }
 
-    /** The per-agent settings group: data directory with a folder chooser, executable, optional extras. */
+    /** The per-agent settings group: data directory with a folder chooser, executable, additional arguments, optional extras. */
     private fun Panel.agentGroup(
         title: String,
         dataDir: KMutableProperty0<String>,
         executable: KMutableProperty0<String>,
+        extraArgs: KMutableProperty0<String>,
         dataDirComment: String,
         directoryLabel: String = "Data directory:",
         extraRows: Panel.() -> Unit = {},
@@ -113,6 +114,12 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                     .columns(20)
                     .comment("Resolved via the terminal shell's PATH.")
             }
+            row(EXTRA_ARGS_LABEL) {
+                textField()
+                    .bindText(extraArgs)
+                    .columns(40)
+                    .comment("Appended as typed to the resume and fork commands, for example --model sonnet. Quote values as you would in the shell.")
+            }
             extraRows()
         }
     }
@@ -121,5 +128,9 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
         super.apply()
         SessionIndex.getInstance().settingsChanged()
         SeshlogSettingsListener.fire()
+    }
+
+    companion object {
+        internal const val EXTRA_ARGS_LABEL = "Additional arguments:"
     }
 }

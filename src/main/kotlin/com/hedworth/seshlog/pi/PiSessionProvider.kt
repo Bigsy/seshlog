@@ -6,16 +6,22 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
+import com.hedworth.seshlog.terminal.ExtraArguments
 import com.hedworth.seshlog.terminal.ShellQuote
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 
+/**
+ * [extraArgs] resolves the user's additional arguments, appended verbatim to resume and fork commands.
+ * [parse] stays last so tests can pass a parser as a trailing lambda.
+ */
 class PiSessionProvider(
     private val sessionsDir: () -> Path,
     private val executable: () -> String,
     cacheFile: Path? = null,
+    private val extraArgs: () -> String = { "" },
     parse: (Path) -> PiTranscriptInfo = PiTranscriptParser::parse,
 ) : SessionProvider {
     override val kind = AgentKind.PI
@@ -28,13 +34,14 @@ class PiSessionProvider(
     override fun dataRoot(): Path = sessionsDir().toAbsolutePath().normalize()
     override fun isAvailable() = Files.isDirectory(dataRoot())
     override fun watchRoots() = listOf(dataRoot())
-    override fun resumeCommand(session: Session) =
-        "${ShellQuote.quote(executable())} --session ${ShellQuote.quote(transcript(session).toString())}"
+    override fun resumeCommand(session: Session) = ExtraArguments.append(
+        "${ShellQuote.quote(executable())} --session ${ShellQuote.quote(transcript(session).toString())}", extraArgs())
     override fun forkCommand(session: Session): String {
         val path = transcript(session)
         // Pi writes forks directly into --session-dir. Keep them beside the source, even with custom roots.
-        return "${ShellQuote.quote(executable())} --fork ${ShellQuote.quote(path.toString())}" +
+        val base = "${ShellQuote.quote(executable())} --fork ${ShellQuote.quote(path.toString())}" +
             " --session-dir ${ShellQuote.quote(path.parent.toString())}"
+        return ExtraArguments.append(base, extraArgs())
     }
     private fun transcript(session: Session) = requireNotNull(session.transcriptPath).toAbsolutePath().normalize()
 

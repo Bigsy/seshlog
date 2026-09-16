@@ -138,6 +138,18 @@ class OpenCodeSessionProviderTest {
     }
 
     @Test
+    fun `additional arguments are appended to resume and fork commands`() {
+        val provider = OpenCodeSessionProvider({ tmp.root.toPath() }, { "opencode" }, extraArgs = { "--model anthropic/claude-sonnet-4" })
+        val session = Session(
+            kind = AgentKind.OPENCODE, id = "ses", title = "t", cwd = tmp.root.toPath(), gitBranch = null,
+            startedAt = null, lastActivityAt = Instant.EPOCH, transcriptPath = null, isLive = false, livePid = null,
+            promptTitle = null, promptCount = 1, hasExplicitTitle = false,
+        )
+        assertEquals("opencode --session ses --model anthropic/claude-sonnet-4", provider.resumeCommand(session))
+        assertEquals("opencode --session ses --fork --model anthropic/claude-sonnet-4", provider.forkCommand(session))
+    }
+
+    @Test
     fun `missing or unreadable database is unavailable and scans to nothing without throwing`() {
         val root = tmp.root.toPath()
         val provider = OpenCodeSessionProvider({ root }, { "opencode" })

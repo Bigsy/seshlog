@@ -8,6 +8,7 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
+import com.hedworth.seshlog.terminal.ExtraArguments
 import com.hedworth.seshlog.terminal.ShellQuote
 import com.intellij.openapi.diagnostic.logger
 import java.nio.file.Files
@@ -15,11 +16,15 @@ import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
 
-/** Read-only provider for Codex CLI rollout sessions under `$CODEX_HOME/sessions`. */
+/**
+ * Read-only provider for Codex CLI rollout sessions under `$CODEX_HOME/sessions`.
+ * [extraArgs] resolves the user's additional arguments, appended verbatim to resume and fork commands.
+ */
 class CodexSessionProvider(
     private val dataDir: () -> Path,
     private val executable: () -> String,
     cacheFile: Path? = null,
+    private val extraArgs: () -> String = { "" },
 ) : SessionProvider {
     private val LOG = logger<CodexSessionProvider>()
 
@@ -44,10 +49,10 @@ class CodexSessionProvider(
     override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile())
 
     override fun resumeCommand(session: Session): String =
-        "${ShellQuote.quote(executable())} resume ${ShellQuote.quote(session.id)}"
+        ExtraArguments.append("${ShellQuote.quote(executable())} resume ${ShellQuote.quote(session.id)}", extraArgs())
 
     override fun forkCommand(session: Session): String =
-        "${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)}"
+        ExtraArguments.append("${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)}", extraArgs())
 
     override fun scan(previous: Map<String, Session>): List<Session> {
         scanProblem = null

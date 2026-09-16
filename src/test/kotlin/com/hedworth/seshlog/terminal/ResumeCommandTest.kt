@@ -50,4 +50,30 @@ class ResumeCommandTest {
         assertEquals("claude --resume 'x;rm -rf' --fork-session", ClaudeCodeSessionProvider({ Paths.get("/n") }, { "claude" }).forkCommand(session("x;rm -rf")))
         assertEquals("Fix the flaky test (fork)", TerminalTabs.forkTitle("Fix the flaky test"))
     }
+
+    @Test
+    fun `additional arguments are appended verbatim to resume and fork commands`() {
+        val provider = ClaudeCodeSessionProvider({ Paths.get("/n") }, { "claude" }, extraArgs = { "  --model sonnet --permission-mode 'plan mode'  " })
+        assertEquals("claude --resume abc --model sonnet --permission-mode 'plan mode'", provider.resumeCommand(session("abc")))
+        assertEquals("claude --resume abc --fork-session --model sonnet --permission-mode 'plan mode'", provider.forkCommand(session("abc")))
+    }
+
+    @Test
+    fun `blank additional arguments leave the command unchanged`() {
+        assertEquals("claude --resume abc", ExtraArguments.append("claude --resume abc", ""))
+        assertEquals("claude --resume abc", ExtraArguments.append("claude --resume abc", " \t "))
+        assertEquals("claude --resume abc --verbose", ExtraArguments.append("claude --resume abc", "--verbose"))
+        val provider = ClaudeCodeSessionProvider({ Paths.get("/n") }, { "claude" }, extraArgs = { "   " })
+        assertEquals("claude --resume abc", provider.resumeCommand(session("abc")))
+        assertEquals("claude --resume abc --fork-session", provider.forkCommand(session("abc")))
+    }
+
+    @Test
+    fun `additional arguments are re-read on every command`() {
+        var extra = ""
+        val provider = ClaudeCodeSessionProvider({ Paths.get("/n") }, { "claude" }, extraArgs = { extra })
+        assertEquals("claude --resume abc", provider.resumeCommand(session("abc")))
+        extra = "--model opus"
+        assertEquals("claude --resume abc --model opus", provider.resumeCommand(session("abc")))
+    }
 }

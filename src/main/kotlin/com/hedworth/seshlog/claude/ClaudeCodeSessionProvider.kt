@@ -6,6 +6,7 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
+import com.hedworth.seshlog.terminal.ExtraArguments
 import com.hedworth.seshlog.terminal.ShellQuote
 import com.intellij.openapi.diagnostic.logger
 import java.nio.file.Files
@@ -20,11 +21,13 @@ import java.time.Instant
  * @param dataDir     resolves the Claude data directory (a setting; may change between scans)
  * @param executable  resolves the `claude` executable name/path (a setting)
  * @param cacheFile   where to persist the parsed-transcript cache between IDE runs (null: in-memory only)
+ * @param extraArgs   resolves the user's additional arguments, appended verbatim to resume and fork commands (a setting)
  */
 class ClaudeCodeSessionProvider(
     private val dataDir: () -> Path,
     private val executable: () -> String,
     cacheFile: Path? = null,
+    private val extraArgs: () -> String = { "" },
 ) : SessionProvider {
     private val LOG = logger<ClaudeCodeSessionProvider>()
 
@@ -47,10 +50,12 @@ class ClaudeCodeSessionProvider(
 
     override fun watchRoots(): List<Path> = listOf(projectsDir(), sessionsDir())
 
-    override fun resumeCommand(session: Session): String =
-        "${ShellQuote.quote(executable())} --resume ${ShellQuote.quote(session.id)}"
+    override fun resumeCommand(session: Session): String = ExtraArguments.append(baseResume(session), extraArgs())
 
-    override fun forkCommand(session: Session): String = "${resumeCommand(session)} --fork-session"
+    override fun forkCommand(session: Session): String = ExtraArguments.append("${baseResume(session)} --fork-session", extraArgs())
+
+    private fun baseResume(session: Session): String =
+        "${ShellQuote.quote(executable())} --resume ${ShellQuote.quote(session.id)}"
 
     override fun scan(previous: Map<String, Session>): List<Session> {
         scanProblem = null

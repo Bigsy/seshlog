@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.codex
 
 import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.Session
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -135,5 +136,18 @@ class CodexSessionProviderTest {
         )
         assertEquals("'/opt/Codex CLI/codex' resume 'x;echo nope'", provider.resumeCommand(session))
         assertEquals("'/opt/Codex CLI/codex' fork 'x;echo nope'", provider.forkCommand(session))
+    }
+
+    @Test
+    fun `additional arguments are appended to resume and fork commands`() {
+        val root = tmp.root.toPath()
+        val provider = CodexSessionProvider({ root }, { "codex" }, extraArgs = { " --model gpt-5 --sandbox workspace-write " })
+        val session = Session(
+            kind = AgentKind.CODEX, id = "abc", title = "t", cwd = root, gitBranch = null, startedAt = null,
+            lastActivityAt = java.time.Instant.EPOCH, transcriptPath = root.resolve("abc.jsonl"), isLive = false,
+            livePid = null, promptTitle = null, promptCount = 1, hasExplicitTitle = false,
+        )
+        assertEquals("codex resume abc --model gpt-5 --sandbox workspace-write", provider.resumeCommand(session))
+        assertEquals("codex fork abc --model gpt-5 --sandbox workspace-write", provider.forkCommand(session))
     }
 }

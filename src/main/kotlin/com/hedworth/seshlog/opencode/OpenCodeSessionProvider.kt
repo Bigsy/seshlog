@@ -4,6 +4,7 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
+import com.hedworth.seshlog.terminal.ExtraArguments
 import com.hedworth.seshlog.terminal.ShellQuote
 import com.intellij.openapi.diagnostic.logger
 import java.nio.file.Files
@@ -18,11 +19,13 @@ import java.time.Instant
  * @param dataDir      resolves the opencode data directory, the one holding `opencode.db`
  * @param executable   resolves the `opencode` executable name/path
  * @param showArchived whether sessions the user archived inside opencode are listed
+ * @param extraArgs    resolves the user's additional arguments, appended verbatim to resume and fork commands
  */
 class OpenCodeSessionProvider(
     private val dataDir: () -> Path,
     private val executable: () -> String,
     private val showArchived: () -> Boolean = { false },
+    private val extraArgs: () -> String = { "" },
 ) : SessionProvider {
     private val LOG = logger<OpenCodeSessionProvider>()
 
@@ -54,10 +57,12 @@ class OpenCodeSessionProvider(
      */
     override fun watchRoots(): List<Path> = listOf(databaseFile(), writeAheadLogFile())
 
-    override fun resumeCommand(session: Session): String =
-        "${ShellQuote.quote(executable())} --session ${ShellQuote.quote(session.id)}"
+    override fun resumeCommand(session: Session): String = ExtraArguments.append(baseResume(session), extraArgs())
 
-    override fun forkCommand(session: Session): String = "${resumeCommand(session)} --fork"
+    override fun forkCommand(session: Session): String = ExtraArguments.append("${baseResume(session)} --fork", extraArgs())
+
+    private fun baseResume(session: Session): String =
+        "${ShellQuote.quote(executable())} --session ${ShellQuote.quote(session.id)}"
 
     override fun scan(previous: Map<String, Session>): List<Session> {
         scanProblem = null

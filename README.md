@@ -49,7 +49,9 @@ picker. Seshlog makes it a click.
 - **Classic and Reworked terminals** — detect and track sessions in either engine, including split
   panes. New tabs use your selected terminal engine on IDEs with the Reworked terminal API.
 - **Resume or fork** into a terminal tab. If the session is already running in one of this project's
-  tabs, Seshlog focuses that tab instead of starting a duplicate.
+  tabs, Seshlog focuses that tab instead of starting a duplicate. Per-agent **additional arguments**
+  from Settings are appended to every resume and fork command, so a default model or permission mode
+  follows you into resumed sessions.
 - **Kill Session** in the session context menu closes its terminal tab in this project, stops its
   processes (including lingering processes from closed tabs), and refreshes the live status and PID.
   Available when Seshlog knows the tab or PID; session transcripts remain available to resume later.
@@ -133,6 +135,7 @@ every SQLite reader maintains, which holds no session data of its own. Its own s
 | Pi executable | `pi` | Pi 0.84.2 or newer; resolved via the terminal shell's PATH |
 | opencode data directory | auto | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` |
 | opencode executable | `opencode` | Resolved via the terminal shell's PATH |
+| Additional arguments (per agent) | empty | Appended as typed to that agent's resume and fork commands, e.g. `--model sonnet`; quote values as you would in the shell |
 | Show archived sessions (opencode) | off | Sessions archived inside opencode stay hidden unless on |
 | Agents menu | Auto | Show any combination of agents, all agents, or automatically the provider with the most sessions; stored per project |
 | Show sessions from all projects | off | Otherwise only sessions whose cwd is under the open project |

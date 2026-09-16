@@ -40,11 +40,13 @@ class SessionIndex : Disposable {
             dataDir = { settings.resolvedClaudeDataDir() },
             executable = { settings.claudeExecutable },
             cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "index.json"),
+            extraArgs = { settings.claudeExtraArgs },
         ),
         CodexSessionProvider(
             dataDir = { settings.resolvedCodexDataDir() },
             executable = { settings.codexExecutable },
             cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "codex-index.json"),
+            extraArgs = { settings.codexExtraArgs },
         ),
         // No cache file: a scan queries opencode's own database — the session list, plus the
         // prompts of each session that is new or changed since the last scan.
@@ -52,11 +54,13 @@ class SessionIndex : Disposable {
             dataDir = { settings.resolvedOpenCodeDataDir() },
             executable = { settings.opencodeExecutable },
             showArchived = { settings.opencodeShowArchived },
+            extraArgs = { settings.opencodeExtraArgs },
         ),
         PiSessionProvider(
             sessionsDir = { settings.resolvedPiSessionsDir() },
             executable = { settings.piExecutable },
             cacheFile = Paths.get(PathManager.getSystemPath(), "seshlog", "pi-index.json"),
+            extraArgs = { settings.piExtraArgs },
         ),
     )
 

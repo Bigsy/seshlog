@@ -57,6 +57,8 @@ picker. Seshlog makes it a click.
   Switching to an unrecognised tab clears it.
 - **Classic and Reworked terminals** — detect and track sessions in either engine, including split
   panes. New tabs use your selected terminal engine on IDEs with the Reworked terminal API.
+  Restore waits for saved tabs and their shells to become ready; if a matching terminal stays
+  unavailable, the session remains saved for restore instead of opening a duplicate.
 - **Resume or fork** into a terminal tab. If the session is already running in one of this project's
   tabs, Seshlog focuses that tab instead of starting a duplicate. Per-agent **additional arguments**
   from Settings are appended to every resume and fork command, so a default model or permission mode

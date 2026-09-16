@@ -39,6 +39,41 @@ class ReworkedTerminalTest {
             override fun send(command: String) { sent = command }
         }
     }
+    class Running
+    class Terminated
+    class StartupOptions(val pid: Long?)
+    class LegacyView(
+        val sessionState: MutableStateFlow<Any> = MutableStateFlow(Running()),
+        val startupOptionsDeferred: Deferred<Any> = CompletableDeferred(StartupOptions(110)),
+        val shellIntegrationDeferred: Deferred<Any> = CompletableDeferred(Integration(TypingCommand())),
+    )
+    class RestoringManager(private val tabsRestoredDeferred: Deferred<Unit>)
+
+    @Test fun `261 view uses session state and local startup pid without a session getter`() {
+        val view = LegacyView()
+        val terminal = adapter.handle(null, view) { true }
+        assertEquals(110L, terminal.shellPid())
+        assertNull(adapter.handle(null, view) { false }.shellPid())
+        assertEquals(TerminalState.IDLE, terminal.state())
+        view.sessionState.value = Terminated()
+        assertNull(terminal.shellPid())
+        assertEquals(TerminalState.UNKNOWN, terminal.state())
+        for (pid in listOf(null, 0L, -1L)) {
+            assertNull(adapter.handle(null, LegacyView(startupOptionsDeferred = CompletableDeferred(StartupOptions(pid)))) { true }.shellPid())
+        }
+        assertEquals(TerminalState.UNKNOWN, adapter.handle(null, LegacyView(shellIntegrationDeferred = CompletableDeferred())).state())
+    }
+
+    @Test fun `restoration readiness waits for successful completion`() {
+        val deferred = CompletableDeferred<Unit>()
+        val manager = RestoringManager(deferred)
+        assertFalse(adapter.restored(manager))
+        deferred.complete(Unit)
+        assertTrue(adapter.restored(manager))
+        assertFalse(adapter.restored(RestoringManager(CompletableDeferred<Unit>().apply { cancel() })))
+        assertFalse(adapter.restored(Any()))
+    }
+
     private val adapter = ReworkedTerminal { name ->
         if (name == "com.intellij.platform.eel.provider.LocalEelDescriptor") Local::class.java
         else throw ClassNotFoundException(name)

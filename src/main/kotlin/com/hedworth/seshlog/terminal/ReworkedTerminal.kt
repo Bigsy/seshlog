@@ -23,14 +23,14 @@ internal class ReworkedTerminal(
     fun find(project: Project, content: Content): TerminalHandle? = read {
         val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
             .getMethod("getInstance", Project::class.java).invoke(null, project)
-        findIn(manager, content)
+        findIn(manager, content) { localProject(project) }
     }
 
-    internal fun findIn(manager: Any, content: Content): TerminalHandle? = read {
+    internal fun findIn(manager: Any, content: Content, legacyLocal: () -> Boolean = { false }): TerminalHandle? = read {
         val tabs = call(manager, "getTabs") as? List<*> ?: return@read null
         val tab = tabs.filterNotNull().firstOrNull { call(it, "getContent") === content } ?: return@read null
         val view = call(tab, "getView") ?: return@read null
-        handle(content, view)
+        handle(content, view, legacyLocal)
     }
 
     /** Null means this IDE lacks the API, or the user selected a different engine. */
@@ -49,13 +49,19 @@ internal class ReworkedTerminal(
         call(builder, "requestFocus", true)
         call(builder, "deferSessionStartUntilUiShown", false)
         val tab = requireNotNull(call(builder, "createTab"))
-        return handle(call(tab, "getContent") as Content, requireNotNull(call(tab, "getView")))
+        return handle(call(tab, "getContent") as Content, requireNotNull(call(tab, "getView"))) { localProject(project) }
     }
 
-    internal fun handle(content: Content?, view: Any): TerminalHandle = object : TerminalHandle {
+    internal fun handle(content: Content?, view: Any, legacyLocal: () -> Boolean = { false }): TerminalHandle = object : TerminalHandle {
         override val content = content
 
         override fun shellPid(): Long? = read {
+            if (!hasSessionApi(view)) {
+                if (!legacyLocal() || !legacyRunning(view)) return@read null
+                // 261 publishes only the local ProcessTtyConnector PID in startup options.
+                val options = completed(call(view, "getStartupOptionsDeferred")) ?: return@read null
+                return@read (call(options, "getPid") as? Number)?.toLong()?.takeIf { it > 0 }
+            }
             val session = session(view) ?: return@read null
             val descriptor = call(session, "getEelDescriptor") ?: return@read null
             // Remote PIDs must never be compared with, or used to terminate, local processes.
@@ -64,7 +70,9 @@ internal class ReworkedTerminal(
         }
 
         override fun state(): TerminalState = read {
-            session(view) ?: return@read TerminalState.UNKNOWN
+            if (hasSessionApi(view)) {
+                session(view) ?: return@read TerminalState.UNKNOWN
+            } else if (!legacyRunning(view)) return@read TerminalState.UNKNOWN
             val integration = completed(call(view, "getShellIntegrationDeferred")) ?: return@read TerminalState.UNKNOWN
             val status = (call(integration, "getOutputStatus") as? StateFlow<*>)?.value
             when (status?.javaClass?.simpleName) {
@@ -87,6 +95,38 @@ internal class ReworkedTerminal(
             super.rename(title)
         }
     }
+
+    private fun localProject(project: Project): Boolean = read {
+        val descriptor = loadClass("com.intellij.platform.eel.provider.EelProviderUtil")
+            .getMethod("getEelDescriptor", Project::class.java).invoke(null, project)
+        loadClass("com.intellij.platform.eel.provider.LocalEelDescriptor").isInstance(descriptor)
+    } ?: false
+
+    private fun hasSessionApi(view: Any) = view.javaClass.methods.any { it.name == "getSessionDeferred" && it.parameterCount == 0 }
+
+    private fun legacyRunning(view: Any): Boolean =
+        (call(view, "getSessionState") as? StateFlow<*>)?.value?.javaClass?.simpleName == "Running"
+
+    /** null means the reworked API is absent; false includes initialization/failure. */
+    fun tabsRestored(project: Project): Boolean? {
+        val type = try { loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager") }
+        catch (_: ClassNotFoundException) { return null }
+        return read {
+            val options = loadClass("org.jetbrains.plugins.terminal.TerminalOptionsProvider")
+                .getMethod("getInstance").invoke(null)
+            if ((call(options, "getTerminalEngine") as? Enum<*>)?.name != "REWORKED") return@read true
+            val manager = type.getMethod("getInstance", Project::class.java).invoke(null, project)
+            restored(manager)
+        } ?: false
+    }
+
+    internal fun restored(manager: Any): Boolean = read {
+        // No public readiness API in 261/262. Keep this optional implementation detail here.
+        val field = manager.javaClass.getDeclaredField("tabsRestoredDeferred")
+        if (!field.trySetAccessible()) return@read false
+        val deferred = field.get(manager) as? Deferred<*> ?: return@read false
+        deferred.isCompleted && !deferred.isCancelled
+    } ?: false
 
     private fun session(view: Any): Any? {
         val session = completed(call(view, "getSessionDeferred")) ?: return null

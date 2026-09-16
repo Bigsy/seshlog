@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import java.lang.reflect.Proxy
 import javax.swing.JPanel
 
-/** Run on both 2024.1 and 2026.2: exercise the installed API and its plugin/module classloader. */
+/** Run on 2024.1, 2026.1 and 2026.2: exercise the installed API and its plugin/module classloader. */
 class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
     private fun api(name: String) = ReworkedTerminal.loadApiClass(name)
     private fun proxy(name: String, answer: (String) -> Any?): Any {
@@ -19,7 +19,7 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
     fun `test actual reworked tab API or safe absence on older IDEs`() {
         val content = ContentFactory.getInstance().createContent(JPanel(), "agent", false)
         val adapter = ReworkedTerminal()
-        if (ApplicationInfo.getInstance().build.baselineVersion < 262) {
+        if (ApplicationInfo.getInstance().build.baselineVersion < 261) {
             assertNull(adapter.find(project, content))
             return
         }
@@ -32,9 +32,21 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         val integration = proxy("org.jetbrains.plugins.terminal.view.shellIntegration.TerminalShellIntegration") {
             if (it == "getOutputStatus") MutableStateFlow(status) else null
         }
+        val legacy = ApplicationInfo.getInstance().build.baselineVersion < 262
+        if (legacy) {
+            // Verify the real older implementation supports the fallback, not just our proxy.
+            val impl = api("com.intellij.terminal.frontend.view.impl.TerminalViewImpl")
+            impl.getMethod("getSessionState")
+            impl.getMethod("getStartupOptionsDeferred")
+            api("org.jetbrains.plugins.terminal.session.TerminalStartupOptions").getMethod("getPid")
+        }
+        val running = api("com.intellij.terminal.frontend.view.TerminalViewSessionState\$Running").getField("INSTANCE").get(null)
+        val options = proxy("org.jetbrains.plugins.terminal.session.TerminalStartupOptions") { if (it == "getPid") 110L else null }
         val view = proxy("com.intellij.terminal.frontend.view.TerminalView") {
             when (it) {
                 "getSessionDeferred" -> CompletableDeferred(session)
+                "getSessionState" -> MutableStateFlow(running)
+                "getStartupOptionsDeferred" -> CompletableDeferred(options)
                 "getShellIntegrationDeferred" -> CompletableDeferred(integration)
                 else -> null
             }
@@ -46,11 +58,13 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         val manager = proxy("com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager") {
             if (it == "getTabs") listOf(tab) else null
         }
-        val terminal = requireNotNull(adapter.findIn(manager, content))
+        val terminal = requireNotNull(adapter.findIn(manager, content) { true })
         assertSame(content, terminal.content)
         assertEquals(110L, terminal.shellPid())
         assertEquals(TerminalState.IDLE, terminal.state())
 
+        api("com.intellij.terminal.frontend.toolwindow.impl.TerminalToolWindowTabsManagerImpl")
+            .getDeclaredField("tabsRestoredDeferred")
         val builder = api("com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabBuilder")
         for (name in listOf("workingDirectory", "tabName")) builder.getMethod(name, String::class.java)
         for (name in listOf("requestFocus", "deferSessionStartUntilUiShown")) builder.getMethod(name, Boolean::class.javaPrimitiveType)

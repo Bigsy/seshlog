@@ -128,6 +128,22 @@ object TerminalTabs {
         return widget
     }
 
+    /** Restore only after tab enumeration and the matching shell are ready. Called on EDT. */
+    fun prepareRestore(project: Project, title: String): Boolean {
+        val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
+            ?: return false
+        window.contentManager // Initialize the terminal's asynchronous restoration.
+        // Legacy/classic restoration is synchronous. Do not instantiate the reworked manager
+        // for classic-only IDEs; a missing API is the normal baseline path.
+        return com.hedworth.seshlog.restore.RestoreTabReadiness.ready(
+            restored = reworked.tabsRestored(project) != false,
+            matching = { contents(project).filter { it.displayName == title } },
+            state = { terminalOf(project, it)?.state() ?: TerminalState.UNKNOWN },
+            // Restored shells start lazily when their component is shown, including inactive tabs.
+            show = { waiting -> window.show { waiting.manager?.setSelectedContent(waiting, false) } },
+        )
+    }
+
     /**
      * Fork [session]: always a fresh tab titled "<title> (fork)" in the session's cwd. The tab is
      * deliberately *not* registered for [session] — the agent mints a new session id, and adoption

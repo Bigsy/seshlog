@@ -48,6 +48,12 @@ class SessionRestoreManager(private val project: Project) : Disposable {
 
     private val started = AtomicBoolean(false)
     private var closing = false
+    private var disposed = false
+    private val restoreAlarm = com.intellij.util.Alarm(com.intellij.util.Alarm.ThreadToUse.SWING_THREAD, this)
+    private val readiness = RestoreReadiness(
+        later = { action -> restoreAlarm.addRequest(Runnable { action() }, 100) },
+        cancelled = { disposed || closing || project.isDisposed },
+    )
     private val snapshots = RestoreSnapshotCollector<TerminalHandle>(
         background = { ApplicationManager.getApplication().executeOnPooledThread(it) },
         ui = { ApplicationManager.getApplication().invokeLater(it) },
@@ -208,13 +214,13 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     }
 
     /**
-     * Run [action] once tool windows are initialised, so the tabs the terminal plugin restores on
-     * its own already exist and can be reused instead of duplicated.
+     * Initialize tool windows before scheduling restoration. Each session separately waits for
+     * asynchronous tab restoration and its shell to become ready.
      */
     private fun whenTerminalReady(action: () -> Unit) {
         ToolWindowManager.getInstance(project).invokeLater {
             if (project.isDisposed || closing) return@invokeLater
-            // Touching the content manager makes the Terminal tool window create its restored tabs.
+            // Touching the content manager starts the Terminal tool window initialization.
             ToolWindowManager.getInstance(project).getToolWindow("Terminal")?.contentManager
             action()
         }
@@ -229,12 +235,21 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         }
         for (session in plan.restore) {
             com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
-                try {
-                    resumeRestored(target)
-                } catch (t: Throwable) {
-                    LOG.warn("Could not restore session ${session.id}", t)
-                    notification("Could not restore '${session.title}': ${t.message}", NotificationType.ERROR).notify(project)
-                }
+                readiness.await(
+                    ready = { TerminalTabs.prepareRestore(project, target.title) },
+                    launch = {
+                        try {
+                            resumeRestored(target)
+                        } catch (t: Throwable) {
+                            LOG.warn("Could not restore session ${session.id}", t)
+                            notification("Could not restore '${session.title}': ${t.message}", NotificationType.ERROR).notify(project)
+                        }
+                    },
+                    timeout = {
+                        notification("Could not restore '${session.title}': its terminal is not ready. The session remains saved for restore.",
+                            NotificationType.WARNING).notify(project)
+                    },
+                )
             }
         }
     }
@@ -255,7 +270,10 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     private fun notification(content: String, type: NotificationType) =
         NotificationGroupManager.getInstance().getNotificationGroup("Seshlog").createNotification(content, type)
 
-    override fun dispose() = snapshots.dispose()
+    override fun dispose() {
+        disposed = true
+        snapshots.dispose()
+    }
 
     companion object {
         fun getInstance(project: Project): SessionRestoreManager = project.getService(SessionRestoreManager::class.java)

@@ -23,7 +23,7 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
-    <b>Unreleased</b>
+    <b>0.5.9</b>
     <ul>
         <li>Show what a running session is doing: working, waiting for your input with how long, or interrupted. Claude Code reports this itself; Codex, opencode and Pi states come from the transcript or database and appear while a Seshlog-owned tab still runs the agent.</li>
         <li>Refresh terminal activity badges every two seconds using matching session processes, so exiting an agent or running an unrelated command clears its badge. Reusing a terminal tab replaces its previous session association, and waiting labels resize as elapsed time grows.</li>

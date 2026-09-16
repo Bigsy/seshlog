@@ -15,7 +15,7 @@ class CodexSessionProviderTest {
     val tmp = TemporaryFolder()
 
     @Test
-    fun `scans rollouts applies names and detects writer locks`() {
+    fun `scans rollouts and applies names without treating writer locks as live processes`() {
         val root = tmp.root.toPath()
         val day = root.resolve("sessions/2026/08/29")
         Files.createDirectories(day)
@@ -32,6 +32,7 @@ class CodexSessionProviderTest {
 
         val provider = CodexSessionProvider({ root }, { "codex" })
         assertTrue(provider.isAvailable())
+        assertFalse(provider.detectsLiveSessions)
         val session = provider.scan(emptyMap()).single()
         assertEquals(AgentKind.CODEX, session.kind)
         val conversation = provider.conversationMessages(session)
@@ -44,7 +45,8 @@ class CodexSessionProviderTest {
         assertEquals("feature/codex", session.displayBranch)
         assertEquals(2, session.promptCount)
         assertTrue(session.hasExplicitTitle)
-        assertTrue(session.isLive)
+        assertFalse(session.isLive)
+        assertEquals(null, session.livePid)
 
         // Metadata is reused when the rollout is unchanged, but renamed sessions update immediately.
         Files.writeString(root.resolve("session_index.jsonl"), """{"id":"$id","thread_name":"Renamed session","updated_at":"2026-08-29T10:00:08Z"}

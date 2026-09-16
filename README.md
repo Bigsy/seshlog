@@ -14,7 +14,7 @@ picker. Seshlog makes it a click.
 ## Features
 
 - **Sessions grouped by project**, sorted by last activity, with the agent's own title, git branch,
-  prompt count, and a live indicator for sessions running right now.
+  prompt count, and a live indicator for sessions with a verified running process ID.
 - **Agents menu** lets you show any combination, such as Claude Code and Codex together.
   Auto defaults to the provider with the most sessions; All selects every agent. The menu only lists agents with sessions in the current project scope. Choices are remembered per project.
 - **Search results in the bottom pane** show the full loaded conversation with highlighted terms.
@@ -166,6 +166,8 @@ database from.
 ## Roadmap
 
 - **More agents** behind the existing `SessionProvider` seam.
+- **Live Codex sessions.** Writer lock files do not identify a verified running process, so Codex
+  sessions have no live badges or restart recovery until process detection is available.
 - **Live opencode sessions.** opencode writes no lock or pid file, so its sessions never show as
   running and are not restored after a restart.
 - **Titles for the untitled.** Around 7% of sessions never get an `ai-title`; generate one from the

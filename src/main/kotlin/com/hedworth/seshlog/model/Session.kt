@@ -13,6 +13,7 @@ data class Session(
     val lastActivityAt: Instant,
     /** The session's own file on disk, when the agent keeps one per session; null for database-backed agents. */
     val transcriptPath: Path?,
+    /** True only when the provider has verified a running process identified by [livePid]. */
     val isLive: Boolean,
     val livePid: Long?,
     /** Title derived from the first user prompt; null when the session has no real prompts. */

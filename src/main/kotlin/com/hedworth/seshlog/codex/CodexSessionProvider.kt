@@ -24,6 +24,8 @@ class CodexSessionProvider(
     private val LOG = logger<CodexSessionProvider>()
 
     override val kind: AgentKind = AgentKind.CODEX
+    // A writer lock alone does not identify a verified running process for this session.
+    override val detectsLiveSessions: Boolean = false
 
     private val cache = FileBackedParseCache(CodexTranscriptInfoStore, cacheFile, CodexTranscriptParser::parse,
         onReadFailure = { path, error -> scanProblem = "Cannot read $path: ${error.message}" },
@@ -32,7 +34,6 @@ class CodexSessionProvider(
     override fun dataRoot(): Path = dataDir()
     private fun sessionsDir() = dataDir().resolve("sessions")
     private fun namesFile() = dataDir().resolve("session_index.jsonl")
-    private fun locksDir() = dataDir().resolve("thread-writer-locks")
 
     @Volatile override var scanProblem: String? = null
         private set
@@ -40,7 +41,7 @@ class CodexSessionProvider(
 
     override fun isAvailable(): Boolean = Files.isDirectory(sessionsDir())
 
-    override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile(), locksDir())
+    override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile())
 
     override fun resumeCommand(session: Session): String =
         "${ShellQuote.quote(executable())} resume ${ShellQuote.quote(session.id)}"
@@ -79,7 +80,7 @@ class CodexSessionProvider(
                 startedAt = info.startedAt,
                 lastActivityAt = modified,
                 transcriptPath = path,
-                isLive = Files.isRegularFile(locksDir().resolve("$id.lock")),
+                isLive = false,
                 livePid = null,
                 promptTitle = promptTitle,
                 promptCount = info.promptCount,

@@ -1,0 +1,152 @@
+package com.hedworth.seshlog.terminal
+
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.project.Project
+import com.intellij.terminal.TerminalTitle
+import com.intellij.ui.content.Content
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.StateFlow
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+
+/**
+ * Optional reworked-terminal API. Resolve it through the terminal plugin's loader, so the same
+ * plugin still loads on 2024.1. Never wait for a session or shell integration on the UI thread.
+ */
+internal class ReworkedTerminal(
+    private val loadClass: (String) -> Class<*> = ::loadApiClass,
+) {
+    private val log = logger<ReworkedTerminal>()
+
+    fun find(project: Project, content: Content): TerminalHandle? = read {
+        val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
+            .getMethod("getInstance", Project::class.java).invoke(null, project)
+        findIn(manager, content)
+    }
+
+    internal fun findIn(manager: Any, content: Content): TerminalHandle? = read {
+        val tabs = call(manager, "getTabs") as? List<*> ?: return@read null
+        val tab = tabs.filterNotNull().firstOrNull { call(it, "getContent") === content } ?: return@read null
+        val view = call(tab, "getView") ?: return@read null
+        handle(content, view)
+    }
+
+    /** Null means this IDE lacks the API, or the user selected a different engine. */
+    fun launch(project: Project, directory: String, title: String): TerminalHandle? {
+        val managerClass = read {
+            val options = loadClass("org.jetbrains.plugins.terminal.TerminalOptionsProvider")
+                .getMethod("getInstance").invoke(null)
+            if ((call(options, "getTerminalEngine") as? Enum<*>)?.name != "REWORKED") return@read null
+            loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
+        } ?: return null
+        // Once creation starts, propagate failures instead of opening a duplicate classic tab.
+        val manager = managerClass.getMethod("getInstance", Project::class.java).invoke(null, project)
+        val builder = requireNotNull(call(manager, "createTabBuilder"))
+        call(builder, "workingDirectory", directory)
+        call(builder, "tabName", title)
+        call(builder, "requestFocus", true)
+        call(builder, "deferSessionStartUntilUiShown", false)
+        val tab = requireNotNull(call(builder, "createTab"))
+        return handle(call(tab, "getContent") as Content, requireNotNull(call(tab, "getView")))
+    }
+
+    internal fun handle(content: Content?, view: Any): TerminalHandle = object : TerminalHandle {
+        override val content = content
+
+        override fun shellPid(): Long? = read {
+            val session = session(view) ?: return@read null
+            val descriptor = call(session, "getEelDescriptor") ?: return@read null
+            // Remote PIDs must never be compared with, or used to terminate, local processes.
+            if (!loadClass("com.intellij.platform.eel.provider.LocalEelDescriptor").isInstance(descriptor)) return@read null
+            (call(session, "getProcessId") as? Number)?.toLong()?.takeIf { it > 0 }
+        }
+
+        override fun state(): TerminalState = read {
+            session(view) ?: return@read TerminalState.UNKNOWN
+            val integration = completed(call(view, "getShellIntegrationDeferred")) ?: return@read TerminalState.UNKNOWN
+            val status = (call(integration, "getOutputStatus") as? StateFlow<*>)?.value
+            when (status?.javaClass?.simpleName) {
+                "TypingCommand" -> TerminalState.IDLE
+                "ExecutingCommand", "WaitingForPrompt" -> TerminalState.BUSY
+                else -> TerminalState.UNKNOWN
+            }
+        } ?: TerminalState.UNKNOWN
+
+        override fun execute(command: String) {
+            val builder = requireNotNull(call(view, "createSendTextBuilder"))
+            call(builder, "shouldExecute")
+            call(builder, "send", command)
+        }
+
+        override fun rename(title: String) {
+            // The view owns the persistent title. Changing only Content is overwritten when
+            // shell integration next updates the title, and is lost when the IDE restores tabs.
+            read { (call(view, "getTitle") as? TerminalTitle)?.change { userDefinedTitle = title } }
+            super.rename(title)
+        }
+    }
+
+    private fun session(view: Any): Any? {
+        val session = completed(call(view, "getSessionDeferred")) ?: return null
+        return session.takeIf { call(it, "isClosed") == false }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun completed(value: Any?): Any? = (value as? Deferred<*>)?.let {
+        if (it.isCompleted && !it.isCancelled) it.getCompleted() else null
+    }
+
+    private fun <T> read(action: () -> T): T? = try {
+        action()
+    } catch (_: ClassNotFoundException) {
+        null // Expected on older IDEs.
+    } catch (e: ReflectiveOperationException) {
+        log.debug("Cannot inspect reworked terminal", e)
+        null
+    } catch (e: LinkageError) {
+        log.debug("Reworked terminal API is unavailable", e)
+        null
+    }
+
+    companion object {
+        private const val FRONTEND = "com.intellij.terminal.frontend"
+
+        internal fun loadApiClass(name: String): Class<*> {
+            val loader = TerminalToolWindowManager::class.java.classLoader
+            try { return Class.forName(name, false, loader) } catch (missing: ClassNotFoundException) {
+                // Recent IDEs load the frontend as a separate content module, invisible to the
+                // terminal plugin's main loader. Use that module's own loader when necessary.
+                if (!name.startsWith(FRONTEND)) throw missing
+                val core = Class.forName("com.intellij.ide.plugins.PluginManagerCore", false, loader)
+                val getPlugins = core.getMethod("getPluginSet")
+                val receiver = if (Modifier.isStatic(getPlugins.modifiers)) null else core.getField("INSTANCE").get(null)
+                val plugins = getPlugins.invoke(receiver) ?: throw missing
+                val modules = call(plugins, "getEnabledModules") as? Iterable<*> ?: throw missing
+                val frontend = modules.filterNotNull().firstOrNull { module ->
+                    module.javaClass.methods.firstOrNull { it.name == "getModuleNameString" }
+                        ?.invoke(module) == "intellij.terminal.frontend"
+                } ?: throw missing
+                val frontendLoader = call(frontend, "getPluginClassLoader") as? ClassLoader ?: throw missing
+                return Class.forName(name, false, frontendLoader)
+            }
+        }
+
+        internal fun call(target: Any, name: String, vararg args: Any): Any? {
+            val method = target.javaClass.methods.firstOrNull { it.name == name && it.parameterCount == args.size }
+                ?: throw NoSuchMethodException("${target.javaClass.name}.$name/${args.size}")
+            // Builders may be private implementation classes. Invoke their public interface.
+            fun accessible(type: Class<*>): Method? {
+                for (api in type.interfaces) {
+                    if (Modifier.isPublic(api.modifiers)) {
+                        try { return api.getMethod(name, *method.parameterTypes) } catch (_: NoSuchMethodException) { }
+                    }
+                    accessible(api)?.let { return it }
+                }
+                return type.superclass?.let(::accessible)
+            }
+            return (accessible(target.javaClass) ?: method).invoke(target, *args)
+        }
+    }
+}

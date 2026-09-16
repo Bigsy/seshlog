@@ -2,7 +2,6 @@ package com.hedworth.seshlog.terminal
 
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
-import com.intellij.terminal.ui.TerminalWidget
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.nio.file.Path
 
@@ -13,8 +12,12 @@ import java.nio.file.Path
 object TerminalLauncher {
     private val LOG = logger<TerminalLauncher>()
 
-    /** Must be called on the EDT. Returns the widget behind the new tab. */
-    fun launch(project: Project, workingDirectory: Path, tabTitle: String, command: String): TerminalWidget {
+    /** Must be called on the EDT. Returns a handle for the new tab. */
+    fun launch(project: Project, workingDirectory: Path, tabTitle: String, command: String): TerminalHandle {
+        TerminalTabs.reworked.launch(project, workingDirectory.toString(), tabTitle)?.let { terminal ->
+            terminal.execute(command)
+            return terminal
+        }
         val manager = TerminalToolWindowManager.getInstance(project)
         // Available since 2024.1 (241); replaces ShellTerminalWidget.executeCommand on older builds.
         val widget = manager.createShellWidget(
@@ -25,6 +28,6 @@ object TerminalLauncher {
         )
         LOG.debug("Launching in terminal tab '$tabTitle' at $workingDirectory: $command")
         widget.sendCommandToExecute(command)
-        return widget
+        return TerminalTabs.classic(widget, TerminalTabs.contentOf(project, widget))
     }
 }

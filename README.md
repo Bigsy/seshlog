@@ -46,13 +46,16 @@ picker. Seshlog makes it a click.
 - **Active terminal highlight** uses a bold blue title for the session associated with the selected IDE terminal tab,
   independently of the session you select to preview. A selected active title is bold and underlined.
   Switching to an unrecognised tab clears it.
+- **Classic and Reworked terminals** — detect and track sessions in either engine, including split
+  panes. New tabs use your selected terminal engine on IDEs with the Reworked terminal API.
 - **Resume or fork** into a terminal tab. If the session is already running in one of this project's
   tabs, Seshlog focuses that tab instead of starting a duplicate.
 - **Kill Session** in the session context menu closes its terminal tab in this project, stops its
   processes (including lingering processes from closed tabs), and refreshes the live status and PID.
   Available when Seshlog knows the tab or PID; session transcripts remain available to resume later.
 - **Restore after restart** — sessions that were live when the IDE closed are offered for resuming
-  when the project reopens (Ask / Always / Never).
+  when the project reopens (Ask / Always / Never). Unanswered restore offers and failed launches
+  remain remembered for the next restart; **Not now** dismisses the offered sessions.
 
 ![Session list with preview pane](docs/marketplace/02-session-list.png)
 ![Search across transcript content](docs/marketplace/03-search.png)

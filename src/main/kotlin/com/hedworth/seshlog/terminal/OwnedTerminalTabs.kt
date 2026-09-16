@@ -9,7 +9,6 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
-import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.ui.content.Content
 import com.intellij.util.messages.Topic
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
@@ -38,6 +37,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         tabClosed = { content -> registry.forget(content) },
     )
 
+    val sessionIds: Set<String> get() = registry.sessionIds
+
     fun owns(sessionId: String): Boolean = registry.owns(sessionId)
 
     /** Dispose just this session's terminal tab. Must run on the EDT. */
@@ -53,17 +54,17 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** The id of the session running in terminal tab [content], if we know one. */
     fun sessionFor(content: Content): String? = registry.sessionFor(content)
 
-    /** The widget of the tab we own for [sessionId], if the tab still exists. Must be called on the EDT. */
-    fun widgetFor(sessionId: String): TerminalWidget? {
+    /** The terminal we own for [sessionId], if its tab still exists. Must be called on the EDT. */
+    fun terminalFor(sessionId: String): TerminalHandle? {
         val content = registry.tabFor(sessionId) ?: return null
-        val widget = TerminalTabs.widgetOf(content)
+        val widget = TerminalTabs.terminalOf(project, content)
         if (widget == null) registry.forget(content)
         return widget
     }
 
     /** Remember that [widget]'s tab runs [session]. Must be called on the EDT. */
-    fun track(session: Session, widget: TerminalWidget) {
-        val content = TerminalTabs.contentOf(project, widget) ?: run {
+    fun track(session: Session, widget: TerminalHandle) {
+        val content = widget.content ?: run {
             LOG.debug("No tab content for session ${session.id}; not tracking")
             return
         }
@@ -101,7 +102,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val retitles = registry.sync(sessions, openTabs, ProcessTree.System) { it.displayName }
         for ((content, title) in retitles) {
             LOG.debug("Retitling terminal tab '${content.displayName}' -> '$title'")
-            content.displayName = title
+            TerminalTabs.terminalOf(project, content)?.rename(title)
         }
         tabObserver.refresh()
     }

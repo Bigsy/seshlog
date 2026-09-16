@@ -67,8 +67,8 @@ class ResumeSessionAction : SessionAction("Resume", "Resume this session in a ne
             return
         }
         val owned = OwnedTerminalTabs.getInstance(project)
-        val widget = owned.widgetFor(session.id)
-        if (widget != null && TerminalTabs.state(widget) != com.hedworth.seshlog.terminal.TerminalState.IDLE) {
+        val widget = owned.terminalFor(session.id)
+        if (widget != null && widget.state() != com.hedworth.seshlog.terminal.TerminalState.IDLE) {
             owned.focus(session.id)
             return
         }
@@ -127,7 +127,8 @@ class ForkTerminalTabSessionAction : ForkSessionActionBase() {
         val project = e.project ?: return null
         val toolWindow = e.getData(PlatformDataKeys.TOOL_WINDOW) ?: return null
         if (toolWindow.id != TerminalToolWindowFactory.TOOL_WINDOW_ID) return null
-        val content = toolWindow.contentManager.selectedContent ?: return null
+        val content = e.getData(PlatformDataKeys.CONTENT_MANAGER)?.selectedContent
+            ?: toolWindow.contentManager.selectedContent ?: return null
         val sessionId = OwnedTerminalTabs.getInstance(project).sessionFor(content) ?: return null
         return SessionIndex.getInstance().sessionById(sessionId)
     }
@@ -146,7 +147,7 @@ class KillSessionAction : SessionAction("Kill Session", "Stop this session and c
         val current = index.sessionById(session.id) ?: session
         val owned = OwnedTerminalTabs.getInstance(project)
         try {
-            val shellPid = owned.widgetFor(current.id)?.let(TerminalTabs::shellPid)
+            val shellPid = owned.terminalFor(current.id)?.shellPid()
             val pid = current.livePid?.takeIf { pid ->
                 if (current.kind != AgentKind.CLAUDE_CODE) true else {
                     val file = SeshlogSettings.getInstance().resolvedClaudeDataDir().resolve("sessions/$pid.json")

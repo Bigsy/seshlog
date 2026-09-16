@@ -18,31 +18,14 @@ import org.jetbrains.plugins.terminal.TerminalToolWindowManager
  */
 object TerminalTabs {
     private val LOG = logger<TerminalTabs>()
+    internal val reworked = ReworkedTerminal()
 
     /** Pids of the shell processes behind every terminal tab in [project]'s Terminal tool window. */
-    fun shellPids(project: Project): Set<Long> {
-        val result = HashSet<Long>()
-        for (widget in widgets(project)) {
-            shellPid(widget)?.let { result += it }
-        }
-        return result
-    }
+    fun shellPids(project: Project): Set<Long> = tabsWithShellPids(project).values.filterNotNull().toSet()
 
-    /** Every tab in [project]'s Terminal tool window with the pid of its shell (null when unknown). */
-    fun tabsWithShellPids(project: Project): Map<Content, Long?> {
-        val manager = try {
-            TerminalToolWindowManager.getInstance(project)
-        } catch (t: Throwable) {
-            LOG.debug("Cannot access terminal tool window manager", t)
-            return emptyMap()
-        }
-        val result = HashMap<Content, Long?>()
-        for (widget in widgets(project)) {
-            val content = contentOf(manager, widget) ?: continue
-            result[content] = shellPid(widget)
-        }
-        return result
-    }
+    /** Enumerate both engines, including tabs in split panes. */
+    fun tabsWithShellPids(project: Project): Map<Content, Long?> =
+        contents(project).associateWith { terminalOf(project, it)?.shellPid() }
 
     /** Include unowned/new-engine tabs too, so focusing one clears the active session. */
     internal fun contents(project: Project): List<Content> {
@@ -84,19 +67,24 @@ object TerminalTabs {
      * A terminal tab named [title] that is not running anything — typically a tab the terminal
      * plugin itself restored after a restart, which comes back as a plain shell.
      */
-    fun findIdleTab(project: Project, title: String): TerminalWidget? {
-        val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
-            ?: return null
-        for (content in toolWindow.contentManager.contents) {
-            if (content.displayName != title) continue
-            val widget = try {
-                TerminalToolWindowManager.findWidgetByContent(content)
-            } catch (_: Throwable) {
-                null
-            } ?: continue
-            if (state(widget) == TerminalState.IDLE) return widget
+    fun findIdleTab(project: Project, title: String): TerminalHandle? =
+        contents(project).asSequence().filter { it.displayName == title }
+            .mapNotNull { terminalOf(project, it) }.firstOrNull { it.state() == TerminalState.IDLE }
+
+    fun terminalOf(project: Project, content: Content): TerminalHandle? {
+        if (content.manager == null) return null
+        return reworked.find(project, content) ?: widgetOf(content)?.let { classic(it, content) }
+    }
+
+    internal fun classic(widget: TerminalWidget, content: Content?): TerminalHandle = object : TerminalHandle {
+        override val content = content
+        override fun shellPid() = TerminalTabs.shellPid(widget)
+        override fun state() = TerminalTabs.state(widget)
+        override fun execute(command: String) = widget.sendCommandToExecute(command)
+        override fun rename(title: String) {
+            widget.terminalTitle.change { userDefinedTitle = title }
+            super.rename(title)
         }
-        return null
     }
 
     /** The widget hosted by [content], or null when the tab is gone or not a terminal. */
@@ -106,24 +94,24 @@ object TerminalTabs {
         null
     }
 
-    /** True when the shell in [widget] is running something (e.g. `claude`). */
-    fun isBusy(widget: TerminalWidget): Boolean = state(widget) == TerminalState.BUSY
+    /** True when the shell in [terminal] is running something (e.g. `claude`). */
+    fun isBusy(terminal: TerminalHandle): Boolean = terminal.state() == TerminalState.BUSY
 
     /**
      * Resume [session] in the tab we already own for it (focus it when busy, run the command in it
      * when idle), else reuse an idle tab with the session's title, else open a new tab via
      * [TerminalLauncher]. Either way the tab is registered with [OwnedTerminalTabs]. Returns the
-     * widget the session runs in.
+     * terminal the session runs in.
      */
-    fun resume(project: Project, session: Session, command: String): TerminalWidget {
+    fun resume(project: Project, session: Session, command: String): TerminalHandle {
         val owned = OwnedTerminalTabs.getInstance(project)
-        owned.widgetFor(session.id)?.let { widget ->
-            if (state(widget) != TerminalState.IDLE) {
+        owned.terminalFor(session.id)?.let { widget ->
+            if (widget.state() != TerminalState.IDLE) {
                 LOG.debug("Session ${session.id} already runs in its tab; focusing")
                 owned.focus(session.id)
             } else {
                 LOG.debug("Resuming ${session.id} in its own idle tab")
-                widget.sendCommandToExecute("cd ${ShellQuote.quote(session.cwd.toString())} && $command")
+                widget.execute("cd ${ShellQuote.quote(session.cwd.toString())} && $command")
                 owned.focus(session.id)
             }
             return widget
@@ -131,7 +119,7 @@ object TerminalTabs {
         val idle = findIdleTab(project, session.title)
         val widget = if (idle != null) {
             LOG.debug("Reusing idle terminal tab '${session.title}' for $command")
-            idle.sendCommandToExecute("cd ${ShellQuote.quote(session.cwd.toString())} && $command")
+            idle.execute("cd ${ShellQuote.quote(session.cwd.toString())} && $command")
             idle
         } else {
             TerminalLauncher.launch(project, session.cwd, session.title, command)
@@ -145,7 +133,7 @@ object TerminalTabs {
      * deliberately *not* registered for [session] — the agent mints a new session id, and adoption
      * by process ancestry in [OwnedTerminalTabs.sync] may pick the tab up on the next rescan.
      */
-    fun fork(project: Project, session: Session, command: String): TerminalWidget =
+    fun fork(project: Project, session: Session, command: String): TerminalHandle =
         TerminalLauncher.launch(project, session.cwd, forkTitle(session.title), command)
 
     fun forkTitle(title: String): String = "$title (fork)"
@@ -158,12 +146,21 @@ object TerminalTabs {
     }
 
     fun shellPid(widget: TerminalWidget): Long? = try {
-        ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget).processTtyConnector?.process?.pid()
+        val classic = runCatching { ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget) }.getOrNull()
+        classic?.processTtyConnector?.process?.pid()
+            ?: (widget.ttyConnector as? com.jediterm.terminal.ProcessTtyConnector)?.process?.pid()
     } catch (_: Throwable) {
-        null // not a local shell widget (SSH, new engine, not started yet…)
+        null // Not a local process connector, or not started yet.
     }
 
     fun state(widget: TerminalWidget): TerminalState = TerminalState.inspect {
-        ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget).hasRunningCommands()
+        val classic = runCatching { ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget) }.getOrNull()
+        if (classic != null) classic.hasRunningCommands()
+        else {
+            // TerminalWidget's newer default returns false even when it cannot inspect the
+            // shell. Only trust an engine implementation, never that default's apparent idle.
+            check(!widget.javaClass.getMethod("isCommandRunning").declaringClass.isInterface)
+            ReworkedTerminal.call(widget, "isCommandRunning") as Boolean
+        }
     }
 }

@@ -214,8 +214,8 @@ Pushing a `v*` tag still publishes the version already committed at that tag.
 
 ### Copy the latest assistant reply
 
-Assign **Seshlog: Copy Last Assistant Message** under **Settings → Keymap** (unassigned by
-default), or use the session context menu. It works for Claude Code, Codex, opencode and Pi,
+Press **Ctrl+O** for **Seshlog: Copy Last Assistant Message** (also Control+O on macOS),
+or use the session context menu. Change the shortcut under **Settings → Keymap**. It works for Claude Code, Codex, opencode and Pi,
 including historical sessions and the conversation viewer. Terminal shortcuts require a tab
 with a known Seshlog session association; an unrelated terminal or IDE context never falls
 back to the selected session or last active tab.

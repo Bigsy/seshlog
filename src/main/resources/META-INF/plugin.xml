@@ -143,7 +143,11 @@
             <action id="Seshlog.CopyLatestPlan" class="com.hedworth.seshlog.ui.actions.CopyLatestPlanAction"
                     text="Seshlog: Copy Latest Plan"/>
             <action id="Seshlog.CopyLastAssistantMessage" class="com.hedworth.seshlog.ui.actions.CopyLastAssistantMessageAction"
-                    text="Seshlog: Copy Last Assistant Message"/>
+                    text="Seshlog: Copy Last Assistant Message">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl O"/>
+                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl O" replace-all="true"/>
+                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl O" replace-all="true"/>
+            </action>
             <action id="Seshlog.CopyResumeCommand" class="com.hedworth.seshlog.ui.actions.CopyResumeCommandAction"
                     text="Copy Resume Command"/>
             <action id="Seshlog.CopySessionId" class="com.hedworth.seshlog.ui.actions.CopySessionIdAction"

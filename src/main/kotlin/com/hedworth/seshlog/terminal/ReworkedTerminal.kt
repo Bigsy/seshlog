@@ -20,6 +20,26 @@ internal class ReworkedTerminal(
 ) {
     private val log = logger<ReworkedTerminal>()
 
+    /** The terminal view carried by the action context, independent of editor/component wrappers. */
+    fun contextView(context: com.intellij.openapi.actionSystem.DataContext): Any? = read {
+        val type = loadClass("${FRONTEND}.view.TerminalView")
+        val companion = type.getField("Companion").get(null)
+        val key = call(companion, "getDATA_KEY") as? com.intellij.openapi.actionSystem.DataKey<*> ?: return@read null
+        context.getData(key)?.takeIf(type::isInstance)
+    }
+
+    fun contentForView(project: Project, view: Any): Content? = read {
+        val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
+            .getMethod("getInstance", Project::class.java).invoke(null, project)
+        contentForViewIn(manager, view)
+    }
+
+    internal fun contentForViewIn(manager: Any, view: Any): Content? = read {
+        val tabs = call(manager, "getTabs") as? List<*> ?: return@read null
+        val tab = tabs.filterNotNull().singleOrNull { call(it, "getView") === view } ?: return@read null
+        call(tab, "getContent") as? Content
+    }
+
     fun find(project: Project, content: Content): TerminalHandle? = read {
         val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
             .getMethod("getInstance", Project::class.java).invoke(null, project)

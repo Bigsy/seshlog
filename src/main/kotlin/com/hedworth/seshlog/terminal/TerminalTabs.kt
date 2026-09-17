@@ -20,6 +20,25 @@ object TerminalTabs {
     private val LOG = logger<TerminalTabs>()
     internal val reworked = ReworkedTerminal()
 
+    data class ActionTarget(val isTerminal: Boolean, val content: Content?)
+
+    /** Resolve the actual invoking view; selected/last-active tabs are never substitutes for focus. */
+    fun actionTarget(project: Project, event: com.intellij.openapi.actionSystem.AnActionEvent): ActionTarget {
+        reworked.contextView(event.dataContext)?.let { view ->
+            return ActionTarget(true, reworked.contentForView(project, view))
+        }
+        val context = event.getData(com.intellij.openapi.actionSystem.PlatformDataKeys.CONTEXT_COMPONENT)
+        val keySource = (event.inputEvent as? java.awt.event.KeyEvent)?.component
+        val focus = com.hedworth.seshlog.copy.CopyTarget.invocationComponent(
+            context, keySource, java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner)
+        val content = com.hedworth.seshlog.copy.CopyTarget.focusedContent(focus, contents(project)) { it.component }
+        val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
+        val terminal = content != null || (focus != null && window != null &&
+            javax.swing.SwingUtilities.isDescendingFrom(focus, window.component)) ||
+            event.getData(com.intellij.openapi.actionSystem.PlatformDataKeys.TOOL_WINDOW)?.id == TerminalToolWindowFactory.TOOL_WINDOW_ID
+        return ActionTarget(terminal, content)
+    }
+
     /** Pids of the shell processes behind every terminal tab in [project]'s Terminal tool window. */
     fun shellPids(project: Project): Set<Long> = tabsWithShellPids(project).values.filterNotNull().toSet()
 

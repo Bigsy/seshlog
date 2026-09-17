@@ -36,6 +36,13 @@ class CopyRequest(
 
 /** Terminal context wins even when it has no known association. Never infer from cwd. */
 object CopyTarget {
+    /** A keyboard action may expose a wrapper as its context component; use its actual source. */
+    fun invocationComponent(context: java.awt.Component?, keySource: java.awt.Component?, focus: java.awt.Component?): java.awt.Component? {
+        if (keySource != null) return keySource
+        if (context == null) return focus
+        return focus?.takeIf { javax.swing.SwingUtilities.isDescendingFrom(it, context) } ?: context
+    }
+
     fun <T> focusedContent(focus: java.awt.Component?, contents: List<T>, component: (T) -> java.awt.Component): T? =
         if (focus == null) null else contents.filter {
             javax.swing.SwingUtilities.isDescendingFrom(focus, component(it))

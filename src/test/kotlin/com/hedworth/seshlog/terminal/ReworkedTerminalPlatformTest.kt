@@ -21,6 +21,7 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         val adapter = ReworkedTerminal()
         if (ApplicationInfo.getInstance().build.baselineVersion < 261) {
             assertNull(adapter.find(project, content))
+            assertNull(adapter.contextView(com.intellij.openapi.actionSystem.DataContext { null }))
             return
         }
         val local = api("com.intellij.platform.eel.provider.LocalEelDescriptor").getField("INSTANCE").get(null)
@@ -58,6 +59,15 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         val manager = proxy("com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager") {
             if (it == "getTabs") listOf(tab) else null
         }
+        // An action can carry the terminal view without any Swing context component.
+        val viewType = api("com.intellij.terminal.frontend.view.TerminalView")
+        val key = ReworkedTerminal.call(viewType.getField("Companion").get(null), "getDATA_KEY")
+            as com.intellij.openapi.actionSystem.DataKey<*>
+        val context = com.intellij.openapi.actionSystem.DataContext { id -> if (key.`is`(id)) view else null }
+        assertSame(view, adapter.contextView(context))
+        assertSame(content, adapter.contentForViewIn(manager, view))
+        assertNull(adapter.contentForViewIn(manager, Any()))
+        assertNull(adapter.contextView(com.intellij.openapi.actionSystem.DataContext { null }))
         val terminal = requireNotNull(adapter.findIn(manager, content) { true })
         assertSame(content, terminal.content)
         assertEquals(110L, terminal.shellPid())

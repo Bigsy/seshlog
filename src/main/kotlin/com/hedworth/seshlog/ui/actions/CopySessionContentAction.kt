@@ -12,11 +12,8 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.notification.NotificationType
-import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import java.awt.datatransfer.StringSelection
-import javax.swing.SwingUtilities
 
 @Service(Service.Level.PROJECT)
 class SessionClipboard(project: Project) {
@@ -39,14 +36,10 @@ open class CopySessionContentAction(text: String, private val plan: Boolean = fa
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        // The action's component also works for popup menus and modeless conversation windows.
-        val focus = e.getData(PlatformDataKeys.CONTEXT_COMPONENT)
-        val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
-        val terminal = focus != null && window != null && SwingUtilities.isDescendingFrom(focus, window.component)
-        val content = if (terminal) CopyTarget.focusedContent(focus, TerminalTabs.contents(project)) { it.component } else null
+        val target = TerminalTabs.actionTarget(project, e)
         val index = SessionIndex.getInstance()
-        val associated = content?.let { OwnedTerminalTabs.getInstance(project).sessionFor(it) }?.let(index::sessionById)
-        val session = CopyTarget.resolve(terminal, associated, e.getData(SeshlogDataKeys.SESSION))
+        val associated = target.content?.let { OwnedTerminalTabs.getInstance(project).sessionFor(it) }?.let(index::sessionById)
+        val session = CopyTarget.resolve(target.isTerminal, associated, e.getData(SeshlogDataKeys.SESSION))
         project.getService(SessionClipboard::class.java).requests.start(session) {
             val provider = index.providerFor(it)
             if (plan) provider.latestPlan(it) else provider.lastAssistantMessage(it)

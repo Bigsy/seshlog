@@ -7,6 +7,20 @@ class CopyRequestTest {
     private val one = LastAssistantTest.session(id = "one")
     private val two = LastAssistantTest.session(id = "two")
 
+    @Test fun `keyboard source resolves a terminal even when context is a wrapper or absent`() {
+        val wrapper = javax.swing.JPanel()
+        val tab = javax.swing.JPanel()
+        val input = javax.swing.JTextArea()
+        wrapper.add(tab); tab.add(input)
+        assertSame(input, CopyTarget.invocationComponent(wrapper, input, input))
+        assertSame(input, CopyTarget.invocationComponent(null, input, null))
+        assertSame(input, CopyTarget.invocationComponent(wrapper, null, input))
+        // An unrelated action context must not borrow the previously focused terminal.
+        val editor = javax.swing.JTextArea()
+        assertSame(editor, CopyTarget.invocationComponent(editor, null, input))
+        assertSame(editor, CopyTarget.invocationComponent(wrapper, editor, input))
+    }
+
     @Test fun `focus resolves the actual split pane and never the last active pane`() {
         val first = javax.swing.JPanel()
         val second = javax.swing.JPanel()

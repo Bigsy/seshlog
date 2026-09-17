@@ -7,6 +7,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.content.Content
@@ -43,9 +44,10 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** Dispose just this session's terminal tab. Must run on the EDT. */
     fun close(sessionId: String): Boolean {
-        val content = registry.tabFor(sessionId) ?: return true
-        val manager = content.manager
-        if (manager != null && !manager.removeContent(content, true)) return false
+        val content = undisposedContent(sessionId) ?: return true
+        // A drag is in flight: do not claim the tab was closed or discard its association.
+        val manager = content.manager ?: return false
+        if (manager.isDisposed || !manager.removeContent(content, true)) return false
         registry.forget(content)
         tabObserver.refresh()
         return true
@@ -56,10 +58,18 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** The terminal we own for [sessionId], if its tab still exists. Must be called on the EDT. */
     fun terminalFor(sessionId: String): TerminalHandle? {
+        val content = undisposedContent(sessionId) ?: return null
+        // Missing manager/view is expected between mouse-down and drop. Activity/restore
+        // polling must not turn a transient lookup failure into permanent loss of ownership.
+        return TerminalTabs.terminalOf(project, content)
+    }
+
+    /** Only Content disposal establishes closure; detachment and adapter availability do not. */
+    private fun undisposedContent(sessionId: String): Content? {
         val content = registry.tabFor(sessionId) ?: return null
-        val widget = TerminalTabs.terminalOf(project, content)
-        if (widget == null) registry.forget(content)
-        return widget
+        if (!Disposer.isDisposed(content)) return content
+        registry.forget(content)
+        return null
     }
 
     private var running = emptySet<String>()
@@ -114,14 +124,11 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** Bring the tab running [sessionId] to the front. Returns false when we do not own one. */
     fun focus(sessionId: String): Boolean {
-        val content = registry.tabFor(sessionId) ?: return false
+        val content = undisposedContent(sessionId) ?: return false
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
             ?: return false
         val manager = content.manager
-        if (manager == null || manager.isDisposed) {
-            registry.forget(content)
-            return false
-        }
+        if (manager == null || manager.isDisposed) return false
         toolWindow.activate({ manager.setSelectedContent(content, true) }, true)
         return true
     }

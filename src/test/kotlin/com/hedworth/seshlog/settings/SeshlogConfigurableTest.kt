@@ -50,6 +50,9 @@ class SeshlogConfigurableTest : BasePlatformTestCase() {
         val configurable = SeshlogConfigurable()
         try {
             val root = configurable.createComponent()
+            val labels = components(root).filterIsInstance<JLabel>().map { it.text }
+            assertTrue("Seshlog: Copy Last Assistant Message" in labels)
+            assertTrue("Seshlog: Copy Latest Plan" in labels)
             val browseFields = components(root).filterIsInstance<TextFieldWithBrowseButton>()
             assertEquals(AgentKind.entries.size, browseFields.size)
             val argumentLabels = components(root).filterIsInstance<JLabel>().filter { it.text == SeshlogConfigurable.EXTRA_ARGS_LABEL }

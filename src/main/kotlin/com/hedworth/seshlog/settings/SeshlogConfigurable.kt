@@ -22,6 +22,22 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
     override fun createPanel(): DialogPanel {
         val settings = SeshlogSettings.getInstance()
         return panel {
+            group("Keyboard Shortcuts") {
+                row {
+                    label("Seshlog: Copy Last Assistant Message")
+                        .comment("Copy the latest assistant reply with Markdown and code blocks from Claude Code, Codex, opencode or Pi.")
+                }
+                row {
+                    label("Seshlog: Copy Latest Plan")
+                        .comment("Copy the latest identifiable plan from Claude Code or Codex.")
+                }
+                row {
+                    comment("Both shortcuts are unassigned by default. Open Settings → Keymap and search for these action names to set them.")
+                }
+                row {
+                    comment("Use a terminal associated with a Seshlog session, or select a session in the list or conversation viewer. Both actions are also in the session context menu.")
+                }
+            }
             agentGroup(
                 "Claude Code", settings::claudeDataDir, settings::claudeExecutable, settings::claudeExtraArgs,
                 "Leave empty to use \$CLAUDE_CONFIG_DIR or ~/.claude (currently ${settings.resolvedClaudeDataDir()}).",

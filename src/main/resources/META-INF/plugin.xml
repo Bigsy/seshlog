@@ -13,6 +13,9 @@
         <li>Full-text search across prompts and replies, not just titles</li>
         <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>
         <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
+        <li>Copy the latest assistant reply from Claude Code, Codex, opencode or Pi, preserving Markdown and code blocks without selecting terminal output</li>
+        <li>Copy the latest identifiable plan from Claude Code or Codex for review elsewhere</li>
+        <li>Use both copy actions from a known session's terminal, the session list or the conversation viewer; assign your own shortcuts in Settings &rarr; Keymap</li>
         <li>Restore the sessions that were running when the IDE was closed</li>
     </ul>
     Entirely local: Seshlog reads the agent's transcripts read-only, never writes to them, and makes
@@ -23,6 +26,15 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.6.0</b>
+    <ul>
+        <li>Add Seshlog: Copy Last Assistant Message for Claude Code, Codex, opencode and Pi. Copy the latest persisted assistant reply with its Markdown, code blocks and line breaks, skipping prompts, tools and thinking.</li>
+        <li>Add Seshlog: Copy Latest Plan for explicit Claude Code plan records and Codex Plan Mode blocks. Recorded plan text takes precedence over a linked file in the same record; file-only references copy the file's current contents. opencode and Pi plan copying are not yet supported.</li>
+        <li>Use both actions from an associated terminal tab, a historical session in the list or the conversation viewer. Both appear in the session context menu. Shortcuts are unassigned by default; Tools &rarr; Seshlog explains how to configure them in Settings &rarr; Keymap.</li>
+        <li>Read fresh content in the background, preserve the invocation's source session and discard superseded requests. Missing, unreadable or oversized content leaves the clipboard unchanged with brief feedback.</li>
+        <li>Resolve terminal shortcuts from the invoking terminal view, including the reworked terminal, without falling back to an unrelated selected session.</li>
+        <li>Keep session associations while terminals are dragged between split panes. Temporary detachment no longer loses copying, active highlighting, Show Tab or restore tracking; closing a tab still clears its association.</li>
+    </ul>
     <b>0.5.9</b>
     <ul>
         <li>Show what a running session is doing: working, waiting for your input with how long, or interrupted. Claude Code reports this itself; Codex, opencode and Pi states come from the transcript or database and appear while a Seshlog-owned tab still runs the agent.</li>
@@ -143,11 +155,7 @@
             <action id="Seshlog.CopyLatestPlan" class="com.hedworth.seshlog.ui.actions.CopyLatestPlanAction"
                     text="Seshlog: Copy Latest Plan"/>
             <action id="Seshlog.CopyLastAssistantMessage" class="com.hedworth.seshlog.ui.actions.CopyLastAssistantMessageAction"
-                    text="Seshlog: Copy Last Assistant Message">
-                <keyboard-shortcut keymap="$default" first-keystroke="ctrl O"/>
-                <keyboard-shortcut keymap="Mac OS X" first-keystroke="ctrl O" replace-all="true"/>
-                <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="ctrl O" replace-all="true"/>
-            </action>
+                    text="Seshlog: Copy Last Assistant Message"/>
             <action id="Seshlog.CopyResumeCommand" class="com.hedworth.seshlog.ui.actions.CopyResumeCommandAction"
                     text="Copy Resume Command"/>
             <action id="Seshlog.CopySessionId" class="com.hedworth.seshlog.ui.actions.CopySessionIdAction"

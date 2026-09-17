@@ -109,6 +109,8 @@ class ClaudeCodeSessionProvider(
     override fun conversationEntries(session: Session): List<com.hedworth.seshlog.model.ConversationEntry> =
         session.transcriptPath?.let { com.hedworth.seshlog.model.ConversationLimits.read(it, ClaudeConversationEntries::parse) } ?: emptyList()
 
+    override fun latestPlan(session: Session) = ClaudePlanReader.read(session)
+
     override fun lastAssistantMessage(session: Session) =
         com.hedworth.seshlog.copy.LastAssistantReader.read(session.transcriptPath, ConversationMessages::parseLine)
 

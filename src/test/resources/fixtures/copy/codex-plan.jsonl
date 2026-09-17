@@ -1,0 +1,7 @@
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "channel": "final", "content": [{"type": "output_text", "text": "<proposed_plan>\n# First\n</proposed_plan>"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "channel": "final", "content": [{"type": "output_text", "text": "<proposed_plan>\n  # Revised plan\n\n1. Keep Markdown.\n\n```kotlin\nprintln(\"plan 👋\")\n```\n</proposed_plan>"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "user", "channel": "final", "content": [{"type": "input_text", "text": "<proposed_plan>\nUser request\n</proposed_plan>"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "channel": "final", "content": [{"type": "output_text", "text": "Ordinary reply about plans"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "channel": "analysis", "content": [{"type": "output_text", "text": "<proposed_plan>\nThinking\n</proposed_plan>"}]}}
+{"type": "response_item", "payload": {"type": "function_call", "name": "update_plan", "arguments": "{\"plan\": [{\"step\": \"Task\", \"status\": \"pending\"}]}"}}
+malformed

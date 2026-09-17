@@ -1,0 +1,8 @@
+{"type": "assistant", "sessionId": "one", "message": {"content": [{"type": "tool_use", "id": "first", "name": "ExitPlanMode", "input": {"plan": "# First plan\n"}}]}}
+{"type": "assistant", "sessionId": "one", "message": {"content": [{"type": "tool_use", "id": "second", "name": "ExitPlanMode", "input": {"plan": "# Before user edits\n", "planFilePath": "/missing/old.md"}}]}}
+{"type": "user", "sessionId": "one", "message": {"content": [{"type": "tool_result", "tool_use_id": "second", "content": "User approved"}]}, "toolUseResult": {"plan": "  # Revised plan\n\n1. Keep Markdown.\n\n```kotlin\nprintln(\"plan 👋\")\n```\n", "isAgent": false, "filePath": "/missing/new.md", "planWasEdited": true}}
+{"type": "assistant", "message": {"content": [{"type": "text", "text": "Ordinary reply mentioning a plan"}, {"type": "tool_use", "name": "TodoWrite", "input": {"todos": ["not a plan"]}}]}}
+{"type": "user", "message": {"content": "Please plan another task"}}
+{"type": "assistant", "isSidechain": true, "message": {"content": [{"type": "tool_use", "name": "ExitPlanMode", "input": {"plan": "subagent"}}]}}
+{"type": "attachment", "sessionId": "other", "attachment": {"type": "plan_file_reference", "planContent": "other session"}}
+{bad json

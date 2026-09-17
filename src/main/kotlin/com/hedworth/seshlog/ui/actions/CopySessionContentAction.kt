@@ -31,7 +31,9 @@ class SessionClipboard(project: Project) {
 
 class CopyLastAssistantMessageAction : CopySessionContentAction("Seshlog: Copy Last Assistant Message")
 
-open class CopySessionContentAction(text: String) : DumbAwareAction(text) {
+class CopyLatestPlanAction : CopySessionContentAction("Seshlog: Copy Latest Plan", plan = true)
+
+open class CopySessionContentAction(text: String, private val plan: Boolean = false) : DumbAwareAction(text) {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
     override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }
 
@@ -46,7 +48,8 @@ open class CopySessionContentAction(text: String) : DumbAwareAction(text) {
         val associated = content?.let { OwnedTerminalTabs.getInstance(project).sessionFor(it) }?.let(index::sessionById)
         val session = CopyTarget.resolve(terminal, associated, e.getData(SeshlogDataKeys.SESSION))
         project.getService(SessionClipboard::class.java).requests.start(session) {
-            index.providerFor(it).lastAssistantMessage(it)
+            val provider = index.providerFor(it)
+            if (plan) provider.latestPlan(it) else provider.lastAssistantMessage(it)
         }
     }
 }

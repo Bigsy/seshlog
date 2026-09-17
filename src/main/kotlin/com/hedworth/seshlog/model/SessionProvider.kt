@@ -64,6 +64,10 @@ interface SessionProvider {
     fun lastAssistantMessage(session: Session): com.hedworth.seshlog.copy.CopyContent =
         com.hedworth.seshlog.copy.CopyContent.Unsupported("Assistant copying is not supported by this provider.")
 
+    /** Latest explicitly identifiable plan; unsupported providers must not guess from dialogue. */
+    fun latestPlan(session: Session): com.hedworth.seshlog.copy.CopyContent =
+        com.hedworth.seshlog.copy.CopyContent.Unsupported()
+
     /** The last [count] visible messages of [session] in chronological order, for the preview pane. */
     fun lastMessages(session: Session, count: Int): List<ConversationMessage>
 

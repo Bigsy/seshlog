@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 
 class ConversationDialogTest : BasePlatformTestCase() {
     fun testCopyActionsDisableWhileLoadingAndCopyTheCurrentMatch() {
+        com.intellij.ide.impl.HeadlessDataManager.fallbackToProductionDataManager(testRootDisposable)
         val gate = CountDownLatch(1)
         val copied = mutableListOf<String>()
         val entries = listOf(
@@ -22,6 +23,8 @@ class ConversationDialogTest : BasePlatformTestCase() {
         try {
             assertFalse(dialog.copyMessageButton.isEnabled)
             assertFalse(dialog.copyDialogueButton.isEnabled)
+            assertEquals(session(), com.intellij.ide.DataManager.getInstance()
+                .getDataContext(dialog.editor).getData(SeshlogDataKeys.SESSION))
             gate.countDown()
             await { dialog.copyMessageButton.isEnabled }
             assertTrue(dialog.copyDialogueButton.isEnabled)

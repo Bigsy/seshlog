@@ -140,6 +140,8 @@
             <action id="Seshlog.Rename" class="com.hedworth.seshlog.ui.actions.RenameSessionAction" text="Rename Locally…"/>
             <action id="Seshlog.Hide" class="com.hedworth.seshlog.ui.actions.HideSessionAction" text="Hide / Unhide"/>
             <separator/>
+            <action id="Seshlog.CopyLatestPlan" class="com.hedworth.seshlog.ui.actions.CopyLatestPlanAction"
+                    text="Seshlog: Copy Latest Plan"/>
             <action id="Seshlog.CopyLastAssistantMessage" class="com.hedworth.seshlog.ui.actions.CopyLastAssistantMessageAction"
                     text="Seshlog: Copy Last Assistant Message"/>
             <action id="Seshlog.CopyResumeCommand" class="com.hedworth.seshlog.ui.actions.CopyResumeCommandAction"

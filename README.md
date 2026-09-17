@@ -227,3 +227,32 @@ pending one. Missing, unreadable or oversized content leaves the clipboard uncha
 brief feedback. Copying never uses a truncated preview. Claude/Codex scans are limited to
 128 MiB and 8 MiB per record; opencode uses equivalent character budgets. Pi follows the
 persisted branch and bounds the whole transcript to 16 MiB.
+
+### Copy the latest plan
+
+Assign **Seshlog: Copy Latest Plan** under **Settings → Keymap** (unassigned by default),
+or use the session context menu. It uses the same focused-terminal, historical-session and
+conversation-view targeting as assistant copying.
+
+| Provider | Supported plan source |
+| --- | --- |
+| Claude Code | Explicit `ExitPlanMode` input, its matching structured result, or a `plan_file_reference` attachment in that session's transcript. |
+| Codex | An assistant message wrapped in the explicit `<proposed_plan>` envelope used by Plan Mode. |
+| opencode | Unsupported for now; no persisted structured plan association is used. |
+| Pi | Unsupported; extension-specific plan/checklist state is not treated as a common plan format. |
+
+The latest explicit record in transcript order wins. Claude's matching result can include the
+user's edits and supersedes that call's input. Embedded content is authoritative over a file
+reference in the same record. A file-only Claude reference copies the **current contents** of
+that exact local file, with feedback identifying that limitation; it is not a historical
+snapshot. Seshlog never searches a plans directory, chooses the newest file, or infers ownership
+from a shared working directory. Later file changes are not consulted when a recorded snapshot
+is available. Claude subagent records and records explicitly naming another session are ignored.
+
+Codex copies the Markdown between the standalone envelope tags, preserving its whitespace and
+line breaks. Ordinary dialogue, quoted examples, user requests and `update_plan` task checklists
+are not plans. The latest incomplete, empty, missing or unreadable plan leaves the clipboard
+unchanged; it never falls back to an older plan or the last assistant reply. Plan content is
+limited to 2 MiB, transcript records to 8,388,608 characters, and scans to 134,217,728
+characters; exceeding a limit reports failure, never truncation. The inspected formats and
+conservative exclusions are recorded in [the format notes](docs/clipboard-format-evidence.md).

@@ -1,0 +1,7 @@
+{"type": "session", "version": 1, "id": "synthetic", "cwd": "/synthetic"}
+{"type": "message", "message": {"role": "assistant", "content": [{"type": "text", "text": "older"}]}}
+{"type": "message", "message": {"role": "assistant", "content": [{"type": "text", "text": "  ## Latest reply\n\n```kotlin\nprintln(\"héllo 👋\")\n```\n"}]}}
+{"type": "message", "message": {"role": "user", "content": [{"type": "text", "text": "trailing prompt"}]}}
+{"type": "message", "message": {"role": "assistant", "content": [{"type": "text", "text": " \n\t"}]}}
+{"type": "message", "message": {"role": "toolResult", "content": [{"type": "text", "text": "hidden"}]}}
+{bad json

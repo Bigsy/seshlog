@@ -1,0 +1,7 @@
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "older"}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "  ## Latest reply\n\n```kotlin\nprintln(\"héllo 👋\")\n```\n"}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "trailing prompt"}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": " \n\t"}]}}
+{"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "hidden"}, {"type": "tool_use", "name": "Read", "input": {}}]}}
+{"type": "user", "message": {"content": [{"type": "tool_result", "content": "hidden"}]}}
+{bad json

@@ -7,6 +7,13 @@ import com.hedworth.seshlog.codex.CodexTranscriptParser.string
 
 /** Extracts visible user and assistant messages from a Codex rollout record. */
 object CodexConversationMessages {
+    /** Older rollouts may persist analysis as assistant messages rather than reasoning items. */
+    fun parseClipboardLine(line: String): ConversationMessage? {
+        val obj = CodexTranscriptParser.parseObject(line) ?: return null
+        if (obj.objectValue("payload")?.string("channel") == "analysis") return null
+        return parseLine(line)
+    }
+
     fun parseLine(line: String): ConversationMessage? {
         if (!line.contains("response_item") || !line.contains("\"role\"")) return null
         val obj = CodexTranscriptParser.parseObject(line) ?: return null

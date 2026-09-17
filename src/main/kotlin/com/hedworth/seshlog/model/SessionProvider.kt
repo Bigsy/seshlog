@@ -60,6 +60,10 @@ interface SessionProvider {
         return collector.finish()
     }
 
+    /** Fresh, complete assistant text for clipboard use; never a truncated preview. */
+    fun lastAssistantMessage(session: Session): com.hedworth.seshlog.copy.CopyContent =
+        com.hedworth.seshlog.copy.CopyContent.Unsupported("Assistant copying is not supported by this provider.")
+
     /** The last [count] visible messages of [session] in chronological order, for the preview pane. */
     fun lastMessages(session: Session, count: Int): List<ConversationMessage>
 

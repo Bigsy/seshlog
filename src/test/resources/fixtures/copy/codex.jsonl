@@ -1,0 +1,8 @@
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "older"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "  ## Latest reply\n\n```kotlin\nprintln(\"héllo 👋\")\n```\n"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "trailing prompt"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": " \n\t"}]}}
+{"type": "response_item", "payload": {"type": "function_call_output", "output": "hidden"}}
+{"type": "response_item", "payload": {"type": "reasoning", "summary": []}}
+{bad json
+{"type":"response_item","payload":{"type":"message","role":"assistant","channel":"analysis","content":[{"type":"output_text","text":"private reasoning"}]}}

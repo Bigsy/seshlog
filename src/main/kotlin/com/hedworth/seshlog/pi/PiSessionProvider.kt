@@ -78,6 +78,20 @@ class PiSessionProvider(
     override fun conversationMessages(session: Session): List<ConversationMessage> =
         session.transcriptPath?.let { PiTranscriptParser.read(it).messages } ?: emptyList()
     override fun conversationText(session: Session) = conversationMessages(session).map { it.text }
+    // Pi requires ancestry resolution: a physical tail may belong to an abandoned branch.
+    override fun lastAssistantMessage(session: Session): com.hedworth.seshlog.copy.CopyContent = try {
+        val path = session.transcriptPath
+        if (path == null) com.hedworth.seshlog.copy.CopyContent.Failed()
+        else {
+            val bytes = Files.newInputStream(path).use { it.readNBytes(16 * 1024 * 1024 + 1) }
+            if (bytes.size > 16 * 1024 * 1024) com.hedworth.seshlog.copy.CopyContent.Failed("Pi transcript exceeds the 16 MiB copy limit.")
+            else PiTranscriptParser.parseLines(String(bytes, Charsets.UTF_8).lineSequence()).messages
+                .lastOrNull { it.role == com.hedworth.seshlog.model.Role.ASSISTANT && it.text.isNotBlank() }
+                ?.let { com.hedworth.seshlog.copy.CopyContent.Found(it.text) }
+                ?: com.hedworth.seshlog.copy.CopyContent.Absent()
+        }
+    } catch (_: Exception) { com.hedworth.seshlog.copy.CopyContent.Failed() }
+
     override fun lastMessages(session: Session, count: Int) = conversationMessages(session).takeLast(count.coerceAtLeast(0))
     override fun contentStamp(session: Session): Any? = FileStamp.of(session.transcriptPath)
 }

@@ -189,6 +189,42 @@ class OpenCodeDatabase(private val file: Path) {
         return out.finish()
     }
 
+    /** Newest assistant first, with complete text parts and bounded JDBC allocation. */
+    fun lastAssistantMessage(conn: Connection, sessionId: String): com.hedworth.seshlog.copy.CopyContent {
+        val sql = """
+            SELECT m.id, length(p.data),
+                   CASE WHEN length(p.data) <= 8388608 THEN p.data END
+            FROM message m JOIN part p ON p.message_id = m.id AND p.session_id = m.session_id
+            WHERE m.session_id = ?
+              AND CASE WHEN json_valid(m.data) THEN json_extract(m.data, '$.role') END = 'assistant'
+            ORDER BY m.time_created DESC, m.id DESC, p.id
+        """.trimIndent()
+        conn.prepareStatement(sql).use { st ->
+            st.setString(1, sessionId)
+            st.executeQuery().use { rs ->
+                var id: String? = null
+                var scanned = 0L
+                val parts = arrayListOf<String>()
+                while (rs.next()) {
+                    if (id != rs.getString(1)) {
+                        if (parts.isNotEmpty()) return com.hedworth.seshlog.copy.CopyContent.Found(parts.joinToString("\n"))
+                        id = rs.getString(1)
+                    }
+                    scanned += rs.getLong(2)
+                    val raw = rs.getString(3)
+                    if (raw == null || scanned > 128L * 1024 * 1024)
+                        return com.hedworth.seshlog.copy.CopyContent.Failed("Session content exceeds the copy limit.")
+                    val obj = TranscriptParser.parseObject(raw) ?: continue
+                    fun string(key: String) = obj.get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+                    if (string("type") != "text" || obj.get("synthetic")?.toString() == "true") continue
+                    string("text")?.takeIf(String::isNotBlank)?.let(parts::add)
+                }
+                return if (parts.isEmpty()) com.hedworth.seshlog.copy.CopyContent.Absent()
+                    else com.hedworth.seshlog.copy.CopyContent.Found(parts.joinToString("\n"))
+            }
+        }
+    }
+
     /** The last [count] messages that have text, oldest first. */
     fun lastMessages(conn: Connection, sessionId: String, count: Int): List<ConversationMessage> {
         if (count <= 0) return emptyList()

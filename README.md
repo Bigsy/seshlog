@@ -211,3 +211,19 @@ runs tests and Plugin Verifier, commits and tags the version, then signs and pub
 Use an **Unreleased** heading in `plugin.xml` for pending release notes. An untagged current
 version's notes are carried forward; otherwise a maintenance entry is added and history retained.
 Pushing a `v*` tag still publishes the version already committed at that tag.
+
+### Copy the latest assistant reply
+
+Assign **Seshlog: Copy Last Assistant Message** under **Settings → Keymap** (unassigned by
+default), or use the session context menu. It works for Claude Code, Codex, opencode and Pi,
+including historical sessions and the conversation viewer. Terminal shortcuts require a tab
+with a known Seshlog session association; an unrelated terminal or IDE context never falls
+back to the selected session or last active tab.
+
+The action reads fresh persisted dialogue in the background and copies the latest nonblank
+assistant message, preserving Markdown and line breaks. It skips prompts, tools and thinking;
+the reply need not be the end of an overall agent turn. A newer copy request supersedes any
+pending one. Missing, unreadable or oversized content leaves the clipboard unchanged, with
+brief feedback. Copying never uses a truncated preview. Claude/Codex scans are limited to
+128 MiB and 8 MiB per record; opencode uses equivalent character budgets. Pi follows the
+persisted branch and bounds the whole transcript to 16 MiB.

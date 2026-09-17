@@ -142,6 +142,11 @@ class OpenCodeSessionProvider(
         return db.read { conn -> db.conversationEntries(conn, session.id) }
     }
 
+    override fun lastAssistantMessage(session: Session): com.hedworth.seshlog.copy.CopyContent = try {
+        val db = database()
+        db.read { db.lastAssistantMessage(it, session.id) }
+    } catch (_: Exception) { com.hedworth.seshlog.copy.CopyContent.Failed() }
+
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> {
         val db = database()
         return db.read { conn -> db.lastMessages(conn, session.id, count) }

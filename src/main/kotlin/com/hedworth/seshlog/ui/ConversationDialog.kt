@@ -81,6 +81,9 @@ class ConversationDialog(
 
     override fun createActions(): Array<Action> = arrayOf(cancelAction)
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
+        com.intellij.ide.DataManager.registerDataProvider(this) { id ->
+            if (SeshlogDataKeys.SESSION.`is`(id)) session else null
+        }
         preferredSize = Dimension(850, 650)
         add(JPanel(java.awt.GridLayout(0, 1)).apply {
             add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {

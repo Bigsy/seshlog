@@ -1,264 +1,102 @@
 # Seshlog
 
-https://plugins.jetbrains.com/plugin/33850-seshlog--coding-agent-session-manager
+Find and resume your local **Claude Code, Codex, opencode and Pi** sessions from an IntelliJ tool window.
 
-An IntelliJ plugin that lists your local Claude Code, Codex, opencode and Pi sessions, titled the way
-the agent titled them, with one click to resume any of them in a terminal tab.
+[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33850-seshlog--coding-agent-session-manager)
 
-Restarting your IDE closes every terminal tab, and with them your running coding-agent sessions.
-Getting back to one means remembering which project it was in and finding it in the agent's session
-picker. Seshlog makes it a click.
+<table>
+  <tr>
+    <td><a href="docs/marketplace/01-hero.png"><img src="docs/marketplace/01-hero.png" alt="Seshlog session browser" width="360"></a></td>
+    <td><a href="docs/marketplace/02-session-list.png"><img src="docs/marketplace/02-session-list.png" alt="Session list and message preview" width="360"></a></td>
+  </tr>
+  <tr>
+    <td><a href="docs/marketplace/03-search.png"><img src="docs/marketplace/03-search.png" alt="Search across conversations" width="360"></a></td>
+    <td><a href="docs/marketplace/04-fork.png"><img src="docs/marketplace/04-fork.png" alt="Fork a session from the context menu" width="360"></a></td>
+  </tr>
+</table>
 
-![Every Claude Code session, one click to resume](docs/marketplace/01-hero.png)
+Click a screenshot to view it full size.
 
-## Features
+## What it does
 
-- **Sessions grouped by project**, sorted by last activity, with the agent's own title, git branch,
-  prompt count, and an activity badge for running sessions: **working**, **waiting** for your input
-  (with how long), or **interrupted**.
-- **Activity and waiting notifications.** Claude Code reports busy/idle itself in its sessions
-  directory, so every running Claude session shows its state. Codex, opencode and Pi keep no process
-  file; their state is read from the end of the transcript or database and shown only while a tab
-  Seshlog owns has a process with matching resume arguments. Process checks run in the background
-  every two seconds; if the OS hides process arguments, no activity badge is shown for these agents.
-  When a running session stops working and waits for you, a balloon
-  names it, unless its terminal tab is already on screen; **Settings → Tools → Seshlog → Notifications**
-  turns this off. A permission prompt cannot be told apart from a running tool and shows as working.
-- **Agents menu** lets you show any combination, such as Claude Code and Codex together.
-  Auto defaults to the provider with the most sessions; All selects every agent. The menu only lists agents with sessions in the current project scope. Choices are remembered per project.
-- **Search results in the bottom pane** show the full loaded conversation with highlighted terms.
-  Use Previous/Next match or F3/Shift+F3 with focus in the pane to jump and scroll through occurrences.
-  Clearing search restores the last-message preview. Search respects the current date, agent and project filters.
-- **Flexible search** across provider titles, local names, project paths and conversation text.
-  Words match in any order, including across messages; use `"quoted phrases"` for contiguous text.
-  Title and phrase matches rank first, with recency breaking ties and snippets opening in the viewer.
-- **Date filter** for All time, Today, Last 7/30 days or a custom inclusive calendar range,
-  using last activity in your system time zone. It applies to browsing and search and resets with the panel.
-- **Conversation viewer** with term highlighting and previous/next match navigation.
-  Claude Code, Codex and opencode tool names, inputs and textual results are searchable too.
-  Tool entries start collapsed; navigating to a match expands its entry. Use Expand/collapse tool
-  on the entry at the caret to inspect or fold it. Previews and prompt counts remain dialogue-only.
-  Images, binary payloads, thinking and subagents are excluded.
-- **Bounded content** shared by search and the viewer: 32,000 characters per entry,
-  500,000 characters / 2,000 entries per session. JSON records above 1,000,000 characters are
-  skipped and extraction scans at most 16,000,000 source characters. Truncation and partial
-  search coverage are shown explicitly; text beyond these limits is not searchable.
-- **Copy Message** copies the entry at the viewer caret or current match, including an explicitly
-  selected tool entry. **Copy Conversation (dialogue only)** copies loaded user/assistant text with
-  role labels, preserving code blocks and blank lines. Ordinary selection copying still works.
-  Copy actions are disabled during loading; partial content is reported when limits apply.
-- **Pin, rename and hide** sessions locally; Show Hidden lets you restore them.
-- **Sibling worktrees** can be included in the project filter. Collapsed groups and selection survive refresh.
-- **Missing-directory recovery** lets you choose a working directory when resuming old work.
-- **Loading and provider diagnostics** show scan/search progress and offer retry for unreadable storage.
-- **Preview pane** showing the last messages of the selected session without opening anything.
-- **Active terminal highlight** uses a bold blue title for the session associated with the selected IDE terminal tab,
-  independently of the session you select to preview. A selected active title is bold and underlined.
-  Switching to an unrecognised tab clears it.
-- **Classic and Reworked terminals** — detect and track sessions in either engine, including split
-  panes. Tracking retries every two seconds as shells become ready and preserves associations
-  through tab moves and incomplete process checks. Manually started Claude Code sessions are
-  discovered from their live PID; manually resumed agents (including `codex resume <session-id>`)
-  can also be associated using their executable and explicit session arguments. Fresh manual
-  Codex sessions without a known session ID cannot yet be associated reliably.
-  New tabs use your selected terminal engine on IDEs with the Reworked terminal API.
-  Restore waits for saved tabs and their shells to become ready; if a matching terminal stays
-  unavailable, the session remains saved for restore instead of opening a duplicate.
-- **Resume or fork** into a terminal tab. If the session is already running in one of this project's
-  tabs, Seshlog focuses that tab instead of starting a duplicate. Per-agent **additional arguments**
-  from Settings are appended to every resume and fork command, so a default model or permission mode
-  follows you into resumed sessions.
-- **Kill Session** in the session context menu closes its terminal tab in this project, stops its
-  processes (including lingering processes from closed tabs), and refreshes the live status and PID.
-  Available when Seshlog knows the tab or PID; session transcripts remain available to resume later.
-- **Restore after restart** — sessions that were live when the IDE closed are offered for resuming
-  when the project reopens (Ask / Always / Never). Unanswered restore offers and failed launches
-  remain remembered for the next restart; **Not now** dismisses the offered sessions.
+- Groups sessions by project, with titles, branches and recent activity.
+- Resumes or forks a session in an IDE terminal; focuses its tab if it is already running.
+- Searches titles, project paths and conversations, with highlighted matches and a message preview.
+- Filters by agent, project and date. Pin, rename or hide sessions to keep the list manageable.
+- Shows activity for tracked sessions, notifies you when they need input, and offers to restore
+  eligible sessions after an IDE restart.
+- Copies the latest assistant reply, or the latest explicit Claude Code or Codex plan, without
+  selecting terminal output.
 
-![Session list with preview pane](docs/marketplace/02-session-list.png)
-![Search across transcript content](docs/marketplace/03-search.png)
-![Fork a session from the context menu](docs/marketplace/04-fork.png)
+Works with both Classic and Reworked terminals.
 
-## Requirements
+## Get started
 
-- IntelliJ IDEA 2024.1 or newer (any IntelliJ Platform IDE with the bundled Terminal plugin).
-- Any of [Claude Code](https://claude.com/claude-code),
-  [Codex](https://developers.openai.com/codex/cli/), [opencode](https://opencode.ai) or [Pi](https://pi.dev) installed,
-  with the corresponding executable on the PATH of the shell your Terminal tool window uses.
-- JDK 17 to build from source.
+You need an IntelliJ Platform IDE **2024.1 or newer** with the bundled Terminal plugin, plus at least
+one supported agent installed and available on your terminal shell's `PATH`. Pi requires **0.84.2 or newer**.
 
-## Install
+Open **View → Tool Windows → Seshlog** to browse your sessions.
+Use **Settings → Tools → Seshlog** to change data directories, executable paths, per-agent command
+arguments, notifications and restart behaviour.
 
-Not yet on the JetBrains Marketplace. To build and install it yourself:
+To build and install from source, use JDK 17 and run:
 
 ```sh
 ./gradlew buildPlugin
 ```
 
-then in the IDE: **Settings → Plugins → ⚙ → Install Plugin from Disk…** and pick
+Then choose **Settings → Plugins → ⚙ → Install Plugin from Disk…** and select
 `build/distributions/seshlog-<version>.zip`.
 
-Open the tool window with **View → Tool Windows → Seshlog** (it docks on the right).
+## Using Seshlog
 
-### Pi sessions
+The **Agents** menu selects which agents to show. Project and date filters apply to both browsing
+and search; you can include sibling worktrees or show sessions from all projects.
 
-Pi support requires **0.84.2 or newer**. Seshlog reads JSONL files in the sessions directory
-and its immediate project subdirectories without migrating or modifying them. Configure a custom
-`--session-dir` location under **Tools → Seshlog → Pi sessions directory**; per-project Pi
-settings and arbitrary storage locations are not discovered automatically.
+Search matches words in any order. Use `"quoted phrases"` for exact phrases. Select a result to read
+its conversation, then use **F3 / Shift+F3** in the viewer to jump between matches. Clear the search
+to return to the recent-message preview.
 
-Search, preview, prompt counts and fallback titles use the persisted active branch, retaining
-original conversation history across compaction. Other branches are not searched, and branch
-switches that Pi has not saved cannot be inferred. Only user and assistant text is included;
-images, thinking, tools and extension content are omitted. Explicit session names take precedence.
-Pi keeps no process file, so its sessions are never live and are not restored after a restart; its
-activity badge appears only in tabs Seshlog started. Manual Resume and Fork work through the terminal;
-forks are saved beside the source so custom-root sessions remain discoverable.
+Right-click a session to resume, fork, pin, rename, hide or copy from it. **Kill Session** stops its
+processes and closes its terminal tab in the current project; the saved conversation remains available.
 
-CLI acceptance was checked offline with [Pi v0.84.2](https://github.com/badlogic/pi-mono/tree/914cf1472e715297caa30db4b9535d534a9eb718)
-using disposable synthetic sessions: exact-file resume and a new fork ID with `--session-dir`,
-including paths containing spaces and apostrophes.
+For keyboard copying, assign **Seshlog: Copy Last Assistant Message** and **Seshlog: Copy Latest Plan**
+under **Settings → Keymap**. They work from the session list, conversation viewer or a terminal
+associated with a known session. Shortcuts are unassigned by default.
+
+### Limitations
+
+- Activity detection depends on the agent and whether Seshlog can identify its running process.
+  Fresh manually started Codex sessions cannot always be associated with a terminal.
+- Large conversations have search and viewer limits; partial coverage is shown in the UI.
+  Images and thinking are excluded. Tool text is searchable for Claude Code, Codex and opencode.
+- Pi uses its saved active branch and includes user/assistant text only. Custom session directories
+  must be configured in Settings. Pi sessions are not restored after a restart.
+- Plan copying supports explicit Claude Code and Codex plans only. A Claude plan stored solely as
+  a file reference copies that file's current contents. See the [format notes](docs/clipboard-format-evidence.md)
+  for details.
 
 ## Privacy
 
-Seshlog is entirely local. It makes no network requests of any kind — there is no telemetry, no
-analytics, and no remote service involved.
+Seshlog runs locally and makes **no network requests**. There is no telemetry or analytics.
 
-It reads the agents' data directories — `$CLAUDE_CONFIG_DIR`/`~/.claude`,
-`$CODEX_HOME`/`~/.codex`, Pi’s sessions directory (normally `~/.pi/agent/sessions`)
-and `$XDG_DATA_HOME/opencode`/`~/.local/share/opencode` — **read-only** and
-never writes to them. opencode's SQLite database is opened read-only, so a session running
-alongside is never disturbed — reading it does update `opencode.db-shm`, the shared-memory index
-every SQLite reader maintains, which holds no session data of its own. Its own state lives in the IDE's own storage:
-
-- parsed-transcript caches in `<IDE system dir>/seshlog/`, holding per-session metadata
-  only — title, cwd, branch, timestamps, prompt count. No message content is written to it: the
-  label for an untitled session is reduced to a single line of at most 80 characters at parse time,
-  and the raw prompt is never retained. Safe to delete at any time;
-- the content search index, which is held in memory only and never written to disk;
-- settings in `seshlog.xml`, and the per-project agent filter and restore list in `workspace.xml`.
-
-## Settings
-
-**Settings → Tools → Seshlog**
-
-| Setting | Default | |
-| --- | --- | --- |
-| Claude data directory | auto | `$CLAUDE_CONFIG_DIR`, else `~/.claude` |
-| Claude executable | `claude` | Resolved via the terminal shell's PATH |
-| Codex data directory | auto | `$CODEX_HOME`, else `~/.codex` |
-| Codex executable | `codex` | Resolved via the terminal shell's PATH |
-| Pi sessions directory | auto | `$PI_CODING_AGENT_SESSION_DIR`, else `$PI_CODING_AGENT_DIR/sessions`, else `~/.pi/agent/sessions` |
-| Pi executable | `pi` | Pi 0.84.2 or newer; resolved via the terminal shell's PATH |
-| opencode data directory | auto | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` |
-| opencode executable | `opencode` | Resolved via the terminal shell's PATH |
-| Additional arguments (per agent) | empty | Appended as typed to that agent's resume and fork commands, e.g. `--model sonnet`; quote values as you would in the shell |
-| Show archived sessions (opencode) | off | Sessions archived inside opencode stay hidden unless on |
-| Agents menu | Auto | Show any combination of agents, all agents, or automatically the provider with the most sessions; stored per project |
-| Show sessions from all projects | off | Otherwise only sessions whose cwd is under the open project |
-| Hide untitled sessions with fewer than *n* prompts | 1 | Filters out aborted starts; 0 shows everything |
-| Sessions live at shutdown | Ask | Ask / Always restore / Never restore |
-| Notify when a running session is waiting for input | on | Balloon when a session goes from working to waiting or interrupted; skipped while its tab is on screen |
-| Preview pane | on, 2 messages | Shown below the session list |
+Agent transcripts are read-only. Seshlog keeps settings and metadata caches in IDE storage;
+conversation content and the search index stay in memory. Reading opencode's SQLite database can
+update its shared-memory index (`opencode.db-shm`), but does not modify stored sessions.
 
 ## Development
 
 ```sh
-make run      # ./gradlew runIde — sandbox IDE with the plugin loaded
-make check    # ./gradlew test
-make release  # build + verify the plugin zip
+make run      # Launch a sandbox IDE with the plugin loaded
+make check    # Run tests
+make release  # Test, build and check the plugin zip
+./gradlew verifyPlugin  # Check IDE compatibility
 ```
 
-`./gradlew verifyPlugin` runs the JetBrains Plugin Verifier against the recommended IDE range; CI
-runs it on every push.
-
-Both are also worth knowing:
-
-- `SESHLOG_BENCH=1 ./gradlew test --tests '*RealDataScanBenchmark*'` times a scan of your real
-  `~/.claude`. It is skipped by default and never runs in CI.
-- The plugin targets Kotlin API level 1.9 because platform 2024.1 bundles the Kotlin 1.9 stdlib;
-  using a 2.x-only stdlib API is a compile error rather than a runtime failure on older IDEs.
-
-Session reading is deliberately defensive — the agents' storage formats are internal and can change
-between versions. In the `.jsonl` transcripts of Claude Code and Codex, unknown record types are
-skipped, missing fields become null, and a malformed line is logged at DEBUG and ignored; opencode's
-database is queried for the few columns Seshlog needs, and a database it cannot read leaves the
-provider empty rather than failing the scan. See `src/test/resources/fixtures/` for the shapes that
-are covered — including `opencode_fixture.sql`, the SQL script the tests build a throwaway opencode
-database from.
-
-## Roadmap
-
-- **More agents** behind the existing `SessionProvider` seam.
-- **Live Codex sessions.** Writer lock files do not identify a verified running process, so Codex
-  sessions have no live badges or restart recovery until process detection is available.
-- **Live opencode sessions.** opencode writes no lock or pid file, so its sessions never show as
-  running and are not restored after a restart.
-- **Titles for the untitled.** Around 7% of sessions never get an `ai-title`; generate one from the
-  first exchange and store it on the Seshlog side.
-- **Housekeeping.** Delete or archive old transcripts from the UI, and show disk usage per project.
-
-## Contributing
-
-Issues and pull requests are welcome. `make check` should pass, and new parsing behaviour should
-come with a fixture in `src/test/resources/fixtures/` — please make sure any fixture you add is
-synthetic rather than a real transcript.
+Issues and pull requests are welcome. New parsing behaviour needs a synthetic fixture in
+`src/test/resources/fixtures/`; never commit real transcripts.
+See [AGENTS.md](AGENTS.md) for development conventions and [PLAN.md](PLAN.md) for current work.
 
 ## License
 
 [MIT](LICENSE)
-
-### Publishing a release
-
-In GitHub Actions, choose **Release → Run workflow → main**. The manual run increments
-`pluginVersion` by one patch (for example, 0.5.7 → 0.5.8), updates the plugin changelog,
-runs tests and Plugin Verifier, commits and tags the version, then signs and publishes it.
-Use an **Unreleased** heading in `plugin.xml` for pending release notes. An untagged current
-version's notes are carried forward; otherwise a maintenance entry is added and history retained.
-Pushing a `v*` tag still publishes the version already committed at that tag.
-
-### Copy the latest assistant reply
-
-Assign **Seshlog: Copy Last Assistant Message** under **Settings → Keymap** (unassigned by
-default), or use the session context menu. **Tools → Seshlog → Keyboard Shortcuts** lists both
-copy actions and explains where to configure them. It works for Claude Code, Codex, opencode and Pi,
-including historical sessions and the conversation viewer. Terminal shortcuts require a tab
-with a known Seshlog session association; an unrelated terminal or IDE context never falls
-back to the selected session or last active tab.
-
-The action reads fresh persisted dialogue in the background and copies the latest nonblank
-assistant message, preserving Markdown and line breaks. It skips prompts, tools and thinking;
-the reply need not be the end of an overall agent turn. A newer copy request supersedes any
-pending one. Missing, unreadable or oversized content leaves the clipboard unchanged, with
-brief feedback. Copying never uses a truncated preview. Claude/Codex scans are limited to
-128 MiB and 8 MiB per record; opencode uses equivalent character budgets. Pi follows the
-persisted branch and bounds the whole transcript to 16 MiB.
-
-### Copy the latest plan
-
-Assign **Seshlog: Copy Latest Plan** under **Settings → Keymap** (unassigned by default),
-or use the session context menu. It uses the same focused-terminal, historical-session and
-conversation-view targeting as assistant copying.
-
-| Provider | Supported plan source |
-| --- | --- |
-| Claude Code | Explicit `ExitPlanMode` input, its matching structured result, or a `plan_file_reference` attachment in that session's transcript. |
-| Codex | An assistant message wrapped in the explicit `<proposed_plan>` envelope used by Plan Mode. |
-| opencode | Unsupported for now; no persisted structured plan association is used. |
-| Pi | Unsupported; extension-specific plan/checklist state is not treated as a common plan format. |
-
-The latest explicit record in transcript order wins. Claude's matching result can include the
-user's edits and supersedes that call's input. Embedded content is authoritative over a file
-reference in the same record. A file-only Claude reference copies the **current contents** of
-that exact local file, with feedback identifying that limitation; it is not a historical
-snapshot. Seshlog never searches a plans directory, chooses the newest file, or infers ownership
-from a shared working directory. Later file changes are not consulted when a recorded snapshot
-is available. Claude subagent records and records explicitly naming another session are ignored.
-
-Codex copies the Markdown between the standalone envelope tags, preserving its whitespace and
-line breaks. Ordinary dialogue, quoted examples, user requests and `update_plan` task checklists
-are not plans. The latest incomplete, empty, missing or unreadable plan leaves the clipboard
-unchanged; it never falls back to an older plan or the last assistant reply. Plan content is
-limited to 2 MiB, transcript records to 8,388,608 characters, and scans to 134,217,728
-characters; exceeding a limit reports failure, never truncation. The inspected formats and
-conservative exclusions are recorded in [the format notes](docs/clipboard-format-evidence.md).

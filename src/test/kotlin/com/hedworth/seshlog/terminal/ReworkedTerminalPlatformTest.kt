@@ -56,6 +56,12 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         val tab = proxy(tabType.name) {
             when (it) { "getView" -> view; "getContent" -> content; else -> null }
         }
+        tabType.fields.firstOrNull { it.name == "Companion" }?.get(null)?.let { companion ->
+            @Suppress("UNCHECKED_CAST")
+            val tabKey = ReworkedTerminal.call(companion, "getKEY") as com.intellij.openapi.util.Key<Any>
+            content.putUserData(tabKey, tab)
+            assertSame(view, adapter.viewOf(content))
+        }
         val manager = proxy("com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager") {
             if (it == "getTabs") listOf(tab) else null
         }
@@ -72,6 +78,23 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         assertSame(content, terminal.content)
         assertEquals(110L, terminal.shellPid())
         assertEquals(TerminalState.IDLE, terminal.state())
+        // Older APIs need the cached view; newer ones can also read the platform's tab key.
+        assertNull(content.manager)
+        assertSame(view, adapter.viewOf(content))
+        assertSame(content, adapter.contentForView(project, view, listOf(content)))
+        assertNotNull(adapter.find(project, content))
+
+        val owned = OwnedTerminalTabs.getInstance(project)
+        val tracked = com.hedworth.seshlog.model.Session(com.hedworth.seshlog.model.AgentKind.CODEX,
+            "tracked", "tracked", java.nio.file.Path.of("/project"), null, null, java.time.Instant.EPOCH,
+            null, false, null, null, 1, true)
+        owned.track(tracked, terminal)
+        // Exercise the real action path when getTabs() cannot see a moved terminal.
+        val event = com.intellij.openapi.actionSystem.AnActionEvent.createFromDataContext("test", null, context)
+        val target = TerminalTabs.actionTarget(project, event)
+        assertTrue(target.isTerminal)
+        assertSame(content, target.content)
+        assertEquals(tracked.id, owned.resolveSession(requireNotNull(target.content)))
 
         api("com.intellij.terminal.frontend.toolwindow.impl.TerminalToolWindowTabsManagerImpl")
             .getDeclaredField("tabsRestoredDeferred")

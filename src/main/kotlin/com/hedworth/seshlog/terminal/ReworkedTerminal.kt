@@ -28,10 +28,30 @@ internal class ReworkedTerminal(
         context.getData(key)?.takeIf(type::isInstance)
     }
 
-    fun contentForView(project: Project, view: Any): Content? = read {
-        val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
-            .getMethod("getInstance", Project::class.java).invoke(null, project)
-        contentForViewIn(manager, view)
+    fun contentForView(project: Project, view: Any, contents: List<Content> = emptyList()): Content? {
+        contentForViewIn(contents, view)?.let { return it }
+        return read {
+            val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
+                .getMethod("getInstance", Project::class.java).invoke(null, project)
+            contentForViewIn(manager, view)
+        }
+    }
+
+    /** The tab stores its view even while detached from the tool window (dragging/editor moves). */
+    internal fun viewOf(content: Content): Any? = read {
+        val type = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTab")
+        // Early 261/262 releases had no tab key. Cache the exact view when enumerated there.
+        val companion = type.fields.firstOrNull { it.name == "Companion" }?.get(null) ?: return@read null
+        val key = call(companion, "getKEY") as? com.intellij.openapi.util.Key<*> ?: return@read null
+        content.getUserData(key)?.takeIf(type::isInstance)?.let { call(it, "getView") }
+    } ?: content.getUserData(VIEW_KEY)
+
+    internal fun contentForViewIn(contents: List<Content>, view: Any): Content? {
+        contents.singleOrNull { viewOf(it) === view }?.let { return it }
+        // Some API versions/wrappers do not expose the tab key. The view's own component is
+        // still exact evidence; using an unrelated selected tab or current focus is not.
+        val component = read { call(view, "getComponent") as? java.awt.Component } ?: return null
+        return com.hedworth.seshlog.copy.CopyTarget.focusedContent(component, contents) { it.component }
     }
 
     internal fun contentForViewIn(manager: Any, view: Any): Content? = read {
@@ -40,10 +60,13 @@ internal class ReworkedTerminal(
         call(tab, "getContent") as? Content
     }
 
-    fun find(project: Project, content: Content): TerminalHandle? = read {
-        val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
-            .getMethod("getInstance", Project::class.java).invoke(null, project)
-        findIn(manager, content) { localProject(project) }
+    fun find(project: Project, content: Content): TerminalHandle? {
+        viewOf(content)?.let { return handle(content, it) { localProject(project) } }
+        return read {
+            val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
+                .getMethod("getInstance", Project::class.java).invoke(null, project)
+            findIn(manager, content) { localProject(project) }
+        }
     }
 
     internal fun findIn(manager: Any, content: Content, legacyLocal: () -> Boolean = { false }): TerminalHandle? = read {
@@ -74,6 +97,7 @@ internal class ReworkedTerminal(
 
     internal fun handle(content: Content?, view: Any, legacyLocal: () -> Boolean = { false }): TerminalHandle = object : TerminalHandle {
         override val content = content
+        init { content?.putUserData(VIEW_KEY, view) }
 
         override fun shellPid(): Long? = read {
             if (!hasSessionApi(view)) {
@@ -172,6 +196,7 @@ internal class ReworkedTerminal(
 
     companion object {
         private const val FRONTEND = "com.intellij.terminal.frontend"
+        private val VIEW_KEY = com.intellij.openapi.util.Key.create<Any>("seshlog.terminal.view")
 
         internal fun loadApiClass(name: String): Class<*> {
             val loader = TerminalToolWindowManager::class.java.classLoader

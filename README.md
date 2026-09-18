@@ -56,7 +56,12 @@ picker. Seshlog makes it a click.
   independently of the session you select to preview. A selected active title is bold and underlined.
   Switching to an unrecognised tab clears it.
 - **Classic and Reworked terminals** — detect and track sessions in either engine, including split
-  panes. New tabs use your selected terminal engine on IDEs with the Reworked terminal API.
+  panes. Tracking retries every two seconds as shells become ready and preserves associations
+  through tab moves and incomplete process checks. Manually started Claude Code sessions are
+  discovered from their live PID; manually resumed agents (including `codex resume <session-id>`)
+  can also be associated using their executable and explicit session arguments. Fresh manual
+  Codex sessions without a known session ID cannot yet be associated reliably.
+  New tabs use your selected terminal engine on IDEs with the Reworked terminal API.
   Restore waits for saved tabs and their shells to become ready; if a matching terminal stays
   unavailable, the session remains saved for restore instead of opening a duplicate.
 - **Resume or fork** into a terminal tab. If the session is already running in one of this project's

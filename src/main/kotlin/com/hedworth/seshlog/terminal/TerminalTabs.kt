@@ -24,14 +24,17 @@ object TerminalTabs {
 
     /** Resolve the actual invoking view; selected/last-active tabs are never substitutes for focus. */
     fun actionTarget(project: Project, event: com.intellij.openapi.actionSystem.AnActionEvent): ActionTarget {
+        // The manager's enumeration excludes tabs while moving and terminals hosted in an
+        // editor. Retain those known contents as candidates, but require exact view/focus evidence.
+        val candidates = (contents(project) + OwnedTerminalTabs.getInstance(project).knownContents()).distinct()
         reworked.contextView(event.dataContext)?.let { view ->
-            return ActionTarget(true, reworked.contentForView(project, view))
+            return ActionTarget(true, reworked.contentForView(project, view, candidates))
         }
         val context = event.getData(com.intellij.openapi.actionSystem.PlatformDataKeys.CONTEXT_COMPONENT)
         val keySource = (event.inputEvent as? java.awt.event.KeyEvent)?.component
         val focus = com.hedworth.seshlog.copy.CopyTarget.invocationComponent(
             context, keySource, java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner)
-        val content = com.hedworth.seshlog.copy.CopyTarget.focusedContent(focus, contents(project)) { it.component }
+        val content = com.hedworth.seshlog.copy.CopyTarget.focusedContent(focus, candidates) { it.component }
         val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
         val terminal = content != null || (focus != null && window != null &&
             javax.swing.SwingUtilities.isDescendingFrom(focus, window.component)) ||

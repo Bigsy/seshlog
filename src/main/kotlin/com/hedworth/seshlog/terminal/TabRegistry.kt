@@ -30,6 +30,14 @@ class TabRegistry<T : Any> {
         }
     }
 
+    /** Apply background evidence only if ownership still matches the snapshot it inspected. */
+    fun adoptDiscovered(sessionId: String, tab: T, previousSessionId: String?): Boolean = synchronized(bySession) {
+        if (sessionFor(tab) != previousSessionId) return@synchronized false
+        if (bySession[sessionId]?.let { it != tab } == true) return@synchronized false
+        register(sessionId, tab)
+        true
+    }
+
     /** The tab was closed: drop every session that pointed at it. */
     fun forget(tab: T) {
         synchronized(bySession) { bySession.values.removeAll { it == tab } }
@@ -56,11 +64,16 @@ class TabRegistry<T : Any> {
             for (session in sessions) {
                 val pid = session.livePid
                 if (!session.isLive || pid == null) continue
-                val shell = tree.firstAncestorIn(pid, tabByShell.keys)
+                val ancestry = tree.ancestry(pid)
+                // Include the process itself: `exec claude` replaces the terminal's shell.
+                val shell = ancestry.pids.firstOrNull { it in tabByShell }
                 val owner = bySession[session.id]
                 when {
                     shell != null -> register(session.id, tabByShell.getValue(shell))
-                    owner != null && openTabs[owner] != null -> bySession.remove(session.id) // runs elsewhere
+                    // A failed lookup is not proof of a move: processes can exit/restart or
+                    // become temporarily unreadable between the index scan and this check.
+                    owner != null && openTabs[owner] != null && ancestry.complete &&
+                        tree.isAlive(pid) -> bySession.remove(session.id) // verified elsewhere
                 }
                 val tab = bySession[session.id] ?: continue
                 if (titleOf(tab) != session.title) retitles += Retitle(tab, session.title)

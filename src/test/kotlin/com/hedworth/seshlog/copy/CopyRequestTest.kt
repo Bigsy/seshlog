@@ -39,6 +39,15 @@ class CopyRequestTest {
         assertNull(CopyTarget.resolve(false, one, null))
     }
 
+    @Test fun `nested split containers resolve the innermost terminal independent of enumeration order`() {
+        val outer = javax.swing.JPanel()
+        val inner = javax.swing.JPanel().also(outer::add)
+        val input = javax.swing.JTextArea().also(inner::add)
+        assertSame(inner, CopyTarget.focusedContent(input, listOf(outer, inner)) { it })
+        assertSame(inner, CopyTarget.focusedContent(input, listOf(inner, outer)) { it })
+        assertNull(CopyTarget.focusedContent(input, listOf("one", "two")) { inner })
+    }
+
     @Test fun `captured target survives tab switching and newer requests suppress old results`() {
         val background = arrayListOf<() -> Unit>()
         val later = arrayListOf<() -> Unit>()

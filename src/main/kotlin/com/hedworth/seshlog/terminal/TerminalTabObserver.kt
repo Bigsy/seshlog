@@ -10,7 +10,6 @@ import com.intellij.ui.content.ContentManagerListener
 import java.awt.Component
 import java.awt.KeyboardFocusManager
 import java.beans.PropertyChangeListener
-import javax.swing.SwingUtilities
 
 /** Observes terminal tabs even when the platform moves them between pane content managers. */
 internal class TerminalTabObserver(
@@ -73,9 +72,8 @@ internal class TerminalTabObserver(
         contentAt(component)?.let(::select)
     }
 
-    private fun contentAt(component: Component?): Content? = component?.let { focus ->
-        contents.firstOrNull { SwingUtilities.isDescendingFrom(focus, it.component) }
-    }
+    private fun contentAt(component: Component?): Content? =
+        com.hedworth.seshlog.copy.CopyTarget.focusedContent(component, contents) { it.component }
 
     private fun refreshLater() = later { if (!disposed) refresh() }
 

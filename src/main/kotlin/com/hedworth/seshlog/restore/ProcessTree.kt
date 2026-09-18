@@ -24,6 +24,20 @@ interface ProcessTree {
         return null
     }
 
+    data class Ancestry(val pids: List<Long>, val complete: Boolean)
+
+    /** Keep partial evidence, but distinguish it from a chain verified all the way to init. */
+    fun ancestry(pid: Long): Ancestry {
+        var p = pid
+        val seen = LinkedHashSet<Long>()
+        repeat(64) {
+            if (p <= 1) return Ancestry(seen.toList(), true)
+            if (!seen.add(p)) return Ancestry(seen.toList(), false)
+            p = parentPid(p) ?: return Ancestry(seen.toList(), false)
+        }
+        return Ancestry(seen.toList(), false)
+    }
+
     /**
      * A live process whose parent shell is gone (reparented to launchd/init, or the parent is
      * dead) — what a `claude` left behind by a closed terminal tab looks like.

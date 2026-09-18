@@ -43,10 +43,17 @@ object CopyTarget {
         return focus?.takeIf { javax.swing.SwingUtilities.isDescendingFrom(it, context) } ?: context
     }
 
-    fun <T> focusedContent(focus: java.awt.Component?, contents: List<T>, component: (T) -> java.awt.Component): T? =
-        if (focus == null) null else contents.filter {
-            javax.swing.SwingUtilities.isDescendingFrom(focus, component(it))
-        }.singleOrNull()
+    fun <T> focusedContent(focus: java.awt.Component?, contents: List<T>, component: (T) -> java.awt.Component): T? {
+        // Recursive enumeration can include a containing pane as well as its terminal. The
+        // nearest ancestor identifies the actual terminal; equal-depth ambiguity stays unknown.
+        var ancestor = focus
+        while (ancestor != null) {
+            val matches = contents.filter { component(it) === ancestor }
+            if (matches.isNotEmpty()) return matches.singleOrNull()
+            ancestor = ancestor.parent
+        }
+        return null
+    }
 
     fun resolve(terminal: Boolean, terminalSession: Session?, contextSession: Session?): Session? =
         if (terminal) terminalSession else contextSession

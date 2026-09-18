@@ -140,4 +140,55 @@ class TabRegistryTest {
         registry.sync(listOf(session("a", 111)), mapOf(tabA to 110L, tabB to 120L), tree) { it.title }
         assertEquals(tabA, registry.tabFor("a"))
     }
+
+    @Test
+    fun `missing or incomplete process evidence never erases a known association`() {
+        for (parents in listOf(emptyMap(), mapOf(111L to 125L), mapOf(111L to 125L, 125L to 111L))) {
+            val registry = TabRegistry<Tab>()
+            registry.register("a", tabA)
+            registry.sync(listOf(session("a", 111)), mapOf(tabA to 110L), FakeTree(parents)) { it.title }
+            assertEquals(tabA, registry.tabFor("a"))
+        }
+    }
+
+    @Test
+    fun `partial ancestry can still prove ownership and exec agents can replace the shell`() {
+        val registry = TabRegistry<Tab>()
+        registry.sync(listOf(session("a", 111)), mapOf(tabA to 110L), FakeTree(mapOf(111L to 110L))) { it.title }
+        assertEquals(tabA, registry.tabFor("a"))
+        registry.sync(listOf(session("b", 120)), mapOf(tabB to 120L), tree) { it.title }
+        assertEquals(tabB, registry.tabFor("b"))
+    }
+
+    @Test
+    fun `a later poll adopts a manual session whose shell was not ready at the index update`() {
+        val registry = TabRegistry<Tab>()
+        val sessions = listOf(session("a", 111))
+        registry.sync(sessions, mapOf(tabA to null), tree) { it.title }
+        assertNull(registry.tabFor("a"))
+        registry.sync(sessions, mapOf(tabA to 110L), tree) { it.title }
+        assertEquals(tabA, registry.tabFor("a"))
+    }
+
+    @Test
+    fun `discovery follows a new manual resume in the same terminal`() {
+        val registry = TabRegistry<Tab>()
+        assertTrue(registry.adoptDiscovered("a", tabA, null))
+        assertTrue(registry.adoptDiscovered("b", tabA, "a"))
+        assertFalse(registry.owns("a"))
+        assertEquals("b", registry.sessionFor(tabA))
+    }
+
+    @Test
+    fun `background discovery cannot undo a newer association or steal another terminal`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("a", tabA)
+        assertFalse(registry.adoptDiscovered("old-result", tabA, null))
+        registry.register("b", tabB)
+        assertFalse(registry.adoptDiscovered("b", tabA, "a"))
+        registry.forget(tabA)
+        assertFalse(registry.adoptDiscovered("old-result", tabA, "a"))
+        assertEquals(setOf("b"), registry.sessionIds)
+        assertEquals(tabB, registry.tabFor("b"))
+    }
 }

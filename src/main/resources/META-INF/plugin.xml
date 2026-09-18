@@ -26,6 +26,13 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.6.1</b>
+    <ul>
+        <li>Improve terminal session tracking across split panes and tab moves by remembering the exact reworked terminal view, with compatibility fallbacks for different IntelliJ terminal API versions.</li>
+        <li>Retry session discovery every two seconds as terminals become ready. Preserve known associations when process information is temporarily unavailable, and recognise agents that replace their shell process.</li>
+        <li>Discover manually resumed agents from their executable and explicit session arguments, including codex resume with a session ID. Follow session changes in reused terminals without letting stale background results overwrite newer associations.</li>
+        <li>Resolve copy actions from the invoking terminal and the innermost split pane, and retry missed Claude Code session adoption before copying.</li>
+    </ul>
     <b>0.6.0</b>
     <ul>
         <li>Add Seshlog: Copy Last Assistant Message for Claude Code, Codex, opencode and Pi. Copy the latest persisted assistant reply with its Markdown, code blocks and line breaks, skipping prompts, tools and thinking.</li>

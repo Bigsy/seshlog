@@ -38,9 +38,9 @@ open class CopySessionContentAction(text: String, private val plan: Boolean = fa
         val project = e.project ?: return
         val target = TerminalTabs.actionTarget(project, e)
         val index = SessionIndex.getInstance()
-        val associated = target.content?.let { OwnedTerminalTabs.getInstance(project).resolveSession(it) }?.let(index::sessionById)
-        val session = CopyTarget.resolve(target.isTerminal, associated, e.getData(SeshlogDataKeys.SESSION))
-        project.getService(SessionClipboard::class.java).requests.start(session) {
+        val resolve = target.content?.let { OwnedTerminalTabs.getInstance(project).copySessionResolver(it) }
+        val session = CopyTarget.resolve(target.isTerminal, null, e.getData(SeshlogDataKeys.SESSION))
+        project.getService(SessionClipboard::class.java).requests.start(session, resolve = resolve) {
             val provider = index.providerFor(it)
             if (plan) provider.latestPlan(it) else provider.lastAssistantMessage(it)
         }

@@ -68,6 +68,31 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         return sessionFor(content)
     }
 
+    private fun executables(): Map<AgentKind, String> {
+        val settings = SeshlogSettings.getInstance()
+        return mapOf(AgentKind.CLAUDE_CODE to settings.claudeExecutable,
+            AgentKind.CODEX to settings.codexExecutable, AgentKind.OPENCODE to settings.opencodeExecutable,
+            AgentKind.PI to settings.piExecutable)
+    }
+
+    /** Capture the invoking tab on EDT; verify its current agent on the clipboard worker. */
+    fun copySessionResolver(content: Content): () -> Session? {
+        val previous = sessionFor(content)
+        val shell = TerminalTabs.terminalOf(project, content)?.shellPid()
+        val executables = executables()
+        return {
+            val index = SessionIndex.getInstance()
+            val id = if (shell == null) previous else
+                SessionProcess.inspect(shell, index.sessions, executables).copySession(previous)
+            if (id != null && shell != null) ApplicationManager.getApplication().invokeLater {
+                if (!disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
+                    TerminalTabs.terminalOf(project, content)?.shellPid() == shell &&
+                    registry.adoptDiscovered(id, content, previous)) tabObserver.refresh()
+            }
+            id?.let(index::sessionById)
+        }
+    }
+
     /** The terminal we own for [sessionId], if its tab still exists. Must be called on the EDT. */
     fun terminalFor(sessionId: String): TerminalHandle? {
         val content = undisposedContent(sessionId) ?: return null
@@ -106,10 +131,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         }
         val inspected = TerminalTabs.tabsWithShellPids(project).filterValues { it != null }
         val previousOwners = inspected.keys.associateWith(registry::sessionFor)
-        val settings = SeshlogSettings.getInstance()
-        val executables = mapOf(AgentKind.CLAUDE_CODE to settings.claudeExecutable,
-            AgentKind.CODEX to settings.codexExecutable, AgentKind.OPENCODE to settings.opencodeExecutable,
-            AgentKind.PI to settings.piExecutable)
+        val executables = executables()
         checkingProcesses = true
         val app = ApplicationManager.getApplication()
         app.executeOnPooledThread {

@@ -48,6 +48,26 @@ class CopyRequestTest {
         assertNull(CopyTarget.focusedContent(input, listOf("one", "two")) { inner })
     }
 
+    @Test fun `terminal identity is refreshed on the worker and superseded resolutions cannot copy`() {
+        val background = arrayListOf<() -> Unit>()
+        val later = arrayListOf<() -> Unit>()
+        var clipboard = "original"
+        val request = CopyRequest({ background.add(it) }, { later.add(it) }, { false }, { clipboard = it }, {})
+        var resolved = false
+        request.start(one, resolve = { resolved = true; two }) { CopyContent.Found(it.id) }
+        assertFalse(resolved)
+        background.removeAt(0)(); later.removeAt(0)()
+        assertEquals("two", clipboard)
+        request.start(one, resolve = { null }) { error("stale association must not be loaded") }
+        background.removeAt(0)(); later.removeAt(0)()
+        assertEquals("two", clipboard)
+        request.start(null, resolve = { one }) { CopyContent.Found(it.id) }
+        request.start(two) { CopyContent.Found(it.id) }
+        background.removeAt(1)(); background.removeAt(0)()
+        later.forEach { it() }
+        assertEquals("two", clipboard)
+    }
+
     @Test fun `captured target survives tab switching and newer requests suppress old results`() {
         val background = arrayListOf<() -> Unit>()
         val later = arrayListOf<() -> Unit>()

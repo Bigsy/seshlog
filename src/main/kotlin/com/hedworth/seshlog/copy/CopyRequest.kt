@@ -13,17 +13,21 @@ class CopyRequest(
 ) {
     private val scope = SearchRequestScope()
 
-    fun start(session: Session?, load: (Session) -> CopyContent) {
+    fun start(session: Session?, resolve: (() -> Session?)? = null, load: (Session) -> CopyContent) {
         val stale = scope.begin()
         if (disposed()) return
-        if (session == null) { feedback("No known session in this context. Select a Seshlog session or focus an associated terminal."); return }
+        if (session == null && resolve == null) { feedback("No known session in this context. Select a Seshlog session or focus an associated terminal."); return }
         background {
-            val result = try { load(session) } catch (_: Exception) { CopyContent.Failed() }
+            var resolved = session
+            val result = try {
+                if (resolve != null) resolved = resolve()
+                resolved?.let(load) ?: CopyContent.Absent("No known session in this context. Select a Seshlog session or focus an associated terminal.")
+            } catch (_: Exception) { CopyContent.Failed() }
             later {
                 if (!stale() && !disposed()) when (result) {
                     is CopyContent.Found -> if (result.text.isNotBlank()) {
                         copy(result.text)
-                        feedback("Copied from ${session.title}." + result.detail)
+                        feedback("Copied from ${resolved?.title}." + result.detail)
                     } else feedback("No text to copy.")
                     is CopyContent.Absent -> feedback(result.reason)
                     is CopyContent.Failed -> feedback(result.reason)

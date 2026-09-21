@@ -35,6 +35,20 @@ data class CodexTranscriptInfo(
 object CodexTranscriptParser {
     private val LOG = logger<CodexTranscriptParser>()
 
+    /** A CLI process also writes subagent/approval rollouts; those are not its terminal conversation. */
+    internal fun isCliTranscript(path: Path): Boolean = try {
+        Files.newBufferedReader(path).use { reader ->
+            val header = StringBuilder()
+            while (header.length < 64 * 1024) {
+                val next = reader.read()
+                if (next == -1 || next == '\n'.code) break
+                header.append(next.toChar())
+            }
+            val record = parseObject(header.toString())
+            record?.string("type") == "session_meta" && record.objectValue("payload")?.string("source") == "cli"
+        }
+    } catch (_: Exception) { false }
+
     fun parse(path: Path): CodexTranscriptInfo =
         Files.newInputStream(path).use { input ->
             val reader = BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8), 1 shl 16)

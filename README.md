@@ -62,12 +62,16 @@ processes and closes its terminal tab in the current project; the saved conversa
 
 For keyboard copying, assign **Seshlog: Copy Last Assistant Message** and **Seshlog: Copy Latest Plan**
 under **Settings → Keymap**. They work from the session list, conversation viewer or a terminal
-associated with a known session. Shortcuts are unassigned by default.
+associated with a known session. Shortcuts are unassigned by default. Terminal shortcuts recheck
+the running agent in the background, so switching from Claude Code to Codex in the same tab does
+not copy the previous session's reply.
 
 ### Limitations
 
 - Activity detection depends on the agent and whether Seshlog can identify its running process.
-  Fresh manually started Codex sessions cannot always be associated with a terminal.
+  Fresh Codex sessions are identified through their writable CLI transcript on macOS (`lsof`)
+  and Linux (readable `/proc` descriptors). Subagent and approval transcripts are excluded;
+  unavailable or ambiguous process evidence prevents association.
 - Large conversations have search and viewer limits; partial coverage is shown in the UI.
   Images and thinking are excluded. Tool text is searchable for Claude Code, Codex and opencode.
 - Pi uses its saved active branch and includes user/assistant text only. Custom session directories
@@ -96,6 +100,9 @@ make release  # Test, build and check the plugin zip
 Issues and pull requests are welcome. New parsing behaviour needs a synthetic fixture in
 `src/test/resources/fixtures/`; never commit real transcripts.
 See [AGENTS.md](AGENTS.md) for development conventions and [PLAN.md](PLAN.md) for current work.
+
+Keep the five most recent release entries in `src/main/resources/META-INF/plugin.xml`; when adding
+another, move the oldest entry to the top of [the changelog archive](docs/changelog-archive.md).
 
 ## License
 

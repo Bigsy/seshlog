@@ -39,7 +39,8 @@ internal object SessionProcess {
         }.mapTo(HashSet()) { it.id }
     }
 
-    internal data class Discovery(val sessionIds: Set<String>, val hasAgent: Boolean) {
+    /** [processes] maps each identified session to the PID seen running it. */
+    internal data class Discovery(val sessionIds: Set<String>, val hasAgent: Boolean, val processes: Map<String, Long> = emptyMap()) {
         // A different/unidentified running agent must never copy the previous agent's reply.
         fun copySession(previous: String?): String? = sessionIds.singleOrNull()
             ?: previous?.takeIf { sessionIds.isEmpty() && !hasAgent }
@@ -63,18 +64,22 @@ internal object SessionProcess {
         isCliTranscript: (Path) -> Boolean = com.hedworth.seshlog.codex.CodexTranscriptParser::isCliTranscript,
     ): Discovery {
         val codex = executables[AgentKind.CODEX]
-        val paths = processes.filter { codex != null && isAgent(it, codex) }
-            .flatMap { writableFiles[it.pid].orEmpty() }.filter { path ->
+        val writers = processes.filter { codex != null && isAgent(it, codex) }.flatMap { process ->
+            writableFiles[process.pid].orEmpty().filter { path ->
                 path.fileName.toString().let { it.startsWith("rollout-") && it.endsWith(".jsonl") } && isCliTranscript(path)
-            }.toSet()
+            }.map { it to process.pid }
+        }.toMap()
+        val paths = writers.keys
         val names = paths.mapTo(HashSet()) { it.fileName }
-        val written = sessions.filter { it.kind == AgentKind.CODEX && it.transcriptPath?.let { path ->
-            path in paths || (path.fileName in names && runCatching { path.toRealPath() in paths }.getOrDefault(false))
-        } == true }.mapTo(HashSet()) { it.id }
-        val identified = processes.flatMap { identify(it, sessions, executables) }.toSet()
+        val written = sessions.filter { it.kind == AgentKind.CODEX }.mapNotNull { session ->
+            val path = session.transcriptPath ?: return@mapNotNull null
+            val real = if (path in paths || path.fileName !in names) path else runCatching { path.toRealPath() }.getOrDefault(path)
+            writers[real]?.let { session.id to it }
+        }.toMap()
+        val identified = processes.flatMap { process -> identify(process, sessions, executables).map { it to process.pid } }.toMap()
         val codexIds = sessions.filter { it.kind == AgentKind.CODEX }.mapTo(HashSet()) { it.id }
-        val ids = if (paths.isEmpty()) identified else (identified - codexIds) + written
-        return Discovery(ids, processes.any { p -> executables.values.any { isAgent(p, it) } } || ids.isNotEmpty())
+        val owners = if (paths.isEmpty()) identified else identified.filterKeys { it !in codexIds } + written
+        return Discovery(owners.keys, processes.any { p -> executables.values.any { isAgent(p, it) } } || owners.isNotEmpty(), owners)
     }
 
     /** Discover fresh or resumed agents once per shell, entirely off the EDT. */
@@ -96,17 +101,19 @@ internal object SessionProcess {
     fun discover(shell: Long, sessions: List<Session>, executables: Map<AgentKind, String>): Set<String> =
         inspect(shell, sessions, executables).sessionIds
 
-    /** Called on a pooled thread. Missing process arguments mean unknown, never guessed live. */
-    fun isRunning(shell: Long, session: Session): Boolean = try {
+    fun isRunning(shell: Long, session: Session): Boolean = runningProcess(shell, session) != null
+
+    /** The process running [session] under [shell]. Pooled thread; unreadable arguments mean unknown, never live. */
+    fun runningProcess(shell: Long, session: Session): ProcessHandle? = try {
         val parent = ProcessHandle.of(shell).orElse(null)
-        if (parent == null) false else parent.descendants().use { descendants ->
-            (sequenceOf(parent) + descendants.iterator().asSequence()).any { process ->
+        if (parent == null) null else parent.descendants().use { descendants ->
+            (sequenceOf(parent) + descendants.iterator().asSequence()).firstOrNull { process ->
                 process.isAlive && (session.livePid == process.pid() ||
                     matches(session.kind, session.id, session.transcriptPath?.toString(),
                         process.info().arguments().orElse(emptyArray()).toList()))
             }
         }
     } catch (_: Exception) {
-        false
+        null
     }
 }

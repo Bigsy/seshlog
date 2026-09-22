@@ -37,6 +37,7 @@ class ProcessTranscriptsTest {
         val discovery = SessionProcess.identifyTree(listOf(evidence), listOf(main, subagent),
             mapOf(AgentKind.CODEX to "codex"), mapOf(123L to setOf(main.transcriptPath!!, subagent.transcriptPath!!)))
         assertEquals(setOf("main"), discovery.sessionIds)
+        assertEquals(mapOf("main" to 123L), discovery.processes)
         assertEquals("main", discovery.copySession("old-claude"))
         val registry = TabRegistry<String>()
         registry.register("old-claude", "tab")

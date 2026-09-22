@@ -38,6 +38,13 @@ class TabRegistry<T : Any> {
         true
     }
 
+    /** [sessionId]'s agent exited in [tab]: end that association only if it is still current. */
+    fun release(sessionId: String, tab: T): Boolean = synchronized(bySession) {
+        if (bySession[sessionId] != tab) return@synchronized false
+        bySession.remove(sessionId)
+        true
+    }
+
     /** The tab was closed: drop every session that pointed at it. */
     fun forget(tab: T) {
         synchronized(bySession) { bySession.values.removeAll { it == tab } }

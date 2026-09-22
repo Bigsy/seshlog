@@ -3,6 +3,13 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.5.8
+
+- Select a search result to view its full loaded conversation in the bottom pane, with matching terms and phrases highlighted. Search respects the current date, agent and project filters.
+- Use Previous/Next match or F3/Shift+F3 while focused in the conversation pane to move through occurrences, automatically scrolling and wrapping around. Matching tool entries expand automatically.
+- Clear search to return to the recent-message preview. Prevent pending preview loads from displaying an outdated selection or query.
+- Existing transcript size limits continue to apply; partial content and search coverage are indicated in the conversation pane.
+
 ## 0.5.6
 
 - Keep active-session tracking when opening, closing, splitting or dragging terminal tabs between panes, and follow focus between panes.

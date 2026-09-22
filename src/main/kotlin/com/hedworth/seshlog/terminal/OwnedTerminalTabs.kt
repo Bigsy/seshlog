@@ -28,6 +28,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private val LOG = logger<OwnedTerminalTabs>()
 
     private val registry = TabRegistry<Content>()
+    private val agents = ObservedAgents<ProcessHandle>()
+    // A tab's session after its agent exited: no longer attached, but copy/fork still act on it.
+    private val endedSessions = java.util.WeakHashMap<Content, String>()
     private val started = AtomicBoolean(false)
     var activeSessionId: String? = null
         private set
@@ -37,7 +40,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.contentManager },
         openContents = { TerminalTabs.contents(project) },
         selectionChanged = { content -> updateActiveSession(content) },
-        tabClosed = { content -> registry.forget(content) },
+        tabClosed = { content -> registry.forget(content); endedSessions.remove(content) },
     )
 
     val sessionIds: Set<String> get() = registry.sessionIds
@@ -57,6 +60,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** The id of the session running in terminal tab [content], if we know one. */
     fun sessionFor(content: Content): String? = registry.sessionFor(content)
+
+    /** The attached session, else the one whose agent last exited in [content]. EDT only. */
+    fun lastSessionFor(content: Content): String? = sessionFor(content) ?: endedSessions[content]
 
     /** Includes temporarily detached tabs; disposal is the only definitive end of ownership. */
     internal fun knownContents(): List<Content> = registry.sessionIds.mapNotNull(::undisposedContent).distinct()
@@ -78,13 +84,15 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** Capture the invoking tab on EDT; verify its current agent on the clipboard worker. */
     fun copySessionResolver(content: Content): () -> Session? {
         val previous = sessionFor(content)
+        val last = lastSessionFor(content)
         val shell = TerminalTabs.terminalOf(project, content)?.shellPid()
         val executables = executables()
         return {
             val index = SessionIndex.getInstance()
-            val id = if (shell == null) previous else SessionProcess.copySession(previous, index.sessions,
+            val id = if (shell == null) last else SessionProcess.copySession(last, index.sessions,
                 inspect = { SessionProcess.inspect(shell, it, executables) }, rescan = { index.scanNow() })
-            if (id != null && shell != null) ApplicationManager.getApplication().invokeLater {
+            // Copying from an agent that already exited must not re-attach it to the tab.
+            if (id != null && shell != null && (id == previous || id != last)) ApplicationManager.getApplication().invokeLater {
                 if (!disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
                     TerminalTabs.terminalOf(project, content)?.shellPid() == shell &&
                     registry.adoptDiscovered(id, content, previous)) tabObserver.refresh()
@@ -132,23 +140,30 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val inspected = TerminalTabs.tabsWithShellPids(project).filterValues { it != null }
         val previousOwners = inspected.keys.associateWith(registry::sessionFor)
         val executables = executables()
+        val watched = agents.snapshot()
         checkingProcesses = true
         val app = ApplicationManager.getApplication()
         app.executeOnPooledThread {
-            val found = candidates.filter { (_, shell, session) ->
-                SessionProcess.isRunning(shell, session)
-            }.mapTo(HashSet()) { it.first }
-            val discoveries = inspected.mapNotNull { (content, shell) ->
-                SessionProcess.discover(requireNotNull(shell), snapshot, executables).singleOrNull()?.let { content to it }
-            }.groupBy({ it.second }, { it.first })
+            val found = candidates.mapNotNull { (id, shell, session) ->
+                SessionProcess.runningProcess(shell, session)?.let { id to it }
+            }.toMap()
+            val inspections = inspected.mapNotNull { (content, shell) ->
+                val discovery = SessionProcess.inspect(requireNotNull(shell), snapshot, executables)
+                val id = discovery.sessionIds.singleOrNull() ?: return@mapNotNull null
+                Triple(content, id, discovery.processes[id]?.let { ProcessHandle.of(it).orElse(null) })
+            }
+            val discoveries = inspections.groupBy({ it.second }, { it.first })
+            val handles = inspections.mapNotNull { (_, id, handle) -> handle?.let { id to it } }.toMap()
+            val exited = watched.filterValues { !it.isAlive }.keys
             app.invokeLater {
                 checkingProcesses = false
                 if (!disposed && !project.isDisposed) {
                     // Ignore results for tabs replaced or closed while the check ran.
-                    val valid = found.filterTo(HashSet()) { id ->
+                    val valid = found.keys.filterTo(HashSet()) { id ->
                         val shell = candidates.first { it.first == id }.second
                         terminalFor(id)?.shellPid() == shell
                     }
+                    for (id in valid) agents.observe(id, found.getValue(id))
                     for ((id, tabs) in discoveries) {
                         // Never guess between two terminals or overwrite ownership changed
                         // while this background inspection was running.
@@ -159,7 +174,15 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         if (!registry.adoptDiscovered(id, content, previousOwners[content])) continue
                         previousOwners[content]?.let(valid::remove)
                         valid += id
+                        handles[id]?.let { agents.observe(id, it) }
                     }
+                    // The exact process seen running a tab's session exited: detach it from that tab.
+                    for (id in agents.ended(watched, exited)) {
+                        val content = registry.tabFor(id) ?: continue
+                        if (registry.release(id, content)) endedSessions[content] = id
+                        valid -= id
+                    }
+                    agents.retainOnly(registry.sessionIds)
                     tabObserver.refresh()
                     if (running != valid) {
                         running = valid

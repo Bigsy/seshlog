@@ -64,7 +64,8 @@ For keyboard copying, assign **Seshlog: Copy Last Assistant Message** and **Sesh
 under **Settings → Keymap**. They work from the session list, conversation viewer or a terminal
 associated with a known session. Shortcuts are unassigned by default. Terminal shortcuts recheck
 the running agent in the background, so switching from Claude Code to Codex in the same tab does
-not copy the previous session's reply.
+not copy the previous session's reply. When an agent exits, its tab is detached from the session; copying from
+that tab still uses the last session until another agent is identified.
 
 ### Limitations
 

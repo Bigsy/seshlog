@@ -129,7 +129,7 @@ class ForkTerminalTabSessionAction : ForkSessionActionBase() {
         if (toolWindow.id != TerminalToolWindowFactory.TOOL_WINDOW_ID) return null
         val content = e.getData(PlatformDataKeys.CONTENT_MANAGER)?.selectedContent
             ?: toolWindow.contentManager.selectedContent ?: return null
-        val sessionId = OwnedTerminalTabs.getInstance(project).sessionFor(content) ?: return null
+        val sessionId = OwnedTerminalTabs.getInstance(project).lastSessionFor(content) ?: return null
         return SessionIndex.getInstance().sessionById(sessionId)
     }
 }

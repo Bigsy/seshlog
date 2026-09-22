@@ -66,6 +66,13 @@ class SessionProcessTest {
             val live = session(AgentKind.CLAUDE_CODE, "exec-agent", process.pid())
             assertEquals(setOf(live.id), SessionProcess.discover(process.pid(), listOf(live), emptyMap()))
             assertTrue(SessionProcess.isRunning(process.pid(), live))
+            val running = requireNotNull(SessionProcess.runningProcess(process.pid(), live))
+            assertEquals(process.pid(), running.pid())
+            process.destroyForcibly()
+            process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+            // The observed handle is what detaches the tab once the agent exits.
+            assertFalse(running.isAlive)
+            assertNull(SessionProcess.runningProcess(process.pid(), live))
         } finally {
             process.destroyForcibly()
             process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)

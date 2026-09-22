@@ -26,6 +26,12 @@
     <depends>org.jetbrains.plugins.terminal</depends>
 
     <change-notes><![CDATA[
+    <b>0.6.3</b>
+    <ul>
+        <li>Pick up new and updated sessions as agents write them. The agent data directories, and folders created later such as Codex's daily folder, are now covered by the IDE's file watcher, so fresh Claude Code and Codex sessions appear, show activity and attach to their terminal without a manual refresh.</li>
+        <li>Copy from a terminal straight after an agent's first reply. When a running agent's session has not been indexed yet, Seshlog rescans once before reporting that no session is known.</li>
+        <li>Detach a terminal tab from its session when the agent process exits, so an ended Claude Code session is no longer highlighted while Codex starts in the same tab. Copy and Fork from that tab keep using its last session until another agent is identified.</li>
+    </ul>
     <b>0.6.2</b>
     <ul>
         <li>Keep terminal tracking when switching from Claude Code to a fresh Codex session in the same tab. On macOS and Linux, identify the session from the transcript held open for writing by the Codex process.</li>
@@ -54,13 +60,6 @@
         <li>Refresh terminal activity badges every two seconds using matching session processes, so exiting an agent or running an unrelated command clears its badge. Reusing a terminal tab replaces its previous session association, and waiting labels resize as elapsed time grows.</li>
         <li>Notify when a running session stops working and waits for input, unless its terminal tab is on screen. Tools &rarr; Seshlog &rarr; Notifications turns it off.</li>
         <li>Add an Additional arguments field per agent under Tools &rarr; Seshlog. It is appended as typed to resume and fork commands, including Copy Resume Command and restore after restart, so a default model or permission mode can follow every resumed session.</li>
-    </ul>
-    <b>0.5.8</b>
-    <ul>
-        <li>Select a search result to view its full loaded conversation in the bottom pane, with matching terms and phrases highlighted. Search respects the current date, agent and project filters.</li>
-        <li>Use Previous/Next match or F3/Shift+F3 while focused in the conversation pane to move through occurrences, automatically scrolling and wrapping around. Matching tool entries expand automatically.</li>
-        <li>Clear search to return to the recent-message preview. Prevent pending preview loads from displaying an outdated selection or query.</li>
-        <li>Existing transcript size limits continue to apply; partial content and search coverage are indicated in the conversation pane.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

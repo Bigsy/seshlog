@@ -46,7 +46,9 @@ dependencies {
                 requested
             }
         }
-        create(platformType, platformVersion)
+        // -PplatformLocalPath=/Applications/IntelliJ\ IDEA.app runs tests against an installed IDE.
+        val localPath = providers.gradleProperty("platformLocalPath").orNull
+        if (localPath != null) local(localPath) else create(platformType, platformVersion)
 
         // Needed to open shell tabs in the Terminal tool window and run `claude --resume`.
         bundledPlugin("org.jetbrains.plugins.terminal")

@@ -5,12 +5,17 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.VirtualFileVisitor
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
+import com.intellij.openapi.vfs.newvfs.events.VFileCreateEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.util.Alarm
 import com.intellij.util.concurrency.AppExecutorUtil
 import java.nio.file.Path
+import java.util.concurrent.Future
 
 /**
  * Watches the agent data directories through IntelliJ's native file watcher and triggers a
@@ -32,26 +37,40 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
                 override fun after(events: List<VFileEvent>) {
                     val currentRoots = roots
                     if (currentRoots.isEmpty()) return
-                    if (events.any { e -> isUnderRoots(e.path, currentRoots) }) schedule()
+                    if (events.none { e -> isUnderRoots(e.path, currentRoots) }) return
+                    // A new directory (Codex's per-day folder, a new Claude project) starts unlisted,
+                    // so writes inside it would go unreported. List it off the EDT, then rescan.
+                    val created = events.filter { it is VFileCreateEvent && it.isDirectory && isUnderRoots(it.path, currentRoots) }
+                        .mapNotNull { it.file }
+                    if (created.isEmpty()) schedule()
+                    else AppExecutorUtil.getAppExecutorService().execute { created.forEach(::list); schedule() }
                 }
             })
     }
 
-    fun start(newRoots: List<Path>) {
+    fun start(newRoots: List<Path>): Future<*> {
         roots = newRoots
         // Watch registration and the initial VFS refresh touch the filesystem — keep off the EDT.
-        AppExecutorUtil.getAppExecutorService().execute {
+        return AppExecutorUtil.getAppExecutorService().submit {
             val lfs = LocalFileSystem.getInstance()
             val old = watchRequests
             val paths = newRoots.map { it.toAbsolutePath().toString() }.toSet()
             watchRequests = lfs.replaceWatchedRoots(old, paths, emptySet())
-            // The watcher only reports files the VFS knows about, so make it aware of the tree.
+            // The VFS reports changes only inside directories it has listed; a refresh alone lists
+            // nothing. Seshlog reads with java.nio, so list the trees here or no event ever arrives.
             for (root in newRoots) {
                 val vf = lfs.refreshAndFindFileByNioFile(root) ?: continue
+                list(vf)
                 VfsUtil.markDirtyAndRefresh(true, true, false, vf)
             }
             LOG.debug("Watching ${paths.joinToString()}")
         }
+    }
+
+    /** Load [file]'s subtree into the VFS (names and stamps only, never content). Off the EDT. */
+    private fun list(file: VirtualFile) {
+        if (!file.isValid) return
+        VfsUtilCore.visitChildrenRecursively(file, object : VirtualFileVisitor<Any>() {})
     }
 
     // VFS paths always use '/', including on Windows, so the roots are normalised to match.

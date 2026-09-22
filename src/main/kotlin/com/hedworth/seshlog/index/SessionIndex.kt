@@ -17,6 +17,7 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.messages.Topic
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -114,32 +115,47 @@ class SessionIndex : Disposable {
         executor.execute { runScan() }
     }
 
+    /** Scan and wait, for a worker holding evidence that the index is behind. Never on the EDT. */
+    fun scanNow(timeoutMillis: Long = 10_000): List<Session> {
+        try {
+            // The single-thread executor orders this after any scan already running or queued.
+            executor.submit(Runnable { scanOnce() }).get(timeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (e: Exception) {
+            LOG.debug("Synchronous rescan did not complete", e)
+        }
+        return sessions
+    }
+
     private fun runScan() {
         try {
-            val start = System.currentTimeMillis()
-            val previous = sessions.associateBy { it.id }
-            val result = ArrayList<Session>()
-            val diagnostics = linkedMapOf<com.hedworth.seshlog.model.AgentKind, com.hedworth.seshlog.model.ProviderScan>()
-            for (provider in providers) {
-                val scan = provider.scanWithDiagnostics(previous)
-                diagnostics[provider.kind] = scan
-                result += scan.sessions
-            }
-            providerDiagnostics = diagnostics
-            result.sortByDescending { it.lastActivityAt }
-            sessions = result
-            lastScanMillis = System.currentTimeMillis() - start
-            LOG.debug("Scanned ${result.size} sessions in ${lastScanMillis} ms")
-            val app = ApplicationManager.getApplication()
-            if (app != null && !app.isDisposed) {
-                app.invokeLater({
-                    if (!app.isDisposed) app.messageBus.syncPublisher(TOPIC).sessionsUpdated(result)
-                })
-            }
+            scanOnce()
         } finally {
             scanning.set(false)
             publishScanState(false)
             if (rescanRequested.compareAndSet(true, false)) refresh()
+        }
+    }
+
+    private fun scanOnce() {
+        val start = System.currentTimeMillis()
+        val previous = sessions.associateBy { it.id }
+        val result = ArrayList<Session>()
+        val diagnostics = linkedMapOf<com.hedworth.seshlog.model.AgentKind, com.hedworth.seshlog.model.ProviderScan>()
+        for (provider in providers) {
+            val scan = provider.scanWithDiagnostics(previous)
+            diagnostics[provider.kind] = scan
+            result += scan.sessions
+        }
+        providerDiagnostics = diagnostics
+        result.sortByDescending { it.lastActivityAt }
+        sessions = result
+        lastScanMillis = System.currentTimeMillis() - start
+        LOG.debug("Scanned ${result.size} sessions in ${lastScanMillis} ms")
+        val app = ApplicationManager.getApplication()
+        if (app != null && !app.isDisposed) {
+            app.invokeLater({
+                if (!app.isDisposed) app.messageBus.syncPublisher(TOPIC).sessionsUpdated(result)
+            })
         }
     }
 

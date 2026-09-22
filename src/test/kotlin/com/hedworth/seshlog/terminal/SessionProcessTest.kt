@@ -71,4 +71,24 @@ class SessionProcessTest {
             process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
         }
     }
+
+    @Test fun `copy rescans once when a running agent is not indexed yet and never guesses`() {
+        val fresh = session(AgentKind.CODEX, "fresh")
+        val found = { sessions: List<Session> ->
+            SessionProcess.Discovery(sessions.mapTo(HashSet()) { it.id }.intersect(setOf("fresh")), hasAgent = true) }
+        var rescans = 0
+        // The transcript exists, but the watcher debounce has not let the index see it yet.
+        assertEquals("fresh", SessionProcess.copySession(null, emptyList(), found) { rescans++; listOf(fresh) })
+        assertEquals(1, rescans)
+        // Already indexed: no rescan.
+        assertEquals("fresh", SessionProcess.copySession(null, listOf(fresh), found) { rescans++; emptyList() })
+        assertEquals(1, rescans)
+        // Still unknown after the rescan: never fall back to the tab's previous agent.
+        assertNull(SessionProcess.copySession("old", emptyList(), found) { rescans++; emptyList() })
+        assertEquals(2, rescans)
+        // No agent running: the previous association stands and nothing is rescanned.
+        val idle = { _: List<Session> -> SessionProcess.Discovery(emptySet(), hasAgent = false) }
+        assertEquals("old", SessionProcess.copySession("old", emptyList(), idle) { rescans++; emptyList() })
+        assertEquals(2, rescans)
+    }
 }

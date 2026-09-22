@@ -45,6 +45,17 @@ internal object SessionProcess {
             ?: previous?.takeIf { sessionIds.isEmpty() && !hasAgent }
     }
 
+    /**
+     * The index trails transcripts by the watcher debounce, so a running agent it cannot identify is
+     * usually a fresh session not scanned yet. Rescan once before giving up; never guess.
+     */
+    internal fun copySession(previous: String?, sessions: List<Session>, inspect: (List<Session>) -> Discovery,
+                             rescan: () -> List<Session>): String? {
+        val first = inspect(sessions)
+        val discovery = if (first.sessionIds.isEmpty() && first.hasAgent) inspect(rescan()) else first
+        return discovery.copySession(previous)
+    }
+
     /** Writable CLI rollouts take precedence over stale resume arguments (including Node wrappers). */
     internal fun identifyTree(
         processes: List<Evidence>, sessions: List<Session>, executables: Map<AgentKind, String>,

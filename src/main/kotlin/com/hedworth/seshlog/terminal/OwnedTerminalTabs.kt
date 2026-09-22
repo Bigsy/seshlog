@@ -82,8 +82,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val executables = executables()
         return {
             val index = SessionIndex.getInstance()
-            val id = if (shell == null) previous else
-                SessionProcess.inspect(shell, index.sessions, executables).copySession(previous)
+            val id = if (shell == null) previous else SessionProcess.copySession(previous, index.sessions,
+                inspect = { SessionProcess.inspect(shell, it, executables) }, rescan = { index.scanNow() })
             if (id != null && shell != null) ApplicationManager.getApplication().invokeLater {
                 if (!disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
                     TerminalTabs.terminalOf(project, content)?.shellPid() == shell &&

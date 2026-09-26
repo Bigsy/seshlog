@@ -25,6 +25,8 @@ Click a screenshot to view it full size.
 - Filters by agent, project and date. Pin, rename or hide sessions to keep the list manageable.
 - Shows activity for tracked sessions, notifies you when they need input, and offers to restore
   eligible sessions after an IDE restart.
+- Marks newly finished turns as unread, shows working/unread counts on project rows, and jumps
+  to the next unread session from the toolbar or a configurable shortcut.
 - Copies the latest assistant reply, or the latest explicit Claude Code or Codex plan, without
   selecting terminal output.
 
@@ -67,12 +69,27 @@ the running agent in the background, so switching from Claude Code to Codex in t
 not copy the previous session's reply. When an agent exits, its tab is detached from the session; copying from
 that tab still uses the last session until another agent is identified.
 
+An **unread** badge means a tracked agent finished a turn you have not viewed yet. It survives
+IDE restarts and clears when you view the associated terminal in the active IDE window, or view
+the latest reply in the preview or conversation viewer. Selecting a row with the preview hidden
+does not clear it. Starting another turn also clears the previous completion. A finished turn
+can include an error; the badge does not imply success. Interrupted turns are not marked unread.
+
+Project rows show counts such as **2 working · 1 unread**, including when collapsed. Counts follow
+the current filters. Use the toolbar's **Next Session Needing Attention** action, or assign
+**Seshlog: Next Session Needing Attention** under **Settings → Keymap**, to cycle through unread
+sessions in tree order. It expands the target project and opens the associated terminal or latest
+reply. The shortcut is unassigned by default and does not change your filters.
+
 ### Limitations
 
 - Activity detection depends on the agent and whether Seshlog can identify its running process.
   Fresh Codex sessions are identified through their writable CLI transcript on macOS (`lsof`)
   and Linux (readable `/proc` descriptors). Subagent and approval transcripts are excluded;
   unavailable or ambiguous process evidence prevents association.
+- Unread completion tracking starts while Seshlog is running; old history is not marked unread
+  on first discovery. Completions without usable activity/process evidence may be missed.
+  Partial conversation views do not clear unread badges when the latest reply cannot be verified.
 - Large conversations have search and viewer limits; partial coverage is shown in the UI.
   Images and thinking are excluded. Tool text is searchable for Claude Code, Codex and opencode.
 - Pi uses its saved active branch and includes user/assistant text only. Custom session directories

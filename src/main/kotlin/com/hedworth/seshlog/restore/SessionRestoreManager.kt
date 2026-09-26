@@ -286,6 +286,7 @@ class SeshlogStartupActivity : ProjectActivity {
         OwnedTerminalTabs.getInstance(project).start()
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
+            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().start()
             SessionRestoreManager.getInstance(project).start()
             com.hedworth.seshlog.ui.WaitingSessionNotifier.getInstance(project).start()
         }

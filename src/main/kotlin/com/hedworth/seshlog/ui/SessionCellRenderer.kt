@@ -23,6 +23,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
     var activeSessionId: String? = null
     /** Sessions of agents without a pid file whose Seshlog-owned tab still runs them. Set by the panel on the EDT. */
     var runningOwned: Set<String> = emptySet()
+    var unread: Set<String> = emptySet()
 
     override fun customizeCellRenderer(
         tree: JTree, value: Any?, selected: Boolean, expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean,
@@ -39,6 +40,8 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         append(group.displayName, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
         append("  ${group.cwd}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${group.sessions.size}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+        val summary = com.hedworth.seshlog.index.SessionAttention.summary(group.sessions, runningOwned, unread)
+        if (summary.isNotEmpty()) append("  $summary", SimpleTextAttributes.REGULAR_ATTRIBUTES)
         toolTipText = group.cwd.toString()
     }
 
@@ -54,6 +57,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         val metadata = organisation.metadata(session.id)
         if (metadata.pinned) append("★ ", titleAttrs)
         append(organisation.title(session), titleAttrs)
+        if (session.id in unread) append("  ● unread", SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD, HIT_COLOR))
         if (session.forkedFromId != null) append(" (fork)", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         if (metadata.hidden) append("  hidden", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
@@ -80,6 +84,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         return buildString {
             append("<html><b>").append(esc(session.title)).append("</b><br>")
             if (session.id == activeSessionId) append("Active terminal<br>")
+            if (session.id in unread) append("Finished turn not yet viewed<br>")
             append("Agent: ").append(session.kind.displayName).append("<br>")
             append("Session: ").append(session.id).append("<br>")
             session.forkedFromId?.let { append("Forked from: ").append(esc(it)).append("<br>") }

@@ -28,6 +28,7 @@ class ConversationDialog(
     private val copy: (String) -> Unit = {
         com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(it))
     },
+    private val startAtLatest: Boolean = false,
 ) : DialogWrapper(project, false) {
     private val scope = SearchRequestScope()
     internal val editor = JBTextArea().apply { isEditable = false; lineWrap = true; wrapStyleWord = true }
@@ -42,11 +43,18 @@ class ConversationDialog(
     internal val copyDialogueButton = JButton("Copy Conversation (dialogue only)")
     private var loading = true
     private var current = -1
+    private var completionReceipt: com.hedworth.seshlog.index.SessionAttention.Completion? = null
 
     init {
         title = SessionOrganisation.getInstance().title(session)
         isModal = false
         init()
+        CompletionViewObserver(disposable) {
+            if (!loading && CompletionViewObserver.isViewed(editor)) {
+                if (CompletionViewObserver.isLatestReplyVisible(document, editor))
+                    com.hedworth.seshlog.settings.SessionAttentionState.getInstance().viewed(session.id, completionReceipt)
+            }
+        }
         previous.addActionListener { navigate(-1) }
         next.addActionListener { navigate(1) }
         toggleTool.addActionListener {
@@ -100,6 +108,8 @@ class ConversationDialog(
     }
 
     private fun load() {
+        completionReceipt = null
+        val receipt = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().receipt(session)
         status.text = "Loading conversation…"
         loading = true
         updateActions()
@@ -115,6 +125,8 @@ class ConversationDialog(
                     editor.text = it.text
                     editor.caretPosition = 0
                     findMatches()
+                    if (startAtLatest) editor.caretPosition = editor.document.length
+                    if (it.entries.none { entry -> entry.truncated || !entry.searchable }) completionReceipt = receipt
                 }, onFailure = {
                     document = ConversationDocument("", emptyList())
                     editor.text = ""

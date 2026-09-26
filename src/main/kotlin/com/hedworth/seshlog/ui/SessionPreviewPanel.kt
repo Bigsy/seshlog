@@ -54,6 +54,16 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog preview", 1)
     private val generation = AtomicLong()
+    private var completionReceipt: com.hedworth.seshlog.index.SessionAttention.Completion? = null
+    private val viewObserver = CompletionViewObserver(this) {
+        val target = session
+        val viewed = if (searchQuery.isEmpty()) CompletionViewObserver.isViewed(editor) &&
+            messages.any { it.role == Role.ASSISTANT } && editor.visibleRect.maxY >= editor.height - 4
+        else CompletionViewObserver.isViewed(conversation.editor) && conversation.isLatestReplyVisible
+        if (target != null && viewed) {
+            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().viewed(target.id, completionReceipt)
+        }
+    }
 
     /** Session shown (or being loaded); null when nothing is selected. */
     var session: Session? = null
@@ -89,6 +99,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
 
     /** Called on the EDT whenever the tree selection changes. */
     fun showSession(session: Session?, query: String = "") {
+        completionReceipt = null
         generation.incrementAndGet()
         this.session = session
         searchQuery = query.trim()
@@ -107,6 +118,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     }
 
     private fun scheduleLoad() {
+        completionReceipt = null
         generation.incrementAndGet()
         alarm.cancelAllRequests()
         alarm.addRequest({ load() }, DEBOUNCE_MS)
@@ -114,6 +126,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
 
     private fun load() {
         val target = session ?: return
+        val receipt = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().receipt(target)
         val query = searchQuery
         val count = settings.previewMessageCount
         val myGen = generation.incrementAndGet()
@@ -136,13 +149,19 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
                 if (query.isNotEmpty()) {
                     messages = result.orEmpty().filter { !it.isTool }.map { it.message }
                     if (result == null) conversation.clear("Transcript could not be read.")
-                    else conversation.showEntries(result, query)
+                    else {
+                        conversation.showEntries(result, query)
+                        completionReceipt = receipt
+                    }
                     return@invokeLater
                 }
                 when {
                     result == null -> render(emptyList(), "Transcript could not be read.")
                     result.isEmpty() -> render(emptyList(), "No conversation yet.")
-                    else -> render(result.map { it.message }, null)
+                    else -> {
+                        render(result.map { it.message }, null)
+                        completionReceipt = receipt
+                    }
                 }
             })
         }

@@ -156,6 +156,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.activeSessionId = OwnedTerminalTabs.getInstance(project).activeSessionId
         badgeClock.start()
         renderer.runningOwned = OwnedTerminalTabs.getInstance(project).runningSessionIds()
+        renderer.unread = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().unreadIds
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(
+            com.hedworth.seshlog.settings.SessionAttentionState.TOPIC,
+            object : com.hedworth.seshlog.settings.SessionAttentionState.Listener {
+                override fun changed() {
+                    renderer.unread = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().unreadIds
+                    refreshBadges(renderer.runningOwned)
+                }
+            })
         project.messageBus.connect(this).subscribe(OwnedTerminalTabs.RUNNING_TOPIC,
             object : OwnedTerminalTabs.RunningListener {
                 override fun runningChanged(ids: Set<String>) = refreshBadges(ids)
@@ -298,6 +307,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private fun createToolbar(): ActionToolbar {
         val group = DefaultActionGroup().apply {
             add(ActionManager.getInstance().getAction("Seshlog.Refresh"))
+            add(ActionManager.getInstance().getAction("Seshlog.NextAttention"))
             add(ToggleAllProjectsAction())
             add(object : ToggleAction("Sibling Worktrees", "Include worktrees sharing this repository", AllIcons.Vcs.Branch) {
                 override fun getActionUpdateThread() = ActionUpdateThread.EDT
@@ -602,6 +612,30 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     fun selectedSession(): Session? =
         (tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? Session
 
+    internal fun nextAttentionSession(): Session? {
+        val root = treeModel.root as DefaultMutableTreeNode
+        val displayed = root.depthFirstEnumeration().asSequence()
+            .mapNotNull { (it as DefaultMutableTreeNode).userObject as? Session }.toList()
+        return com.hedworth.seshlog.index.SessionAttention.next(displayed,
+            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().unreadIds, selectedSession()?.id)
+    }
+
+    fun showNextAttention() {
+        val target = nextAttentionSession() ?: return
+        val root = treeModel.root as DefaultMutableTreeNode
+        val node = TreeUtil.findNodeWithObject(root, target) ?: return
+        val path = javax.swing.tree.TreePath(node.path)
+        tree.expandPath(path.parentPath)
+        tree.selectionPath = path
+        tree.scrollPathToVisible(path)
+        if (!OwnedTerminalTabs.getInstance(project).focus(target.id)) {
+            // Explicit navigation should expose the latest reply even with preview hidden or a search active.
+            if (!settings.showPreview || activeQuery.isNotEmpty())
+                ConversationDialog(project, target, "", startAtLatest = true).show()
+            else preview.showSession(target)
+        }
+    }
+
     override fun getData(dataId: String): Any? = when {
         SeshlogDataKeys.SESSION.`is`(dataId) -> selectedSession()
         SeshlogDataKeys.PANEL.`is`(dataId) -> this
@@ -614,7 +648,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.runningOwned = ids
         val root = treeModel.root as DefaultMutableTreeNode
         for (node in root.depthFirstEnumeration()) {
-            if ((node as DefaultMutableTreeNode).userObject is Session) treeModel.nodeChanged(node)
+            val value = (node as DefaultMutableTreeNode).userObject
+            if (value is Session || value is ProjectGroup) treeModel.nodeChanged(node)
         }
     }
 

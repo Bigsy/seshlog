@@ -20,6 +20,7 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
     private var matches = emptyList<EntryMatch>()
     private var query = ""
     private var current = -1
+    val isLatestReplyVisible: Boolean get() = CompletionViewObserver.isLatestReplyVisible(document, editor)
 
     init {
         add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {

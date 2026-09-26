@@ -32,6 +32,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     // A tab's session after its agent exited: no longer attached, but copy/fork still act on it.
     private val endedSessions = java.util.WeakHashMap<Content, String>()
     private val started = AtomicBoolean(false)
+    private var selectedContent: Content? = null
     var activeSessionId: String? = null
         private set
 
@@ -127,6 +128,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     private fun refreshRunning() {
         if (disposed || checkingProcesses) return
+        acknowledgeVisibleCompletion()
         val snapshot = SessionIndex.getInstance().sessions
         // Shell startup and pane changes do not necessarily produce an index update. Retry
         // adoption and reattach observers even when every transcript is idle.
@@ -241,10 +243,21 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 
     private fun updateActiveSession(content: Content?) {
+        selectedContent = content
+        acknowledgeVisibleCompletion()
         val sessionId = content?.let(registry::sessionFor)
         if (sessionId == activeSessionId) return
         activeSessionId = sessionId
         project.messageBus.syncPublisher(ACTIVE_SESSION_TOPIC).activeSessionChanged(sessionId)
+    }
+
+    private fun acknowledgeVisibleCompletion() {
+        val content = selectedContent ?: return
+        if (Disposer.isDisposed(content) || content.manager?.isSelected(content) != true) return
+        if (!com.hedworth.seshlog.ui.CompletionViewObserver.isViewed(content.component)) return
+        lastSessionFor(content)?.let {
+            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().viewedTerminal(it)
+        }
     }
 
     override fun dispose() {

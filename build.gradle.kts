@@ -1,17 +1,4 @@
-import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
-
-fun usesUnifiedIntelliJIdea(version: String): Boolean {
-    fun numericPart(value: String): Int? = value.takeWhile(Char::isDigit).toIntOrNull()
-
-    val parts = version.split('.')
-    val first = parts.firstOrNull()?.let(::numericPart) ?: return false
-    return if (first >= 2000) {
-        first > 2025 || (first == 2025 && (parts.getOrNull(1)?.let(::numericPart) ?: 0) >= 3)
-    } else {
-        first >= 253
-    }
-}
 
 // Seshlog — IntelliJ plugin: a tool window listing local AI coding-agent sessions (Claude Code first)
 // with one click to resume any of them in a new terminal tab.
@@ -38,13 +25,8 @@ repositories {
 dependencies {
     intellijPlatform {
         val platformVersion = providers.gradleProperty("platformVersion")
-        val platformType = providers.gradleProperty("platformType").zip(platformVersion) { type, version ->
-            val requested = IntelliJPlatformType.fromCode(type)
-            if (requested == IntelliJPlatformType.IntellijIdeaCommunity && usesUnifiedIntelliJIdea(version)) {
-                IntelliJPlatformType.IntellijIdea
-            } else {
-                requested
-            }
+        val platformType = providers.gradleProperty("platformType").map { type ->
+            org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.fromCode(type)
         }
         // -PplatformLocalPath=/Applications/IntelliJ\ IDEA.app runs tests against an installed IDE.
         val localPath = providers.gradleProperty("platformLocalPath").orNull
@@ -97,7 +79,8 @@ intellijPlatform {
 
     pluginVerification {
         ides {
-            recommended()
+            val localPath = providers.gradleProperty("platformLocalPath").orNull
+            if (localPath != null) local(localPath) else recommended()
         }
     }
 }
@@ -106,9 +89,9 @@ kotlin {
     jvmToolchain(providers.gradleProperty("javaVersion").get().toInt())
 
     compilerOptions {
-        // Platform 2024.1 bundles the Kotlin 1.9 stdlib; pinning apiVersion makes 2.x-only stdlib
-        // APIs fail at compile time instead of NoSuchMethodError at runtime on older IDEs.
-        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_1_9
+        // The 2026.2 platform bundles Kotlin 2.4; compile against the newest API supported by
+        // this build's Kotlin plugin while retaining the platform's stdlib dependency.
+        apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3
         // Emit JVM default methods instead of DefaultImpls stubs; otherwise every Kotlin class
         // implementing a platform interface (ToolWindowFactory) "overrides" its internal defaults
         // and the plugin verifier flags INTERNAL_API_USAGES.

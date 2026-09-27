@@ -34,14 +34,14 @@ Works with both Classic and Reworked terminals.
 
 ## Get started
 
-You need an IntelliJ Platform IDE **2024.1 or newer** with the bundled Terminal plugin, plus at least
+You need IntelliJ IDEA **2026.2 or newer** with the bundled Terminal plugin, plus at least
 one supported agent installed and available on your terminal shell's `PATH`. Pi requires **0.84.2 or newer**.
 
 Open **View → Tool Windows → Seshlog** to browse your sessions.
 Use **Settings → Tools → Seshlog** to change data directories, executable paths, per-agent command
 arguments, notifications and restart behaviour.
 
-To build and install from source, use JDK 17 and run:
+To build and install from source, use JDK 25 and run:
 
 ```sh
 ./gradlew buildPlugin

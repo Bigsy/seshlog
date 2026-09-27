@@ -12,8 +12,9 @@ import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
 /**
- * Optional reworked-terminal API. Resolve it through the terminal plugin's loader, so the same
- * plugin still loads on 2024.1. Never wait for a session or shell integration on the UI thread.
+ * Reworked-terminal adapter for the 2026.2 baseline. The frontend remains an optional module in
+ * the Terminal plugin, so resolve it through the terminal plugin's loader. Never wait for a
+ * session or shell integration on the UI thread.
  */
 internal class ReworkedTerminal(
     private val loadClass: (String) -> Class<*> = ::loadApiClass,

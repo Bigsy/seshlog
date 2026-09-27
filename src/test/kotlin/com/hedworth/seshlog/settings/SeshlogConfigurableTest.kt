@@ -80,6 +80,7 @@ class SeshlogConfigurableTest : BasePlatformTestCase() {
     private fun labelText(c: Component): String = buildList {
         fun walk(x: Component) {
             if (x is JLabel) x.text?.takeIf { it.isNotEmpty() }?.let { add(it) }
+            if (x is com.intellij.ui.SimpleColoredComponent) x.getCharSequence(false).toString().takeIf { it.isNotEmpty() }?.let { add(it) }
             if (x is Container) x.components.forEach(::walk)
         }
         walk(c)

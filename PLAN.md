@@ -213,7 +213,7 @@ Checked against the cached platforms:
   `WeakHashMap.get` also purges entries. Synchronise it.
   - Test: concurrent reads and writes do not throw.
 
-- [ ] **2.6 `SessionAttentionState.getState` can throw while saving.** `settings/SessionAttentionState.kt:20`
+- [x] **2.6 `SessionAttentionState.getState` can throw while saving.** `settings/SessionAttentionState.kt:20`
   copies a `LinkedHashMap` the EDT mutates, from the save thread. Keep an immutable snapshot that
   mutations replace. Also prune unread entries for sessions no longer in the index, so
   `seshlog.xml` stops growing.

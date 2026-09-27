@@ -83,7 +83,7 @@ Checked against the cached platforms:
 
   - Verified: synthetic parent/spawn/review fixtures pass under `make check`. MCP rollouts stay visible.
 
-- [ ] **1.2 Make the benchmark numbers-only and representative.**
+- [x] **1.2 Make the benchmark numbers-only and representative.**
   `src/test/kotlin/com/hedworth/seshlog/claude/RealDataScanBenchmark.kt:23,42` prints real
   titles, folder names and search snippets into Gradle test reports. It searches through
   `conversationText`, not the `conversationEntries` path production search uses, and covers

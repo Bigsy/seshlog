@@ -131,7 +131,7 @@ Checked against the cached platforms:
   - Test: unit test of the policy: events every 500 ms for 10 s fire at least twice; a single
     event fires once after the debounce.
 
-- [ ] **1.6 Reusing an idle tab can type a resume command into another agent.**
+- [x] **1.6 Reusing an idle tab can type a resume command into another agent.**
   `terminal/TerminalTabs.kt:92` (`findIdleTab`) returns any tab whose title matches and whose
   state is IDLE, whoever owns it, and a tab still reads IDLE just after Seshlog sent it a command.
   Restoring two sessions with the same title (`restore/SessionRestoreManager.kt:230`, `restore`),

@@ -15,11 +15,11 @@ object TerminalLauncher {
     /** Must be called on the EDT. Returns a handle for the new tab. */
     fun launch(project: Project, workingDirectory: Path, tabTitle: String, command: String): TerminalHandle {
         TerminalTabs.reworked.launch(project, workingDirectory.toString(), tabTitle)?.let { terminal ->
-            terminal.execute(command)
+            TerminalCommands.execute(terminal, command)
             return terminal
         }
         val manager = TerminalToolWindowManager.getInstance(project)
-        // Available since 2024.1 (241); replaces ShellTerminalWidget.executeCommand on older builds.
+        // Available on the 2026.2 platform baseline; replaces ShellTerminalWidget.executeCommand.
         val widget = manager.createShellWidget(
             workingDirectory.toString(),
             tabTitle,
@@ -27,7 +27,8 @@ object TerminalLauncher {
             /* deferSessionStartUntilUiShown = */ true,
         )
         LOG.debug("Launching in terminal tab '$tabTitle' at $workingDirectory: $command")
-        widget.sendCommandToExecute(command)
-        return TerminalTabs.classic(widget, TerminalTabs.contentOf(project, widget))
+        return TerminalTabs.classic(widget, TerminalTabs.contentOf(project, widget)).also {
+            TerminalCommands.execute(it, command)
+        }
     }
 }

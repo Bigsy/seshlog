@@ -90,8 +90,8 @@ object TerminalTabs {
      * plugin itself restored after a restart, which comes back as a plain shell.
      */
     fun findIdleTab(project: Project, title: String): TerminalHandle? =
-        contents(project).asSequence().filter { it.displayName == title }
-            .mapNotNull { terminalOf(project, it) }.firstOrNull { it.state() == TerminalState.IDLE }
+        contents(project).asSequence().filter { it.displayName == title && OwnedTerminalTabs.getInstance(project).sessionFor(it) == null }
+            .mapNotNull { terminalOf(project, it) }.firstOrNull { TerminalCommands.state(it) == TerminalState.IDLE }
 
     fun terminalOf(project: Project, content: Content): TerminalHandle? {
         if (content.manager == null) return null
@@ -117,7 +117,7 @@ object TerminalTabs {
     }
 
     /** True when the shell in [terminal] is running something (e.g. `claude`). */
-    fun isBusy(terminal: TerminalHandle): Boolean = terminal.state() == TerminalState.BUSY
+    fun isBusy(terminal: TerminalHandle): Boolean = TerminalCommands.state(terminal) == TerminalState.BUSY
 
     /**
      * Resume [session] in the tab we already own for it (focus it when busy, run the command in it
@@ -127,27 +127,16 @@ object TerminalTabs {
      */
     fun resume(project: Project, session: Session, command: String): TerminalHandle {
         val owned = OwnedTerminalTabs.getInstance(project)
-        owned.terminalFor(session.id)?.let { widget ->
-            if (widget.state() != TerminalState.IDLE) {
-                LOG.debug("Session ${session.id} already runs in its tab; focusing")
-                owned.focus(session.id)
-            } else {
-                LOG.debug("Resuming ${session.id} in its own idle tab")
-                widget.execute("cd ${ShellQuote.quote(session.cwd.toString())} && $command")
-                owned.focus(session.id)
-            }
-            return widget
-        }
-        val idle = findIdleTab(project, session.title)
-        val widget = if (idle != null) {
-            LOG.debug("Reusing idle terminal tab '${session.title}' for $command")
-            idle.execute("cd ${ShellQuote.quote(session.cwd.toString())} && $command")
-            idle
-        } else {
-            TerminalLauncher.launch(project, session.cwd, session.title, command)
-        }
-        OwnedTerminalTabs.getInstance(project).track(session, widget)
-        return widget
+        return ResumeTerminal.resume(
+            session.id, owned.terminalFor(session.id),
+            contents(project).filter { it.displayName == session.title }.mapNotNull { terminalOf(project, it) },
+            owns = { it.content?.let(owned::sessionFor) != null },
+            idle = { TerminalCommands.state(it) == TerminalState.IDLE },
+            execute = { TerminalCommands.execute(it, "cd ${ShellQuote.quote(session.cwd.toString())} && $command") },
+            launch = { TerminalLauncher.launch(project, session.cwd, session.title, command) },
+            track = { _, terminal -> owned.track(session, terminal) },
+            focus = { owned.focus(session.id) },
+        )
     }
 
     /** Restore only after tab enumeration and the matching shell are ready. Called on EDT. */
@@ -160,7 +149,7 @@ object TerminalTabs {
         return com.hedworth.seshlog.restore.RestoreTabReadiness.ready(
             restored = reworked.tabsRestored(project) != false,
             matching = { contents(project).filter { it.displayName == title } },
-            state = { terminalOf(project, it)?.state() ?: TerminalState.UNKNOWN },
+            state = { terminalOf(project, it)?.let(TerminalCommands::state) ?: TerminalState.UNKNOWN },
             // Restored shells start lazily when their component is shown, including inactive tabs.
             show = { waiting -> window.show { waiting.manager?.setSelectedContent(waiting, false) } },
         )

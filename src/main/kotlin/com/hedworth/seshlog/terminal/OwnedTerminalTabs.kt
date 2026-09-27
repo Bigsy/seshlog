@@ -165,7 +165,10 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         val shell = candidates.first { it.first == id }.second
                         terminalFor(id)?.shellPid() == shell
                     }
-                    for (id in valid) agents.observe(id, found.getValue(id))
+                    for (id in valid) {
+                        agents.observe(id, found.getValue(id))
+                        registry.tabFor(id)?.let(TerminalCommands::observed)
+                    }
                     for ((id, tabs) in discoveries) {
                         // Never guess between two terminals or overwrite ownership changed
                         // while this background inspection was running.
@@ -176,6 +179,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         if (!registry.adoptDiscovered(id, content, previousOwners[content])) continue
                         previousOwners[content]?.let(valid::remove)
                         valid += id
+                        TerminalCommands.observed(content)
                         handles[id]?.let { agents.observe(id, it) }
                     }
                     // The exact process seen running a tab's session exited: detach it from that tab.

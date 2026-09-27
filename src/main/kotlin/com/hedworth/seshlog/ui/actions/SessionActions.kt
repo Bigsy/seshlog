@@ -11,6 +11,7 @@ import com.hedworth.seshlog.terminal.TerminalTabs
 import com.hedworth.seshlog.terminal.SessionProcesses
 import com.intellij.openapi.application.ApplicationManager
 import com.hedworth.seshlog.ui.SeshlogDataKeys
+import com.hedworth.seshlog.ui.ConversationEditorTabs
 import com.intellij.icons.AllIcons
 import com.intellij.ide.actions.RevealFileAction
 import com.intellij.notification.NotificationGroupManager
@@ -25,19 +26,24 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import java.awt.datatransfer.StringSelection
+import com.hedworth.seshlog.terminal.TerminalState
+import com.hedworth.seshlog.terminal.ShellQuote
+import com.hedworth.seshlog.terminal.WorkingDirectoryRecovery
+import java.nio.file.Path
+import javax.swing.Icon
 
 /** Base for actions that need a selected session. */
-abstract class SessionAction(text: String, description: String? = null, icon: javax.swing.Icon? = null) :
+abstract class SessionAction(text: String, description: String? = null, icon: Icon? = null) :
     DumbAwareAction(text, description, icon) {
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabledAndVisible = e.getData(SeshlogDataKeys.SESSION) != null && e.project != null
+        e.presentation.isEnabledAndVisible = sessionFrom(e) != null && e.project != null
     }
 
     final override fun actionPerformed(e: AnActionEvent) {
-        val session = e.getData(SeshlogDataKeys.SESSION) ?: return
+        val session = sessionFrom(e) ?: return
         val project = e.project ?: return
         perform(project, session)
     }
@@ -53,7 +59,7 @@ abstract class SessionAction(text: String, description: String? = null, icon: ja
 class ResumeSessionAction : SessionAction("Resume", "Resume this session in a new terminal tab", AllIcons.Actions.Execute) {
     override fun update(e: AnActionEvent) {
         super.update(e)
-        val session = e.getData(SeshlogDataKeys.SESSION) ?: return
+        val session = sessionFrom(e) ?: return
         val project = e.project ?: return
         val owned = OwnedTerminalTabs.getInstance(project).owns(session.id)
         e.presentation.text = if (owned) "Show Tab" else "Resume"
@@ -68,11 +74,11 @@ class ResumeSessionAction : SessionAction("Resume", "Resume this session in a ne
         }
         val owned = OwnedTerminalTabs.getInstance(project)
         val widget = owned.terminalFor(session.id)
-        if (widget != null && widget.state() != com.hedworth.seshlog.terminal.TerminalState.IDLE) {
+        if (widget != null && widget.state() != TerminalState.IDLE) {
             owned.focus(session.id)
             return
         }
-        com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
+        WorkingDirectoryRecovery.run(project, session) { target ->
             val command = SessionIndex.getInstance().resumeCommand(target)
             try {
                 TerminalTabs.resume(project, target, command)
@@ -101,7 +107,7 @@ abstract class ForkSessionActionBase : DumbAwareAction("Fork Session", "Continue
     final override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val session = sessionOf(e) ?: return
-        com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
+        WorkingDirectoryRecovery.run(project, session) { target ->
             val command = SessionIndex.getInstance().forkCommand(target)
             try {
                 TerminalTabs.fork(project, target, command)
@@ -114,7 +120,7 @@ abstract class ForkSessionActionBase : DumbAwareAction("Fork Session", "Continue
 
 /** Fork the session selected in the Seshlog tree. */
 class ForkSessionAction : ForkSessionActionBase() {
-    override fun sessionOf(e: AnActionEvent): Session? = e.getData(SeshlogDataKeys.SESSION)
+    override fun sessionOf(e: AnActionEvent): Session? = sessionFrom(e)
 }
 
 /**
@@ -137,7 +143,7 @@ class ForkTerminalTabSessionAction : ForkSessionActionBase() {
 class KillSessionAction : SessionAction("Kill Session", "Stop this session and close its terminal tab", AllIcons.Actions.Suspend) {
     override fun update(e: AnActionEvent) {
         super.update(e)
-        val session = e.getData(SeshlogDataKeys.SESSION) ?: return
+        val session = sessionFrom(e) ?: return
         val project = e.project ?: return
         e.presentation.isEnabled = session.livePid != null || OwnedTerminalTabs.getInstance(project).owns(session.id)
     }
@@ -186,7 +192,7 @@ class KillSessionAction : SessionAction("Kill Session", "Stop this session and c
 class CopyResumeCommandAction : SessionAction("Copy Resume Command", "Copy the shell command that resumes this session") {
     override fun perform(project: Project, session: Session) {
         val cmd = SessionIndex.getInstance().resumeCommand(session)
-        CopyPasteManager.getInstance().setContents(StringSelection("cd ${com.hedworth.seshlog.terminal.ShellQuote.quote(session.cwd.toString())} && $cmd"))
+        CopyPasteManager.getInstance().setContents(StringSelection("cd ${ShellQuote.quote(session.cwd.toString())} && $cmd"))
     }
 }
 
@@ -200,24 +206,24 @@ class CopySessionIdAction : SessionAction("Copy Session ID") {
 abstract class TranscriptFileAction(text: String, description: String? = null) : SessionAction(text, description) {
     override fun update(e: AnActionEvent) {
         super.update(e)
-        if (e.getData(SeshlogDataKeys.SESSION)?.transcriptPath == null) e.presentation.isEnabledAndVisible = false
+        if (sessionFrom(e)?.transcriptPath == null) e.presentation.isEnabledAndVisible = false
     }
 
     final override fun perform(project: Project, session: Session) {
         perform(project, session, session.transcriptPath ?: return)
     }
 
-    abstract fun perform(project: Project, session: Session, transcript: java.nio.file.Path)
+    abstract fun perform(project: Project, session: Session, transcript: Path)
 }
 
 class RevealTranscriptAction : TranscriptFileAction(RevealFileAction.getActionName(), "Show the transcript file") {
-    override fun perform(project: Project, session: Session, transcript: java.nio.file.Path) {
+    override fun perform(project: Project, session: Session, transcript: Path) {
         RevealFileAction.openFile(transcript)
     }
 }
 
 class OpenTranscriptAction : TranscriptFileAction("Open Transcript", "Open the raw transcript in an editor tab") {
-    override fun perform(project: Project, session: Session, transcript: java.nio.file.Path) {
+    override fun perform(project: Project, session: Session, transcript: Path) {
         val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(transcript) ?: run {
             notify(project, "Transcript not found: $transcript", NotificationType.WARNING)
             return
@@ -230,6 +236,10 @@ class RefreshSessionsAction : DumbAwareAction("Refresh", "Rescan session transcr
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
     override fun actionPerformed(e: AnActionEvent) = SessionIndex.getInstance().refresh(forcePathResolution = true)
 }
+
+/** The editor tab is the owner of its session when an action is invoked from that tab. */
+internal fun sessionFrom(e: AnActionEvent): Session? =
+    e.getData(SeshlogDataKeys.SESSION) ?: e.project?.let(ConversationEditorTabs::sessionFor)
 
 internal fun notify(project: Project, content: String, type: NotificationType) {
     NotificationGroupManager.getInstance().getNotificationGroup("Seshlog")

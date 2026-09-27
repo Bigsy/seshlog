@@ -703,7 +703,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         if (!OwnedTerminalTabs.getInstance(project).focus(target.id)) {
             // Explicit navigation should expose the latest reply even with preview hidden or a search active.
             if (!settings.showPreview || activeQuery.isNotEmpty())
-                ConversationDialog(project, target, "", startAtLatest = true).show()
+                ConversationEditorTabs.open(project, target, "", startAtLatest = true)
             else preview.showSession(target)
         }
     }

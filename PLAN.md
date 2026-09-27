@@ -295,7 +295,7 @@ Checked against the cached platforms:
     fresh Pi/opencode sessions without exact identity evidence may remain unassociated.
   - Manual: still owed — launch each configured agent and verify tab adoption.
 
-- [ ] **4.3 Open a conversation in a read-only editor tab.**
+- [x] **4.3 Open a conversation in a read-only editor tab.**
   `ui/ConversationDialog.kt` is a non-modal dialog around a plain `JBTextArea`. Open the
   conversation as an in-memory, read-only `LightVirtualFile` (Markdown) in an editor tab instead:
   editor find, several conversations side by side, splits, and Markdown rendering when the
@@ -304,6 +304,7 @@ Checked against the cached platforms:
   - Test: opening a fixture builds a read-only light file with the expected Markdown; viewing the
     last reply clears unread.
   - Manual: behaviour with the Markdown plugin disabled.
+  - Verified with Markdown absent using a plain-text fallback; F3/Shift+F3 navigate carried search matches. Manual: still owed — splits and rendered Markdown view with the Markdown plugin enabled.
 
 - [ ] **4.4 Render Markdown in the preview.**
   `ui/SessionPreviewPanel.kt:176` (`toHtml`) wraps each message in `<pre>`. Render assistant

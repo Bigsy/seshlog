@@ -33,7 +33,7 @@
     </dependencies>
 
     <change-notes><![CDATA[
-    <b>0.6.3</b>
+    <b>0.6.4</b>
     <ul>
         <li>Pick up new and updated sessions as agents write them. The agent data directories, and folders created later such as Codex's daily folder, are now covered by the IDE's file watcher, so fresh Claude Code and Codex sessions appear, show activity and attach to their terminal without a manual refresh.</li>
         <li>Copy from a terminal straight after an agent's first reply. When a running agent's session has not been indexed yet, Seshlog rescans once before reporting that no session is known.</li>

@@ -107,4 +107,12 @@ class TranscriptParserTest {
         assertEquals(2, info.promptCount)
         assertEquals("Start the queued example", info.promptTitle)
     }
+
+    @Test
+    fun `reads the successor from a continued-in record`() {
+        val info = TranscriptParser.parse(fixture("claude_subagent_parent.jsonl"))
+
+        assertEquals("successor-session", info.continuationId)
+    }
+
 }

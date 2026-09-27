@@ -33,6 +33,16 @@ object ConversationLimits {
     /** Bounded line reader: never allocates an arbitrarily large JSON record. I/O errors propagate. */
     fun read(path: Path, parse: (String, String) -> List<ConversationEntry>): List<ConversationEntry> {
         val out = Collector()
+        readInto(path, parse, out)
+        return out.finish()
+    }
+
+    /** Adds one source to an existing collector so a parent and its subagents share one budget. */
+    fun readInto(path: Path, parse: (String, String) -> List<ConversationEntry>, out: Collector) {
+        if (out.full) {
+            out.limited = true
+            return
+        }
         Files.newBufferedReader(path).use { reader ->
             val line = StringBuilder()
             val buffer = CharArray(16 * 1024)
@@ -66,6 +76,5 @@ object ConversationLimits {
                 }
             }
         }
-        return out.finish()
     }
 }

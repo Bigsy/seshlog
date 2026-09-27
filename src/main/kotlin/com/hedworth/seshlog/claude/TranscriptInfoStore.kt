@@ -10,7 +10,7 @@ import java.time.Instant
  * Persistent metadata-only cache for parsed Claude Code transcripts (see [InfoStore]). Version 1
  * stored the raw first prompt; those caches are dropped rather than migrated.
  */
-private const val CACHE_VERSION = 3
+private const val CACHE_VERSION = 4
 
 object TranscriptInfoStore : InfoStore<TranscriptInfo>(CACHE_VERSION, ::write, ::read) {
     const val VERSION = CACHE_VERSION
@@ -26,6 +26,7 @@ private fun write(i: TranscriptInfo, o: JsonObject) {
     o.addProperty("customTitle", i.customTitle)
     i.startedAt?.let { o.addProperty("startedAt", it.toEpochMilli()) }
     o.addProperty("promptCount", i.promptCount)
+    o.addProperty("continuationId", i.continuationId)
 }
 
 private fun read(o: JsonObject) = TranscriptInfo(
@@ -38,4 +39,5 @@ private fun read(o: JsonObject) = TranscriptInfo(
     customTitle = o.string("customTitle"),
     startedAt = o.long("startedAt")?.let { Instant.ofEpochMilli(it) },
     promptCount = o.long("promptCount")?.toInt() ?: 0,
+    continuationId = o.string("continuationId"),
 )

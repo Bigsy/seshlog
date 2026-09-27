@@ -324,7 +324,7 @@ Checked against the cached platforms:
   - Manual: the header at a narrow tool window width.
   - Manual: still owed — inspect the header at a narrow tool-window width.
 
-- [ ] **4.6 Claude subagent transcripts and continuations.**
+- [x] **4.6 Claude subagent transcripts and continuations.**
   Subagent conversations now live in `<session>/subagents/agent-*.jsonl` (38 locally) and are not
   searchable; the parsers' `isSidechain` filters no longer match anything at top level.
   `continued-in` records point to a successor session (2 locally). Search subagent text as tool

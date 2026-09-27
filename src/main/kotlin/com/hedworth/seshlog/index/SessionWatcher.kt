@@ -141,6 +141,6 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
 
         /** These trees are deliberately excluded from provider scans and cannot change sessions. */
         internal fun isIgnoredSubpath(path: String): Boolean =
-            path.replace('\\', '/').split('/').any { it == "subagents" || it == "tool-results" || it == "memory" }
+            path.replace('\\', '/').split('/').any { it == "tool-results" || it == "memory" }
     }
 }

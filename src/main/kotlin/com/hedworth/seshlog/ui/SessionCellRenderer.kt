@@ -14,6 +14,8 @@ import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 import javax.swing.JTree
 import javax.swing.tree.DefaultMutableTreeNode
+import com.hedworth.seshlog.index.SessionAttention
+import com.hedworth.seshlog.settings.SessionOrganisation
 
 class SessionCellRenderer : ColoredTreeCellRenderer() {
 
@@ -40,7 +42,7 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
         append(group.displayName, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
         append("  ${group.cwd}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${group.sessions.size}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
-        val summary = com.hedworth.seshlog.index.SessionAttention.summary(group.sessions, runningOwned, unread)
+        val summary = SessionAttention.summary(group.sessions, runningOwned, unread)
         if (summary.isNotEmpty()) append("  $summary", SimpleTextAttributes.REGULAR_ATTRIBUTES)
         toolTipText = group.cwd.toString()
     }
@@ -53,13 +55,14 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
                 SimpleTextAttributes.STYLE_BOLD or SimpleTextAttributes.STYLE_UNDERLINE, null)
             else -> SimpleTextAttributes.REGULAR_ATTRIBUTES
         }
-        val organisation = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+        val organisation = SessionOrganisation.getInstance()
         val metadata = organisation.metadata(session.id)
         if (metadata.pinned) append("★ ", titleAttrs)
         append(organisation.title(session), titleAttrs)
         if (session.id in unread) append("  ● unread", SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD, HIT_COLOR))
         if (session.forkedFromId != null) append(" (fork)", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         if (metadata.hidden) append("  hidden", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+        if (session.continuationId != null) append("  continued", SimpleTextAttributes.GRAYED_ATTRIBUTES)
         append("  ${session.kind.displayName}", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
         append("  " + DateFormatUtil.formatPrettyDateTime(session.lastActivityAt.toEpochMilli()), SimpleTextAttributes.GRAYED_ATTRIBUTES)
         session.displayBranch?.let { append("  $it", SimpleTextAttributes.GRAYED_ATTRIBUTES) }
@@ -80,8 +83,8 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
 
     private fun tooltip(session: Session, hit: SearchHit? = null): String {
         val esc = { s: String -> s.replace("&", "&amp;").replace("<", "&lt;") }
-        val fmt = { i: java.time.Instant? -> i?.let { TS.format(it.atZone(ZoneId.systemDefault())) } ?: "–" }
-        val localTitle = com.hedworth.seshlog.settings.SessionOrganisation.getInstance().title(session)
+        val fmt = { i: Instant? -> i?.let { TS.format(it.atZone(ZoneId.systemDefault())) } ?: "–" }
+        val localTitle = SessionOrganisation.getInstance().title(session)
         return buildString {
             append("<html><b>").append(esc(localTitle)).append("</b><br>")
             if (localTitle != session.title) append("Agent title: ").append(esc(session.title)).append("<br>")
@@ -90,6 +93,12 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
             append("Agent: ").append(session.kind.displayName).append("<br>")
             append("Session: ").append(session.id).append("<br>")
             session.forkedFromId?.let { append("Forked from: ").append(esc(it)).append("<br>") }
+            if (session.subagentTranscriptPaths.isNotEmpty()) {
+                append("Subagent activity: ").append(session.subagentTranscriptPaths.size).append(" transcript")
+                if (session.subagentTranscriptPaths.size != 1) append('s')
+                append("<br>")
+            }
+            session.continuationId?.let { append("Continues in: ").append(esc(it)).append("<br>") }
             append("Directory: ").append(esc(session.cwd.toString())).append("<br>")
             session.displayBranch?.let { append("Branch: ").append(esc(it)).append("<br>") }
             append("Started: ").append(fmt(session.startedAt)).append("<br>")

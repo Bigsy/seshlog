@@ -31,7 +31,7 @@ class SessionWatcherTest {
     @Test
     fun `ignored provider subpaths do not trigger a watch`() {
         val root = "/home/u/.claude/projects"
-        assertTrue(SessionWatcher.isRelevantPath("$root/work/session/subagents/child.jsonl", listOf(root)).not())
+        assertTrue(SessionWatcher.isRelevantPath("$root/work/session/subagents/child.jsonl", listOf(root)))
         assertTrue(SessionWatcher.isRelevantPath("$root/memory/foo.jsonl", listOf(root)).not())
         assertTrue(SessionWatcher.isRelevantPath("$root/work/tool-results/result.json", listOf(root)).not())
         assertTrue(SessionWatcher.isRelevantPath("$root/work/session.jsonl", listOf(root)))

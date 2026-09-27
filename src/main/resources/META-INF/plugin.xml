@@ -100,6 +100,7 @@
                     text="Kill Session" description="Stop this session and close its terminal tab"/>
             <separator/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
+            <action id="Seshlog.OpenContinuation" class="com.hedworth.seshlog.ui.actions.OpenContinuationAction" text="Open Continuation"/>
             <action id="Seshlog.Pin" class="com.hedworth.seshlog.ui.actions.PinSessionAction" text="Pin / Unpin"/>
             <action id="Seshlog.Rename" class="com.hedworth.seshlog.ui.actions.RenameSessionAction" text="Rename Locally…"/>
             <action id="Seshlog.Hide" class="com.hedworth.seshlog.ui.actions.HideSessionAction" text="Hide / Unhide"/>

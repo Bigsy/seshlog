@@ -238,6 +238,14 @@ private object MarkdownConversation {
 
     fun build(title: String, entries: List<ConversationEntry>, session: Session? = null): BuiltMarkdown {
         val out = StringBuilder("# ${escapeHeading(title)}\n\n")
+        session?.let {
+            if (it.subagentTranscriptPaths.isNotEmpty()) {
+                out.append("_Includes ${it.subagentTranscriptPaths.size} Claude subagent transcript")
+                if (it.subagentTranscriptPaths.size != 1) out.append('s')
+                out.append("._\n\n")
+            }
+            it.continuationId?.let { successor -> out.append("_Continues in session `$successor`._\n\n") }
+        }
         var latestEnd = -1
         entries.forEach { entry ->
             out.append("## ").append(escapeHeading(entry.label)).append("\n\n")

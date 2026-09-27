@@ -28,6 +28,7 @@ data class TranscriptInfo(
     val customTitle: String?,
     val startedAt: Instant?,
     val promptCount: Int,
+    val continuationId: String? = null,
 ) {
     /** `custom-title` → `ai-title` → first prompt → "Untitled session". */
     val title: String
@@ -61,6 +62,7 @@ object TranscriptParser {
             parse(BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8), 1 shl 16))
         }
 
+
     fun parseLines(lines: Sequence<String>): TranscriptInfo {
         val acc = Accumulator()
         lines.forEach { acc.offer(it) }
@@ -76,7 +78,7 @@ object TranscriptParser {
         return acc.build()
     }
 
-    private class Accumulator {
+    private class Accumulator(previous: TranscriptInfo? = null) {
         var sessionId: String? = null
         var cwd: String? = null
         var gitBranch: String? = null
@@ -86,6 +88,7 @@ object TranscriptParser {
         var customTitle: String? = null
         var startedAt: Instant? = null
         var promptCount = 0
+        var continuationId: String? = null
 
         fun offer(line: String) {
             if (line.isBlank()) return
@@ -107,6 +110,9 @@ object TranscriptParser {
                 }
                 "user" -> offerUser(line)
                 "attachment" -> offerQueuedPrompt(line)
+                "continued-in" -> parseObject(line)?.let { obj ->
+                    continuationId = obj.string("continuedIn") ?: obj.string("continued_in")
+                }
                 else -> Unit
             }
         }
@@ -140,7 +146,7 @@ object TranscriptParser {
         }
 
         fun build() = TranscriptInfo(
-            sessionId, cwd, gitBranch, version, promptTitle, aiTitle, customTitle, startedAt, promptCount,
+            sessionId, cwd, gitBranch, version, promptTitle, aiTitle, customTitle, startedAt, promptCount, continuationId,
         )
     }
 

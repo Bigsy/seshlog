@@ -353,6 +353,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(ToggleAllProjectsAction())
             add(TogglePreviewAction())
             add(ActionManager.getInstance().getAction("Seshlog.OpenConversation"))
+            add(ActionManager.getInstance().getAction("Seshlog.OpenContinuation"))
             addSeparator()
             add(object : DumbAwareAction("Settings", "Open Seshlog settings", AllIcons.General.Settings) {
                 override fun actionPerformed(e: AnActionEvent) =

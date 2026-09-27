@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.claude
 
+import com.hedworth.seshlog.model.EntryKind
+
 import java.time.Instant
 import com.hedworth.seshlog.model.Activity
 import org.junit.Assert.assertEquals
@@ -106,5 +108,64 @@ class ClaudeCodeSessionProviderTest {
         assertTrue(!gone.isLive)
         assertEquals(Activity.UNKNOWN, gone.activity)
         assertEquals(null, gone.activitySince)
+    }
+
+    @Test
+    fun `subagent text is searchable as parent tool activity and continuation is linked`() {
+        val root = tmp.root.toPath()
+        val proj = root.resolve("projects/-Users-tester-project")
+        val id = "subagent-session"
+        val transcript = proj.resolve("$id.jsonl")
+        val subagents = proj.resolve("$id/subagents")
+        Files.createDirectories(subagents)
+        val fixtures = Paths.get(javaClass.getResource("/fixtures")!!.toURI())
+        Files.copy(fixtures.resolve("claude_subagent_parent.jsonl"), transcript)
+        val agent = subagents.resolve("agent-a.jsonl")
+        Files.copy(fixtures.resolve("claude_subagent_agent.jsonl"), agent)
+
+        val provider = ClaudeCodeSessionProvider({ root }, { "claude" })
+        val session = provider.scan(emptyMap()).single()
+        assertEquals("successor-session", session.continuationId)
+        assertEquals(listOf(
+            "Review the implementation", "I will inspect it.",
+            "Check the parser edge case", "The parser accepts the queued form.",
+        ), provider.conversationText(session))
+        val entries = provider.conversationEntries(session)
+        assertEquals(2, entries.count { it.kind == com.hedworth.seshlog.model.EntryKind.TOOL_RESULT })
+        assertTrue(entries.filter { it.kind == com.hedworth.seshlog.model.EntryKind.TOOL_RESULT }
+            .all { it.toolName == "Claude subagent" })
+        assertTrue(entries.any { it.text.contains("parser edge case") })
+
+        val firstStamp = provider.contentStamp(session)
+        Files.writeString(agent, """
+            {"type":"assistant","sessionId":"$id","timestamp":"2026-09-27T11:00:05Z","message":{"role":"assistant","content":[{"type":"text","text":"The edge case is covered."}]}}
+        """.trimIndent() + "\n", java.nio.file.StandardOpenOption.APPEND)
+        Files.setLastModifiedTime(agent, java.nio.file.attribute.FileTime.fromMillis(session.lastActivityAt.toEpochMilli() + 1_000))
+        val refreshed = provider.scan(mapOf(id to session)).single()
+        assertTrue(firstStamp != provider.contentStamp(refreshed))
+        assertTrue(refreshed.lastActivityAt.isAfter(session.lastActivityAt))
+        assertTrue(provider.conversationText(refreshed).last() == "The edge case is covered.")
+    }
+
+    @Test
+    fun `parent and subagent entries share the conversation budget`() {
+        val root = tmp.root.toPath()
+        val proj = root.resolve("projects/-Users-tester-project")
+        val id = "bounded-subagent-session"
+        val transcript = proj.resolve("$id.jsonl")
+        val subagents = proj.resolve("$id/subagents")
+        Files.createDirectories(subagents)
+        val fixtures = Paths.get(javaClass.getResource("/fixtures")!!.toURI())
+        Files.copy(fixtures.resolve("claude_subagent_parent.jsonl"), transcript)
+        val agent = subagents.resolve("agent-large.jsonl")
+        val text = "x".repeat(20_000)
+        Files.writeString(agent, (1..40).joinToString("\n") { index ->
+            """{"type":"assistant","sessionId":"$id","message":{"role":"assistant","content":[{"type":"text","text":"$index $text"}]}}"""
+        } + "\n")
+
+        val provider = ClaudeCodeSessionProvider({ root }, { "claude" })
+        val entries = provider.conversationEntries(provider.scan(emptyMap()).single())
+        assertEquals(1, entries.count { it.kind == EntryKind.COVERAGE })
+        assertTrue(entries.sumOf { it.text.length } <= com.hedworth.seshlog.model.ConversationLimits.TOTAL_CHARS + com.hedworth.seshlog.model.ConversationLimits.NOTICE.length)
     }
 }

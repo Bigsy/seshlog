@@ -18,6 +18,7 @@ class TranscriptInfoStoreTest {
         sessionId = "abc", cwd = "/Users/tester/my project", gitBranch = "main", version = "1.0.0",
         promptTitle = "Fix the \"flaky\" test", aiTitle = "Fix flaky test", customTitle = null,
         startedAt = Instant.ofEpochMilli(1_700_000_000_000), promptCount = 3,
+        continuationId = "next-session",
     )
 
     @Test

@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"subagent-session","timestamp":"2026-09-27T11:00:03Z","message":{"role":"user","content":"Check the parser edge case"}}
+{"type":"assistant","sessionId":"subagent-session","timestamp":"2026-09-27T11:00:04Z","message":{"role":"assistant","content":[{"type":"text","text":"The parser accepts the queued form."}]}}

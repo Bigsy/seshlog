@@ -4,7 +4,9 @@ import com.hedworth.seshlog.cache.FileBackedParseCache
 import com.hedworth.seshlog.cache.FileStamp
 import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.EntryKind
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
 import com.hedworth.seshlog.terminal.ExtraArguments
@@ -15,6 +17,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
+import com.hedworth.seshlog.copy.LastAssistantReader
+import com.hedworth.seshlog.model.ConversationLimits
 
 /**
  * Reads Claude Code's local data (`~/.claude`). Read-only, always.
@@ -78,6 +82,10 @@ class ClaudeCodeSessionProvider(
             val id = info.sessionId ?: path.fileName.toString().removeSuffix(".jsonl")
             val cwd = info.cwd?.let { runCatching { Paths.get(it) }.getOrNull() } ?: continue // no user record yet: nothing to resume into
             val liveEntry = live[id]
+            val subagents = listSubagentTranscripts(path)
+            val lastActivityMillis = sequenceOf(attrs.lastModifiedTime().toMillis()) +
+                subagents.asSequence().mapNotNull { FileStamp.of(it)?.mtimeMillis }
+            val lastActivity = Instant.ofEpochMilli(lastActivityMillis.maxOrNull() ?: attrs.lastModifiedTime().toMillis())
             sessions += Session(
                 kind = kind,
                 id = id,
@@ -85,7 +93,7 @@ class ClaudeCodeSessionProvider(
                 cwd = cwd,
                 gitBranch = info.gitBranch,
                 startedAt = info.startedAt,
-                lastActivityAt = Instant.ofEpochMilli(attrs.lastModifiedTime().toMillis()),
+                lastActivityAt = lastActivity,
                 transcriptPath = path,
                 isLive = liveEntry != null,
                 livePid = liveEntry?.pid,
@@ -94,6 +102,8 @@ class ClaudeCodeSessionProvider(
                 hasExplicitTitle = info.hasExplicitTitle,
                 activity = activityOf(liveEntry?.status),
                 activitySince = liveEntry?.statusUpdatedAt,
+                subagentTranscriptPaths = subagents,
+                continuationId = info.continuationId,
             )
         }
         cache.persist()
@@ -101,23 +111,43 @@ class ClaudeCodeSessionProvider(
     }
 
     override fun conversationText(session: Session): List<String> =
-        session.transcriptPath?.let { TranscriptTextExtractor.extract(it) } ?: emptyList()
+        session.transcriptPath?.let { main ->
+            TranscriptTextExtractor.extract(main) + subagentPaths(session).flatMap { TranscriptTextExtractor.extract(it) }
+        } ?: emptyList()
 
     override fun conversationMessages(session: Session): List<ConversationMessage> =
         session.transcriptPath?.let { TranscriptTextExtractor.messages(it) } ?: emptyList()
 
-    override fun conversationEntries(session: Session): List<com.hedworth.seshlog.model.ConversationEntry> =
-        session.transcriptPath?.let { com.hedworth.seshlog.model.ConversationLimits.read(it, ClaudeConversationEntries::parse) } ?: emptyList()
+    override fun conversationEntries(session: Session): List<ConversationEntry> =
+        session.transcriptPath?.let { main ->
+            val collector = ConversationLimits.Collector()
+            ConversationLimits.readInto(main, ClaudeConversationEntries::parse, collector)
+            for (path in subagentPaths(session)) {
+                ConversationLimits.readInto(path, { line, sourceId ->
+                    ClaudeConversationEntries.parse(line, sourceId).map { entry ->
+                        val source = "subagent:${path.fileName}:${entry.sourceId}"
+                        if (entry.kind == EntryKind.DIALOGUE) {
+                            entry.copy(sourceId = source, kind = EntryKind.TOOL_RESULT, toolName = "Claude subagent")
+                        } else entry.copy(sourceId = source)
+                    }
+                }, collector)
+            }
+            collector.finish()
+        } ?: emptyList()
 
     override fun latestPlan(session: Session) = ClaudePlanReader.read(session)
 
     override fun lastAssistantMessage(session: Session) =
-        com.hedworth.seshlog.copy.LastAssistantReader.read(session.transcriptPath, ConversationMessages::parseLine)
+        LastAssistantReader.read(session.transcriptPath, ConversationMessages::parseLine)
 
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> =
         session.transcriptPath?.let { TranscriptTailReader.lastMessages(it, count) } ?: emptyList()
 
-    override fun contentStamp(session: Session): Any? = FileStamp.of(session.transcriptPath)
+    private data class ContentStamp(val main: FileStamp?, val subagents: List<Pair<Path, FileStamp?>>)
+
+    override fun contentStamp(session: Session): Any? = session.transcriptPath?.let { main ->
+        ContentStamp(FileStamp.of(main), subagentPaths(session).map { it to FileStamp.of(it) })
+    }
 
     /** `projects/<escaped-cwd>/<uuid>.jsonl` only — subagent dirs, memory/ and index files are skipped. */
     /** Claude Code writes `busy` while generating or running tools and `idle` at its prompt. */
@@ -149,4 +179,26 @@ class ClaudeCodeSessionProvider(
         }
         return result
     }
+
+    /** Claude keeps agent-*.jsonl below a directory named after the parent transcript. */
+    private fun listSubagentTranscripts(transcript: Path): List<Path> {
+        val stem = transcript.fileName.toString().removeSuffix(".jsonl")
+        val roots = listOf(transcript.parent.resolve(stem).resolve("subagents"))
+        return roots.flatMap { root ->
+            if (!Files.isDirectory(root)) emptyList()
+            else try {
+                Files.list(root).use { files ->
+                    files.filter { Files.isRegularFile(it) && it.fileName.toString().let { name -> name.startsWith("agent-") && name.endsWith(".jsonl") } }
+                        .sorted().toList()
+                }
+            } catch (e: Exception) {
+                LOG.debug("Cannot list Claude subagents under $root", e)
+                emptyList()
+            }
+        }.distinct()
+    }
+
+    private fun subagentPaths(session: Session): List<Path> =
+        session.subagentTranscriptPaths.ifEmpty { session.transcriptPath?.let(::listSubagentTranscripts).orEmpty() }
+
 }

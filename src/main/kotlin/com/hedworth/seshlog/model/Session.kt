@@ -28,6 +28,10 @@ data class Session(
     val activity: Activity = Activity.UNKNOWN,
     /** When [activity] last changed, when the agent records that. */
     val activitySince: Instant? = null,
+    /** Claude subagent transcripts belonging to this session; kept as metadata paths only. */
+    val subagentTranscriptPaths: List<Path> = emptyList(),
+    /** Successor session id from a Claude `continued-in` record, when present. */
+    val continuationId: String? = null,
 ) {
     /** Branch worth showing: not empty and not a detached `HEAD`. */
     val displayBranch: String?

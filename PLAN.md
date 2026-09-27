@@ -343,7 +343,7 @@ Checked against the cached platforms:
 
 ## 5. Code health
 
-- [ ] **5.1 Make terminal tracking a pure reconciler.**
+- [x] **5.1 Make terminal tracking a pure reconciler.**
   `OwnedTerminalTabs.refreshRunning` reconciles four stores (`TabRegistry`, `ObservedAgents`,
   `endedSessions`, `running`) written from three paths (index sync, process tick, copy resolver),
   each with its own staleness checks and no per-tab generation. Extract a pure function (tab

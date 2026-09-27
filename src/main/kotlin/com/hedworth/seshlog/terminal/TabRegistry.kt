@@ -13,6 +13,9 @@ import com.hedworth.seshlog.restore.ProcessTree
  */
 class TabRegistry<T : Any> {
     private val bySession = LinkedHashMap<String, T>()
+    // Closed Content handles must not be retained solely by stale polling generations.
+    private val generationByTab = java.util.WeakHashMap<T, Long>()
+    private var nextGeneration = 0L
 
     val sessionIds: Set<String> get() = synchronized(bySession) { bySession.keys.toSet() }
 
@@ -23,15 +26,30 @@ class TabRegistry<T : Any> {
     /** The session running in [tab], or null when it is not one of ours. */
     fun sessionFor(tab: T): String? = synchronized(bySession) { bySession.entries.firstOrNull { it.value == tab }?.key }
 
+    /** Monotonic tab identity used to reject delayed process results after a quick reuse. */
+    fun generation(tab: T): Long = synchronized(bySession) { generationByTab[tab] ?: 0L }
+
+    fun generations(tabs: Collection<T>): Map<T, Long> = synchronized(bySession) {
+        tabs.associateWith { generationByTab[it] ?: 0L }
+    }
+
+    fun snapshot(): Map<String, T> = synchronized(bySession) { LinkedHashMap(bySession) }
+
+    private fun bump(tab: T) {
+        generationByTab[tab] = ++nextGeneration
+    }
+
     fun register(sessionId: String, tab: T) {
         synchronized(bySession) {
+            bump(tab)
             bySession.entries.removeAll { it.value == tab && it.key != sessionId }
             bySession[sessionId] = tab
         }
     }
 
     /** Apply background evidence only if ownership still matches the snapshot it inspected. */
-    fun adoptDiscovered(sessionId: String, tab: T, previousSessionId: String?): Boolean = synchronized(bySession) {
+    fun adoptDiscovered(sessionId: String, tab: T, previousSessionId: String?, expectedGeneration: Long? = null): Boolean = synchronized(bySession) {
+        if (expectedGeneration != null && generation(tab) != expectedGeneration) return@synchronized false
         if (sessionFor(tab) != previousSessionId) return@synchronized false
         if (bySession[sessionId]?.let { it != tab } == true) return@synchronized false
         register(sessionId, tab)
@@ -39,15 +57,20 @@ class TabRegistry<T : Any> {
     }
 
     /** [sessionId]'s agent exited in [tab]: end that association only if it is still current. */
-    fun release(sessionId: String, tab: T): Boolean = synchronized(bySession) {
+    fun release(sessionId: String, tab: T, expectedGeneration: Long? = null): Boolean = synchronized(bySession) {
+        if (expectedGeneration != null && generation(tab) != expectedGeneration) return@synchronized false
         if (bySession[sessionId] != tab) return@synchronized false
         bySession.remove(sessionId)
+        bump(tab)
         true
     }
 
     /** The tab was closed: drop every session that pointed at it. */
     fun forget(tab: T) {
-        synchronized(bySession) { bySession.values.removeAll { it == tab } }
+        synchronized(bySession) {
+            bySession.values.removeAll { it == tab }
+            bump(tab)
+        }
     }
 
     /** Tabs whose title should change, in `(tab, new title)` form. */

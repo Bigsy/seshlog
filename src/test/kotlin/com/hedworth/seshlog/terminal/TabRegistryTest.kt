@@ -199,4 +199,23 @@ class TabRegistryTest {
         assertEquals(setOf("b"), registry.sessionIds)
         assertEquals(tabB, registry.tabFor("b"))
     }
+
+    @Test
+    fun `tab generation rejects a delayed result after same-owner re registration`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("a", tabA)
+        val before = registry.generation(tabA)
+        registry.register("a", tabA)
+        assertFalse(registry.adoptDiscovered("old", tabA, "a", before))
+        assertEquals("a", registry.sessionFor(tabA))
+    }
+
+    @Test
+    fun `tab generation rejects a delayed release after explicit forget`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("a", tabA)
+        val before = registry.generation(tabA)
+        registry.forget(tabA)
+        assertFalse(registry.release("a", tabA, before))
+    }
 }

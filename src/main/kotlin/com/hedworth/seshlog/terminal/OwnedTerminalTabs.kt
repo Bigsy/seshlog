@@ -97,6 +97,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** Capture the invoking tab on EDT; verify its current agent on the clipboard worker. */
     fun copySessionResolver(content: Content): () -> Session? {
         val previous = sessionFor(content)
+        val previousGeneration = registry.generation(content)
         val last = lastSessionFor(content)
         val shell = TerminalTabs.terminalOf(project, content)?.shellPid()
         val executables = executables()
@@ -108,7 +109,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             if (id != null && shell != null && (id == previous || id != last)) ApplicationManager.getApplication().invokeLater {
                 if (!disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
                     TerminalTabs.terminalOf(project, content)?.shellPid() == shell &&
-                    registry.adoptDiscovered(id, content, previous)) tabObserver.refresh()
+                    registry.adoptDiscovered(id, content, previous, previousGeneration)) tabObserver.refresh()
             }
             id?.let(index::sessionById)
         }
@@ -160,6 +161,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         }
         val inspected = TerminalTabs.tabsWithShellPids(project).filterValues { it != null }
         val previousOwners = inspected.keys.associateWith(registry::sessionFor)
+        val previousGenerations = registry.generations(inspected.keys)
         val executables = executables()
         val watched = agents.snapshot()
         processInspection.run(inspect = {
@@ -181,56 +183,98 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             ProcessObservations(found, discoveries, handles, exited)
         }, apply = { result ->
             val (found, discoveries, handles, exited) = result
-            val ownershipBefore = registry.sessionIds.associateWith(registry::tabFor)
-                if (!disposed && !project.isDisposed) {
-                    // Ignore results for tabs replaced or closed while the check ran.
-                    val valid = found.keys.filterTo(HashSet()) { id ->
-                        val shell = candidates.first { it.first == id }.second
-                        terminalFor(id)?.shellPid() == shell
-                    }
-                    for (id in valid) {
-                        agents.observe(id, found.getValue(id))
-                        registry.tabFor(id)?.let(TerminalCommands::observed)
-                    }
-                    for ((id, tabs) in discoveries) {
-                        // Never guess between two terminals or overwrite ownership changed
-                        // while this background inspection was running.
-                        val content = tabs.singleOrNull() ?: continue
-                        if (Disposer.isDisposed(content)) continue
-                        if (TerminalTabs.terminalOf(project, content)?.shellPid() != inspected[content]) continue
-                        if (SessionIndex.getInstance().sessionById(id) == null) continue
-                        val pending = pendingSessions.isPending(content)
-                        if (pending && pendingSessions.candidate(content, setOf(id)) != id) continue
-                        if (!registry.adoptDiscovered(id, content, previousOwners[content])) continue
-                        if (pending) {
-                            pendingSessions.resolve(content, setOf(id))
-                            SessionIndex.getInstance().sessionById(id)?.let {
-                                com.hedworth.seshlog.restore.SessionRestoreManager.getInstance(project).recordLaunch(it)
-                            }
+            if (!disposed && !project.isDisposed) {
+                val ownershipBefore = registry.snapshot()
+                val generationNow = registry.generations(inspected.keys)
+                val stableTabs = inspected.filter { (tab, shell) ->
+                    !Disposer.isDisposed(tab) &&
+                        TerminalTabs.terminalOf(project, tab)?.shellPid() == shell
+                }.keys
+                val validFound = found.filter { (id, _) ->
+                    val candidate = candidates.firstOrNull { it.first == id } ?: return@filter false
+                    val tab = ownershipBefore[id] ?: return@filter false
+                    tab in stableTabs && inspected[tab] == candidate.second
+                }
+                val allDiscoveries = discoveries.flatMap { (id, tabs) ->
+                    tabs.map { tab -> TabProcessDiscovery(tab, id, handles[id]) }
+                }.filter { it.tab in stableTabs }
+                val idsByTab = allDiscoveries.groupBy { it.tab }
+                    .mapValues { (_, values) -> values.mapTo(LinkedHashSet()) { it.sessionId } }
+                // A pending launch may resolve only when its tab has exactly one fresh identity.
+                // Do this before the pure reconciler so ambiguity cannot be consumed one id at a time.
+                val usableDiscoveries = allDiscoveries.filter { discovery ->
+                    !pendingSessions.isPending(discovery.tab) ||
+                        pendingSessions.candidate(discovery.tab, idsByTab[discovery.tab].orEmpty()) != null
+                }
+                val reconciliation = TerminalReconciler.reconcile(
+                    TerminalReconcileInput(
+                        sessions = snapshot,
+                        ownership = ownershipBefore,
+                        ownershipAtInspection = previousOwners,
+                        discoveries = usableDiscoveries,
+                        running = validFound.keys,
+                        observedBefore = watched,
+                        observedNow = agents.snapshot(),
+                        exited = exited,
+                        tabTitles = stableTabs.associateWith { it.displayName },
+                        displayTitle = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()::title,
+                        generationsAtInspection = previousGenerations,
+                        generationsNow = generationNow,
+                        runningProcesses = validFound,
+                    ),
+                )
+                for ((id, tab) in reconciliation.adopt) {
+                    if (Disposer.isDisposed(tab)) continue
+                    if (TerminalTabs.terminalOf(project, tab)?.shellPid() != inspected[tab]) continue
+                    val pending = pendingSessions.isPending(tab)
+                    val candidateIds = idsByTab[tab].orEmpty()
+                    // Recheck the pending association immediately before adoption. The
+                    // injected expiry clock may have advanced while the worker result was
+                    // waiting for the EDT; never leave a registry entry without resolving it.
+                    if (pending && pendingSessions.candidate(tab, candidateIds) != id) continue
+                    if (!registry.adoptDiscovered(id, tab, previousOwners[tab], previousGenerations[tab])) continue
+                    if (pending) {
+                        pendingSessions.resolve(tab, candidateIds)
+                        SessionIndex.getInstance().sessionById(id)?.let {
+                            com.hedworth.seshlog.restore.SessionRestoreManager.getInstance(project).recordLaunch(it)
                         }
-                        previousOwners[content]?.let(valid::remove)
-                        valid += id
-                        TerminalCommands.observed(content)
-                        handles[id]?.let { agents.observe(id, it) }
-                    }
-                    // The exact process seen running a tab's session exited: detach it from that tab.
-                    for (id in agents.ended(watched, exited)) {
-                        val content = registry.tabFor(id) ?: continue
-                        if (registry.release(id, content)) endedSessions[content] = id
-                        valid -= id
-                    }
-                    agents.retainOnly(registry.sessionIds)
-                    tabObserver.refresh()
-                    val changed = running != valid || ownershipBefore != registry.sessionIds.associateWith(registry::tabFor)
-                    val active = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow != null
-                    val cadence = ProcessPollingPolicy.next(pollingState, active, changed)
-                    pollingState = cadence.state
-                    processClock.delay = cadence.delayMillis.toInt()
-                    if (running != valid) {
-                        running = valid
-                        project.messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningSessionIds())
                     }
                 }
+                for ((id, tab) in reconciliation.releaseTabs) {
+                    if (Disposer.isDisposed(tab)) continue
+                    if (TerminalTabs.terminalOf(project, tab)?.shellPid() != inspected[tab]) continue
+                    if (registry.release(id, tab, previousGenerations[tab])) endedSessions[tab] = id
+                }
+                for ((id, process) in reconciliation.observe) {
+                    val tab = registry.tabFor(id) ?: continue
+                    if (Disposer.isDisposed(tab)) continue
+                    if (TerminalTabs.terminalOf(project, tab)?.shellPid() != inspected[tab]) continue
+                    agents.observe(id, process)
+                    TerminalCommands.observed(tab)
+                }
+                for ((content, title) in reconciliation.retitle) {
+                    if (Disposer.isDisposed(content)) continue
+                    if (TerminalTabs.terminalOf(project, content)?.shellPid() != inspected[content]) continue
+                    LOG.debug("Retitling terminal tab '${content.displayName}' -> '$title'")
+                    TerminalTabs.terminalOf(project, content)?.rename(title)
+                }
+                agents.retainOnly(registry.sessionIds)
+                tabObserver.refresh()
+                val valid = reconciliation.running.filterTo(HashSet()) { id ->
+                    val tab = registry.tabFor(id) ?: return@filterTo false
+                    !Disposer.isDisposed(tab) &&
+                        TerminalTabs.terminalOf(project, tab)?.shellPid() == inspected[tab]
+                }
+                val changed = running != valid || ownershipBefore != registry.snapshot()
+                val active = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow != null
+                val cadence = ProcessPollingPolicy.next(pollingState, active, changed)
+                pollingState = cadence.state
+                processClock.delay = cadence.delayMillis.toInt()
+                if (running != valid) {
+                    running = valid
+                    project.messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningSessionIds())
+                }
+            }
         })
     }
 

@@ -1,5 +1,17 @@
 package com.hedworth.seshlog.terminal
 
+import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
+
+import com.intellij.testFramework.PlatformTestUtil
+
+import com.intellij.openapi.wm.ToolWindow
+
+import com.intellij.openapi.wm.ToolWindowFactory
+
+import com.intellij.openapi.wm.ToolWindowAnchor
+
+import com.intellij.openapi.wm.RegisterToolWindowTask
+
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.content.ContentFactory
@@ -10,6 +22,38 @@ import javax.swing.JPanel
 
 /** Run on 2024.1, 2026.1 and 2026.2: exercise the installed API and its plugin/module classloader. */
 class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
+
+    fun `test starting terminal ownership does not create an unopened Terminal tool window`() {
+        val manager = ToolWindowManager.getInstance(project)
+        var window = manager.getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
+        var registered = false
+        var contentCreations = 0
+        if (window == null) {
+            window = manager.registerToolWindow(RegisterToolWindowTask(
+                id = TerminalToolWindowFactory.TOOL_WINDOW_ID,
+                anchor = ToolWindowAnchor.BOTTOM,
+                canCloseContent = false,
+                contentFactory = object : ToolWindowFactory {
+                    override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) { contentCreations++ }
+                },
+            ))
+            registered = true
+        }
+        val actualWindow = requireNotNull(window)
+        try {
+            val getIfCreated = actualWindow.javaClass.methods.firstOrNull { it.name == "getContentManagerIfCreated" }
+                ?: error("Current platform must expose getContentManagerIfCreated")
+            val existing = getIfCreated.invoke(window)
+            OwnedTerminalTabs.getInstance(project).start()
+            PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+            assertSame("Ownership polling must not replace/create content", existing, getIfCreated.invoke(window))
+            assertEquals("Ownership polling must not invoke the content factory", 0, contentCreations)
+        } finally {
+            if (registered) manager.unregisterToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
+        }
+    }
+
+
     private fun api(name: String) = ReworkedTerminal.loadApiClass(name)
     private fun proxy(name: String, answer: (String) -> Any?): Any {
         val type = api(name)

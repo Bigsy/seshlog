@@ -37,8 +37,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         private set
 
     private val tabObserver = TerminalTabObserver(
+        project = project,
         rootManager = { ToolWindowManager.getInstance(project)
-            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.contentManager },
+            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.getContentManagerIfCreated() },
         openContents = { TerminalTabs.contents(project) },
         selectionChanged = { content -> updateActiveSession(content) },
         tabClosed = { content -> registry.forget(content); endedSessions.remove(content) },

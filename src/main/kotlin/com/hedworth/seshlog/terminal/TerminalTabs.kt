@@ -53,7 +53,7 @@ object TerminalTabs {
     /** Include unowned/new-engine tabs too, so focusing one clears the active session. */
     internal fun contents(project: Project): List<Content> {
         val root = ToolWindowManager.getInstance(project)
-            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.contentManager
+            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.getContentManagerIfCreated()
         val tabs = root?.let(::contentsRecursively).orEmpty()
         return (tabs + widgets(project).mapNotNull { contentOf(project, it) }).distinct()
     }

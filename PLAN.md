@@ -237,7 +237,7 @@ Checked against the cached platforms:
     slow to about 10 s while no IDE frame is active and after several unchanged ticks.
   - Test: a tick with a fake process source and N tabs calls the snapshot and `lsof` runners once each.
 
-- [ ] **3.2 Stop initialising the Terminal tool window in every project.**
+- [x] **3.2 Stop initialising the Terminal tool window in every project.**
   `ToolWindow.contentManager` creates the tool window's content, which runs
   `TerminalToolWindowFactory` and restores its tabs. `terminal/TerminalTabs.kt:55` (`contents`),
   `terminal/OwnedTerminalTabs.kt:41` and the focus path in `TerminalTabObserver` reach it at
@@ -248,7 +248,8 @@ Checked against the cached platforms:
     listener that dispatches to the focused project.
   - Test: starting `OwnedTerminalTabs` in a project whose Terminal tool window was never opened
     leaves its content uncreated.
-  - Manual: open a project without opening Terminal; no restored shells start.
+  - Manual: still owed — open a project without opening Terminal; no restored shells start.
+    The headless fixture checks that no content factory runs and the existing manager is unchanged.
 
 - [ ] **3.3 Cap the content search index.**
   Only per-session caps exist (`model/ConversationLimits.kt`). The first query extracts every

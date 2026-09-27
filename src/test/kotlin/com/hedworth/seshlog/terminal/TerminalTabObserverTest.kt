@@ -199,4 +199,27 @@ class TerminalTabObserverTest : BasePlatformTestCase() {
             observer.dispose()
         }
     }
+
+    fun `test application focus dispatcher only selects the observer owning the focused tab`() {
+        val firstManager = manager()
+        val secondManager = manager()
+        val first = tab(firstManager, "first")
+        val second = tab(secondManager, "second")
+        var firstSelection: Content? = null
+        var secondSelection: Content? = null
+        val firstObserver = TerminalTabObserver({ firstManager }, { listOf(first) }, { firstSelection = it }, {}, project = project)
+        val secondObserver = TerminalTabObserver({ secondManager }, { listOf(second) }, { secondSelection = it }, {}, {})
+        try {
+            firstObserver.refresh()
+            secondObserver.refresh()
+            firstSelection = null
+            secondSelection = null
+            TerminalFocusDispatcher.getInstance().dispatch(first.component, project)
+            assertSame(first, firstSelection)
+            assertNull(secondSelection)
+        } finally {
+            firstObserver.dispose()
+            secondObserver.dispose()
+        }
+    }
 }

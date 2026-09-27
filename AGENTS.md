@@ -14,7 +14,7 @@ make release  # test + buildPlugin + verify the zip
 ```
 
 - If Gradle cannot reach the network in this environment, add `--offline`.
-- `SESHLOG_BENCH=1 ./gradlew test --tests '*RealDataScanBenchmark*'` scans the real `~/.claude`.
+- `SESHLOG_BENCH=1 ./gradlew test --tests '*RealDataScanBenchmark*'` scans real Claude, Codex and Pi histories, printing only counts and timings.
   Skipped by default; never in CI.
 
 ## Hard constraints
@@ -78,6 +78,6 @@ make release  # test + buildPlugin + verify the zip
 - Take items in the order PLAN.md suggests unless told otherwise. Tick a box when its regression
   test passes under `make check`. Note in the plan where a manual check in `make run` is still owed.
 - One commit per plan item. No co-authorship or "Generated with" trailers.
-- Do not widen into README roadmap items (generated titles, live opencode sessions, housekeeping)
-  unless asked. "Rename" in the roadmap is the local title override in PLAN.md.
+- Keep implementation scoped to PLAN.md unless asked otherwise. Local title overrides never rename
+  or rewrite agent-owned transcripts.
 - Line references in PLAN.md carry the symbol name; trust the symbol, re-find the line.

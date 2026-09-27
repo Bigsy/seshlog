@@ -13,6 +13,18 @@ before the change. Tick the box when that test passes under `make check`, and ad
 "manual:" note when a `make run` check is still owed. Line numbers carry the symbol name: trust
 the symbol, re-find the line.
 
+## Implementation validation — 2026-09-27
+
+All implementation items are complete; manual IDE checks called out below remain outstanding.
+
+- `make check`: 365 passed, one opt-in real-data benchmark skipped.
+- `make release`: tests, plugin build and ZIP integrity check passed.
+- `verifyPlugin`: compatible with installed IntelliJ IDEA IU-262.10968.63. Experimental and
+  deprecated API warnings remain; EAP 263 has not been checked locally.
+- Warm search benchmark for the matching change: Codex 1,019 → 139 ms, Claude 97 → 19 ms,
+  Pi 3 → 1 ms, with unchanged hit counts. These isolate matching, before the later memory cap.
+- Deliberate adjustments are recorded under 0.3, 3.4, 4.2, 4.7 and 4.8.
+
 ## 0. Platform baseline
 
 Target the IDE in daily use (IntelliJ IDEA 2026.2.3, reworked terminal) and drop older builds.
@@ -47,7 +59,8 @@ Checked against the cached platforms:
 - [x] **0.2 Delete compatibility code the new baseline makes dead.** No behaviour change.
   - `terminal/ReworkedTerminal.kt:151` (`legacyRunning`) and the `!hasSessionApi` branches in
     `handle.shellPid`/`state` (`:103`, `:117`), plus `localProject` if nothing else uses it.
-  - `terminal/TerminalTabs.kt:60` (`contentsRecursively`): call `ContentManager.getContentsRecursively()` directly.
+  - `terminal/TerminalTabs.kt:60` (`contentsRecursively`): call `ContentManager.getContentsRecursively()`
+    directly.
   - `ui/SessionTreePanel.kt:302` (`invoke`): route double-click and Enter through
     `ActionUtil.performAction` (present since 2025.2), as its comment anticipates.
   - `settings/SeshlogConfigurable.kt:121`: use the current `Row.textFieldWithBrowseButton` overload.
@@ -66,8 +79,13 @@ Checked against the cached platforms:
   allows, and the verifier will list experimental API usage. Spike it; if the module cannot be
   declared cleanly, keep the reflective adapter and record why here.
 
+  - Decision: use the declared terminal frontend content module and typed APIs. Keep the tab-key
+    fallback, private restoration readiness, and internal session/PID lookup reflective. The verifier
+    rejects direct references to `TerminalSession` and `getSessionDeferred` as internal API usage; failed
+    reflective inspection remains unknown and never blocks. Local validation targets IU-262.10968.63; EAP
+    263 remains a CI/manual compatibility check.
+
 ## 1. Fix first
-  - Decision: use the declared terminal frontend content module and typed APIs. Keep the tab-key fallback, private restoration readiness, and internal session/PID lookup reflective. The verifier rejects direct references to TerminalSession and getSessionDeferred as internal API usage; failed reflective inspection remains unknown and never blocks. Local validation targets IU-262.10968.63; EAP 263 remains a CI/manual compatibility check.
 
 - [x] **1.1 Codex subagent rollouts are listed under their parent's id.**
   `codex/CodexTranscriptParser.kt:103` (`offerSessionMeta`) prefers `payload.session_id` over
@@ -261,7 +279,8 @@ Checked against the cached platforms:
     read in buffered chunks.
   - Test: with a small budget, older entries are evicted and re-extracted on demand, and results
     are unchanged.
-  - The default budget is 32 million original-plus-folded characters. Search visits cached candidates first to avoid eviction thrashing while preserving result tie order.
+  - The default budget is 32 million original-plus-folded characters. Search visits cached candidates
+    first to avoid eviction thrashing while preserving result tie order.
 
 - [x] **3.4 Parse only the appended part of a changed transcript.**
   `cache/FileBackedParseCache.kt:63` (`get`) re-reads a changed transcript from the start (35 to
@@ -272,7 +291,9 @@ Checked against the cached platforms:
     changed. Persist on a timer and at shutdown. Metadata only, as now.
   - Test: parse, append lines, parse again: same info as a full parse; truncation triggers a
     full parse.
-  - Claude and Codex resume from validated byte checkpoints; truncation, replacement and unterminated final records fall back safely. Pi retains full parsing because its branch structure needs the complete transcript; its metadata cache still gains deferred persistence.
+  - Claude and Codex resume from validated byte checkpoints; truncation, replacement and unterminated
+    final records fall back safely. Pi retains full parsing because its branch structure needs the
+    complete transcript; its metadata cache still gains deferred persistence.
 
 ## 4. Features
 
@@ -304,8 +325,8 @@ Checked against the cached platforms:
   the unread "viewed" signal.
   - Test: opening a fixture builds a read-only light file with the expected Markdown; viewing the
     last reply clears unread.
-  - Manual: behaviour with the Markdown plugin disabled.
-  - Verified with Markdown absent using a plain-text fallback; F3/Shift+F3 navigate carried search matches. Manual: still owed — splits and rendered Markdown view with the Markdown plugin enabled.
+  - Verified with Markdown absent using a plain-text fallback; F3/Shift+F3 navigate carried search
+    matches. Manual: still owed — splits and rendered Markdown view with the Markdown plugin enabled.
 
 - [x] **4.4 Render Markdown in the preview.**
   `ui/SessionPreviewPanel.kt:176` (`toHtml`) wraps each message in `<pre>`. Render assistant
@@ -322,7 +343,6 @@ Checked against the cached platforms:
   dropdown. Replace the `JOptionPane` custom range in `chooseDateFilter` (`:83`) with a validating
   `DialogWrapper`.
   - Test: existing filter tests in `SeshlogToolWindowTest` drive the new actions.
-  - Manual: the header at a narrow tool window width.
   - Manual: still owed — inspect the header at a narrow tool-window width.
 
 - [x] **4.6 Claude subagent transcripts and continuations.**
@@ -337,7 +357,9 @@ Checked against the cached platforms:
   equivalents, which tool search already parses, with Open and Compare with Current actions.
   Paths only, extracted on demand, nothing written to disk.
   - Test: fixtures per agent yield the expected paths.
-  - Extraction uses bounded in-memory conversation data and reports incomplete coverage. Complete Write payloads can be compared with current files; patch payloads remain labeled as patches, never reconstructed historical files.
+  - Extraction uses bounded in-memory conversation data and reports incomplete coverage. Complete Write
+    payloads can be compared with current files; patch payloads remain labeled as patches, never
+    reconstructed historical files.
 
 - [x] **4.8 Read Codex metadata from `state_5.sqlite`.**
   codex-cli 0.157 keeps a `threads` table (rollout_path, source, cwd, title, name, archived,
@@ -346,7 +368,9 @@ Checked against the cached platforms:
   `OpenCodeDatabase`.
   - Test: a fixture database built from SQL like `opencode_fixture.sql`; a missing table falls
     back to rollouts.
-  - Adjustment: union database paths with disk discovery so database lag cannot hide fresh sessions. Cold transcript parsing remains necessary for prompt/activity fields absent from SQLite; archived sessions remain visible.
+  - Adjustment: union database paths with disk discovery so database lag cannot hide fresh sessions. Cold
+    transcript parsing remains necessary for prompt/activity fields absent from SQLite; archived sessions
+    remain visible.
 
 ## 5. Code health
 
@@ -368,7 +392,7 @@ Checked against the cached platforms:
   61 in `SessionTreePanel.kt`, more in `SessionActions.kt`, the providers, `OpenCodeDatabase.kt`
   and `SessionRestoreManager.kt`. Mechanical, no behaviour change.
 
-- [ ] **5.4 Docs.**
+- [x] **5.4 Docs.**
   - README links to AGENTS.md and PLAN.md, but both are gitignored (AGENTS.md in `.gitignore`,
     PLAN.md in the global ignore), so the links are dead on GitHub. Track AGENTS.md or drop
     the links.

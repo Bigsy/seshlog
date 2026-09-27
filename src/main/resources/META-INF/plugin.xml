@@ -17,6 +17,10 @@
         <li>Copy the latest identifiable plan from Claude Code or Codex for review elsewhere</li>
         <li>Use both copy actions from a known session's terminal, the session list or the conversation viewer; assign your own shortcuts in Settings &rarr; Keymap</li>
         <li>Restore the sessions that were running when the IDE was closed</li>
+        <li>Activity badges and waiting notifications show when an agent needs input</li>
+        <li>Unread reply markers and next-attention navigation help you follow concurrent sessions</li>
+        <li>Pin, locally rename or hide sessions without modifying agent data</li>
+        <li>Filter by date, agent and sibling worktrees</li>
     </ul>
     Entirely local: Seshlog reads the agent's transcripts read-only, never writes to them, and makes
     no network requests — no telemetry, no analytics, nothing leaves your machine.

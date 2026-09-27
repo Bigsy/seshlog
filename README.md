@@ -20,13 +20,16 @@ Click a screenshot to view it full size.
 ## What it does
 
 - Groups sessions by project, with titles, branches and recent activity.
-- Resumes or forks a session in an IDE terminal; focuses its tab if it is already running.
+- Starts, resumes or forks a session in an IDE terminal; focuses its tab if it is already running.
 - Searches titles, project paths and conversations, with highlighted matches and a message preview.
 - Filters by agent, project and date. Pin, rename or hide sessions to keep the list manageable.
 - Shows activity for tracked sessions, notifies you when they need input, and offers to restore
   eligible sessions after an IDE restart.
 - Marks newly finished turns as unread, shows working/unread counts on project rows, and jumps
   to the next unread session from the toolbar or a configurable shortcut.
+- Opens conversations in read-only editor tabs and renders Markdown in the recent-message preview.
+- Includes Claude subagent activity in search and offers an action to open a recorded continuation.
+- Lists recognized file changes with Open and Compare with Current actions.
 - Copies the latest assistant reply, or the latest explicit Claude Code or Codex plan, without
   selecting terminal output.
 
@@ -52,14 +55,16 @@ Then choose **Settings → Plugins → ⚙ → Install Plugin from Disk…** and
 
 ## Using Seshlog
 
-The **Agents** menu selects which agents to show. Project and date filters apply to both browsing
-and search; you can include sibling worktrees or show sessions from all projects.
+The **Filters** menu contains agent, date, hidden-session and sibling-worktree controls.
+Project and date filters apply to both browsing and search; you can include sibling worktrees or show sessions from all projects.
 
-Search matches words in any order. Use `"quoted phrases"` for exact phrases. Select a result to read
-its conversation, then use **F3 / Shift+F3** in the viewer to jump between matches. Clear the search
-to return to the recent-message preview.
+Search matches words in any order. Use `"quoted phrases"` for exact phrases. Select a result and
+choose **Open Conversation** to read it in a read-only editor tab, then use **F3 / Shift+F3** to jump
+between matches. The editor also supports normal Find; Markdown rendering is available when its
+IDE plugin is enabled. Clear the search to return to the recent-message preview.
 
-Right-click a session to resume, fork, pin, rename, hide or copy from it. **Kill Session** stops its
+Use **New Session** in the toolbar or a project row to start an agent with its configured executable
+and arguments. Right-click a session to resume, fork, pin, rename, hide or copy from it. **Kill Session** stops its
 processes and closes its terminal tab in the current project; the saved conversation remains available.
 
 For keyboard copying, assign **Seshlog: Copy Last Assistant Message** and **Seshlog: Copy Latest Plan**
@@ -79,7 +84,9 @@ Project rows show counts such as **2 working · 1 unread**, including when colla
 the current filters. Use the toolbar's **Next Session Needing Attention** action, or assign
 **Seshlog: Next Session Needing Attention** under **Settings → Keymap**, to cycle through unread
 sessions in tree order. It expands the target project and opens the associated terminal or latest
-reply. The shortcut is unassigned by default and does not change your filters.
+reply. The shortcut is unassigned by default and does not change your filters. The tool-window icon also
+shows unread attention, and the optional **Seshlog attention** status bar widget shows counts and
+opens the next session needing attention.
 
 ### Limitations
 
@@ -92,6 +99,11 @@ reply. The shortcut is unassigned by default and does not change your filters.
   Partial conversation views do not clear unread badges when the latest reply cannot be verified.
 - Large conversations have search and viewer limits; partial coverage is shown in the UI.
   Images and thinking are excluded. Tool text is searchable for Claude Code, Codex and opencode.
+- **Files Changed** lists recognized operations in the retained transcript text, so it can be partial.
+  Complete Write calls can be compared with the current file; edits and patches show their recorded
+  operation rather than reconstructing a historical file.
+- A fresh tab is reserved immediately, but association needs exact identity evidence. Fresh Pi or
+  opencode sessions may remain unassociated when their process does not identify the session.
 - Pi uses its saved active branch and includes user/assistant text only. Custom session directories
   must be configured in Settings. Pi sessions are not restored after a restart.
 - Plan copying supports explicit Claude Code and Codex plans only. A Claude plan stored solely as
@@ -103,8 +115,8 @@ reply. The shortcut is unassigned by default and does not change your filters.
 Seshlog runs locally and makes **no network requests**. There is no telemetry or analytics.
 
 Agent transcripts are read-only. Seshlog keeps settings and metadata caches in IDE storage;
-conversation content and the search index stay in memory. Reading opencode's SQLite database can
-update its shared-memory index (`opencode.db-shm`), but does not modify stored sessions.
+conversation content and the search index stay in memory. SQLite metadata reads use read-only
+connections; SQLite can update an existing shared-memory index while leaving stored sessions unchanged.
 
 ## Development
 

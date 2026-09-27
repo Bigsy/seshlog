@@ -28,6 +28,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private val LOG = logger<OwnedTerminalTabs>()
 
     private val registry = TabRegistry<Content>()
+    private val pendingSessions = PendingSessionAssociations<Content>()
     private val agents = ObservedAgents<ProcessHandle>()
     // A tab's session after its agent exited: no longer attached, but copy/fork still act on it.
     private val endedSessions = EndedSessions<Content>()
@@ -42,7 +43,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.getContentManagerIfCreated() },
         openContents = { TerminalTabs.contents(project) },
         selectionChanged = { content -> updateActiveSession(content) },
-        tabClosed = { content -> registry.forget(content); endedSessions.remove(content) },
+        tabClosed = { content -> registry.forget(content); endedSessions.remove(content); pendingSessions.forget(content) },
     )
 
     val sessionIds: Set<String> get() = registry.sessionIds
@@ -63,12 +64,21 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** The id of the session running in terminal tab [content], if we know one. */
     fun sessionFor(content: Content): String? = registry.sessionFor(content)
 
+    internal fun ownsTab(content: Content): Boolean = sessionFor(content) != null || pendingSessions.isPending(content)
+
+    internal fun trackPending(terminal: TerminalHandle, existingIds: Set<String>) {
+        terminal.content?.let { pendingSessions.mark(it, existingIds) }
+        tabObserver.refresh()
+    }
+
+    internal fun cancelPending(terminal: TerminalHandle) { terminal.content?.let(pendingSessions::forget) }
+
     /** The attached session, else the one whose agent last exited in [content]. EDT only. */
     fun lastSessionFor(content: Content): String? = sessionFor(content) ?: endedSessions[content]
 
     /** Includes temporarily detached tabs; disposal is the only definitive end of ownership. */
     internal fun knownContents(): List<Content> =
-        registry.sessionIds.mapNotNull(::undisposedContent).distinct()
+        (registry.sessionIds.mapNotNull(::undisposedContent) + pendingSessions.tabs).filter { !Disposer.isDisposed(it) }.distinct()
 
     /** Repair a missed adoption before an action, without waiting for transcript activity. EDT only. */
     fun resolveSession(content: Content): String? {
@@ -189,7 +199,15 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         if (Disposer.isDisposed(content)) continue
                         if (TerminalTabs.terminalOf(project, content)?.shellPid() != inspected[content]) continue
                         if (SessionIndex.getInstance().sessionById(id) == null) continue
+                        val pending = pendingSessions.isPending(content)
+                        if (pending && pendingSessions.candidate(content, setOf(id)) != id) continue
                         if (!registry.adoptDiscovered(id, content, previousOwners[content])) continue
+                        if (pending) {
+                            pendingSessions.resolve(content, setOf(id))
+                            SessionIndex.getInstance().sessionById(id)?.let {
+                                com.hedworth.seshlog.restore.SessionRestoreManager.getInstance(project).recordLaunch(it)
+                            }
+                        }
                         previousOwners[content]?.let(valid::remove)
                         valid += id
                         TerminalCommands.observed(content)

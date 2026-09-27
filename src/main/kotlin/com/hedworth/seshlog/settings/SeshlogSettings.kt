@@ -101,6 +101,20 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         get() = state.piExtraArgs
         set(value) { state.piExtraArgs = value }
 
+    fun executable(kind: com.hedworth.seshlog.model.AgentKind): String = when (kind) {
+        com.hedworth.seshlog.model.AgentKind.CLAUDE_CODE -> claudeExecutable
+        com.hedworth.seshlog.model.AgentKind.CODEX -> codexExecutable
+        com.hedworth.seshlog.model.AgentKind.OPENCODE -> opencodeExecutable
+        com.hedworth.seshlog.model.AgentKind.PI -> piExecutable
+    }
+
+    fun extraArgs(kind: com.hedworth.seshlog.model.AgentKind): String = when (kind) {
+        com.hedworth.seshlog.model.AgentKind.CLAUDE_CODE -> claudeExtraArgs
+        com.hedworth.seshlog.model.AgentKind.CODEX -> codexExtraArgs
+        com.hedworth.seshlog.model.AgentKind.OPENCODE -> opencodeExtraArgs
+        com.hedworth.seshlog.model.AgentKind.PI -> piExtraArgs
+    }
+
     fun resolvedPiSessionsDir(): Path = resolvePiSessionsDir(state.piSessionsDir)
 
     var opencodeShowArchived: Boolean

@@ -13,8 +13,9 @@ object TerminalLauncher {
     private val LOG = logger<TerminalLauncher>()
 
     /** Must be called on the EDT. Returns a handle for the new tab. */
-    fun launch(project: Project, workingDirectory: Path, tabTitle: String, command: String): TerminalHandle {
+    fun launch(project: Project, workingDirectory: Path, tabTitle: String, command: String, onCreated: (TerminalHandle) -> Unit = {}): TerminalHandle {
         TerminalTabs.reworked.launch(project, workingDirectory.toString(), tabTitle)?.let { terminal ->
+            onCreated(terminal)
             TerminalCommands.execute(terminal, command)
             return terminal
         }
@@ -28,6 +29,7 @@ object TerminalLauncher {
         )
         LOG.debug("Launching in terminal tab '$tabTitle' at $workingDirectory: $command")
         return TerminalTabs.classic(widget, TerminalTabs.contentOf(project, widget)).also {
+            onCreated(it)
             TerminalCommands.execute(it, command)
         }
     }

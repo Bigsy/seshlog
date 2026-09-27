@@ -332,6 +332,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private fun createToolbar(): ActionToolbar {
         val group = DefaultActionGroup().apply {
             add(ActionManager.getInstance().getAction("Seshlog.Refresh"))
+            add(ActionManager.getInstance().getAction("Seshlog.NewSession"))
             add(ActionManager.getInstance().getAction("Seshlog.NextAttention"))
             add(ToggleAllProjectsAction())
             add(object : ToggleAction("Sibling Worktrees", "Include worktrees sharing this repository", AllIcons.Vcs.Branch) {
@@ -710,10 +711,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     override fun getData(dataId: String): Any? = when {
         SeshlogDataKeys.SESSION.`is`(dataId) -> selectedSession()
         SeshlogDataKeys.PANEL.`is`(dataId) -> this
+        SeshlogDataKeys.PROJECT_CWD.`is`(dataId) -> selectedProjectCwd()
         CommonDataKeys.PROJECT.`is`(dataId) -> project
         PlatformDataKeys.CONTEXT_COMPONENT.`is`(dataId) -> tree
         else -> null
     }
+
+    private fun selectedProjectCwd(): Path? =
+        ((tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? ProjectGroup)?.cwd
+            ?: project.basePath?.let { Paths.get(it) }
 
     internal fun refreshBadges(ids: Set<String>) {
         renderer.runningOwned = ids

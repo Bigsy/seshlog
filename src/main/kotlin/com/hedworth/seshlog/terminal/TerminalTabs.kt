@@ -80,7 +80,7 @@ object TerminalTabs {
      * plugin itself restored after a restart, which comes back as a plain shell.
      */
     fun findIdleTab(project: Project, title: String, originalTitle: String? = null): TerminalHandle? =
-        contents(project).asSequence().filter { it.displayName in listOfNotNull(title, originalTitle) && OwnedTerminalTabs.getInstance(project).sessionFor(it) == null }
+        contents(project).asSequence().filter { it.displayName in listOfNotNull(title, originalTitle) && !OwnedTerminalTabs.getInstance(project).ownsTab(it) }
             .mapNotNull { terminalOf(project, it) }.firstOrNull { TerminalCommands.state(it) == TerminalState.IDLE }
 
     fun terminalOf(project: Project, content: Content): TerminalHandle? {
@@ -121,7 +121,7 @@ object TerminalTabs {
         return ResumeTerminal.resume(
             session.id, owned.terminalFor(session.id),
             contents(project).filter { it.displayName == title || it.displayName == session.title }.mapNotNull { terminalOf(project, it) },
-            owns = { it.content?.let(owned::sessionFor) != null },
+            owns = { it.content?.let(owned::ownsTab) == true },
             idle = { TerminalCommands.state(it) == TerminalState.IDLE },
             execute = { TerminalCommands.execute(it, "cd ${ShellQuote.quote(session.cwd.toString())} && $command") },
             launch = { TerminalLauncher.launch(project, session.cwd, title, command) },

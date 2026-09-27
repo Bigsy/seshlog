@@ -80,7 +80,15 @@
                 icon="AllIcons.Actions.NextOccurence"/>
         <action id="Seshlog.Refresh" class="com.hedworth.seshlog.ui.actions.RefreshSessionsAction"
                 text="Refresh" description="Rescan session transcripts" icon="AllIcons.Actions.Refresh"/>
+        <group id="Seshlog.NewSession" popup="true" text="New Session" icon="AllIcons.Actions.Execute">
+            <action id="Seshlog.NewClaudeSession" class="com.hedworth.seshlog.ui.actions.NewClaudeSessionAction"/>
+            <action id="Seshlog.NewCodexSession" class="com.hedworth.seshlog.ui.actions.NewCodexSessionAction"/>
+            <action id="Seshlog.NewOpenCodeSession" class="com.hedworth.seshlog.ui.actions.NewOpenCodeSessionAction"/>
+            <action id="Seshlog.NewPiSession" class="com.hedworth.seshlog.ui.actions.NewPiSessionAction"/>
+        </group>
         <group id="Seshlog.ContextMenu" popup="true">
+            <reference ref="Seshlog.NewSession"/>
+            <separator/>
             <action id="Seshlog.Resume" class="com.hedworth.seshlog.ui.actions.ResumeSessionAction"
                     text="Resume" description="Resume this session in a new terminal tab" icon="AllIcons.Actions.Execute"/>
             <action id="Seshlog.Fork" class="com.hedworth.seshlog.ui.actions.ForkSessionAction"

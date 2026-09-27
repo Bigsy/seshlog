@@ -281,13 +281,17 @@ Checked against the cached platforms:
   - Test: a pure count function over sessions, running ids and unread ids; widget text from counts.
   - Manual: still owed — the badge shows with the tool window hidden and clears when the session is viewed.
 
-- [ ] **4.2 New session action.**
+- [x] **4.2 New session action.**
   Start a fresh Claude Code, Codex, opencode or Pi session in the project directory from the
   toolbar or a project row, with the configured executable and additional arguments. Seshlog owns
   the tab from the start (a pending association that resolves when the transcript appears), so
   these sessions skip the process and `lsof` discovery heuristics.
   - Test: command building per agent; a pending association resolves to the first new session
     seen in that tab.
+  - Adjustment: launch reserves its exact tab immediately; adoption still needs exact process or
+    transcript evidence. No cwd/time guessing. Pending reservations expire after 60 seconds;
+    fresh Pi/opencode sessions without exact identity evidence may remain unassociated.
+  - Manual: still owed — launch each configured agent and verify tab adoption.
 
 - [ ] **4.3 Open a conversation in a read-only editor tab.**
   `ui/ConversationDialog.kt` is a non-modal dialog around a plain `JBTextArea`. Open the

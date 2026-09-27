@@ -23,6 +23,37 @@ class ProcessTranscriptsTest {
         assertTrue(ProcessTranscripts.parseLsof("pbad\u0000f3\u0000aw\u0000n/file\u0000").isEmpty())
     }
 
+    @Test fun `exit one retains valid files and marks only missing pids unknown`() {
+        val result = ProcessTranscripts.resultFromLsof(setOf(100L, 200L), 1,
+            "p100\u0000\nf3\u0000aw\u0000n/rollout-current.jsonl\u0000\n")
+        assertEquals(setOf(Path.of("/rollout-current.jsonl")), result.files[100L])
+        assertEquals(setOf(200L), result.unknown)
+        assertEquals(setOf(100L), ProcessTranscripts.resultFromLsof(setOf(100L), 2, "").unknown)
+        assertTrue(ProcessTranscripts.resultFromLsof(setOf(100L), 0, "").unknown.isEmpty())
+    }
+
+    @Test fun `unknown files preserve current association instead of stale resume argument`() {
+        val old = session("stale")
+        val current = session("present")
+        val process = SessionProcess.Evidence(123, "/bin/codex", listOf("resume", "stale"))
+        val discovery = SessionProcess.identifyTree(listOf(process), listOf(old, current),
+            mapOf(AgentKind.CODEX to "codex"), ProcessTranscripts.Result(emptyMap(), setOf(123L)))
+        assertTrue(discovery.sessionIds.isEmpty())
+        assertEquals("present", discovery.copySession("present"))
+        assertNull("A known Codex process cannot copy an ended Claude session", discovery.copySession("old-claude"))
+    }
+
+    @Test fun `oversize transcript header cannot revive stale resume arguments`() {
+        val old = session("prior")
+        val current = session("large")
+        Files.writeString(current.transcriptPath!!, "{\"padding\":\"" + "x".repeat(70_000) + "\"}\n")
+        val discovery = SessionProcess.identifyTree(
+            listOf(SessionProcess.Evidence(123, "/bin/codex", listOf("resume", "prior"))), listOf(old, current),
+            mapOf(AgentKind.CODEX to "codex"), mapOf(123L to setOf(current.transcriptPath)))
+        assertTrue(discovery.sessionIds.isEmpty())
+        assertEquals("large", discovery.copySession("large"))
+    }
+
     private fun session(id: String, source: String = "\"cli\""): Session {
         val file = temporary.newFile("rollout-$id.jsonl").toPath()
         Files.writeString(file, """{"type":"session_meta","payload":{"id":"$id","source":$source}}""" + "\n")

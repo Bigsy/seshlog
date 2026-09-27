@@ -182,7 +182,7 @@ Checked against the cached platforms:
   - Test: a session live at click time is not resumed; an orphan whose handle is no longer alive
     is not terminated.
 
-- [ ] **2.2 An `lsof` failure reads as "no open files".**
+- [x] **2.2 An `lsof` failure reads as "no open files".**
   `terminal/ProcessTranscripts.kt:28` (`lsofFiles`) returns empty on timeout, on a non-zero exit
   (lsof exits 1 whenever any listed PID has gone, discarding output for the rest) and on oversize
   output. `terminal/SessionProcess.kt:61` (`identifyTree`) then falls back to process arguments,

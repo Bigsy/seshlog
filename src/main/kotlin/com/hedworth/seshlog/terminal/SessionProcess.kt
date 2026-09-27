@@ -40,10 +40,10 @@ internal object SessionProcess {
     }
 
     /** [processes] maps each identified session to the PID seen running it. */
-    internal data class Discovery(val sessionIds: Set<String>, val hasAgent: Boolean, val processes: Map<String, Long> = emptyMap()) {
+    internal data class Discovery(val sessionIds: Set<String>, val hasAgent: Boolean, val processes: Map<String, Long> = emptyMap(), val unknown: Boolean = false, val uncertainSessionIds: Set<String>? = null) {
         // A different/unidentified running agent must never copy the previous agent's reply.
         fun copySession(previous: String?): String? = sessionIds.singleOrNull()
-            ?: previous?.takeIf { sessionIds.isEmpty() && !hasAgent }
+            ?: previous?.takeIf { sessionIds.isEmpty() && (!hasAgent || (unknown && (uncertainSessionIds == null || previous in uncertainSessionIds))) }
     }
 
     /**
@@ -53,7 +53,7 @@ internal object SessionProcess {
     internal fun copySession(previous: String?, sessions: List<Session>, inspect: (List<Session>) -> Discovery,
                              rescan: () -> List<Session>): String? {
         val first = inspect(sessions)
-        val discovery = if (first.sessionIds.isEmpty() && first.hasAgent) inspect(rescan()) else first
+        val discovery = if (first.sessionIds.isEmpty() && first.hasAgent && !first.unknown) inspect(rescan()) else first
         return discovery.copySession(previous)
     }
 
@@ -63,10 +63,25 @@ internal object SessionProcess {
         writableFiles: Map<Long, Set<Path>>,
         isCliTranscript: (Path) -> Boolean = com.hedworth.seshlog.codex.CodexTranscriptParser::isCliTranscript,
     ): Discovery {
+        return identifyTree(processes, sessions, executables, ProcessTranscripts.Result(writableFiles), isCliTranscript)
+    }
+
+    internal fun identifyTree(
+        processes: List<Evidence>, sessions: List<Session>, executables: Map<AgentKind, String>,
+        evidence: ProcessTranscripts.Result,
+        isCliTranscript: (Path) -> Boolean = com.hedworth.seshlog.codex.CodexTranscriptParser::isCliTranscript,
+    ): Discovery {
+        val writableFiles = evidence.files
         val codex = executables[AgentKind.CODEX]
-        val writers = processes.filter { codex != null && isAgent(it, codex) }.flatMap { process ->
+        val codexProcesses = processes.filter { codex != null && isAgent(it, codex) }
+        var unknown = codexProcesses.any { it.pid in evidence.unknown }
+        val writers = codexProcesses.flatMap { process ->
             writableFiles[process.pid].orEmpty().filter { path ->
-                path.fileName.toString().let { it.startsWith("rollout-") && it.endsWith(".jsonl") } && isCliTranscript(path)
+                val rollout = path.fileName.toString().let { it.startsWith("rollout-") && it.endsWith(".jsonl") }
+                val cli = rollout && isCliTranscript(path)
+                // An unreadable/oversize header must not resurrect an old resume argument.
+                if (rollout && !cli) unknown = true
+                cli
             }.map { it to process.pid }
         }.toMap()
         val paths = writers.keys
@@ -78,8 +93,8 @@ internal object SessionProcess {
         }.toMap()
         val identified = processes.flatMap { process -> identify(process, sessions, executables).map { it to process.pid } }.toMap()
         val codexIds = sessions.filter { it.kind == AgentKind.CODEX }.mapTo(HashSet()) { it.id }
-        val owners = if (paths.isEmpty()) identified else identified.filterKeys { it !in codexIds } + written
-        return Discovery(owners.keys, processes.any { p -> executables.values.any { isAgent(p, it) } } || owners.isNotEmpty(), owners)
+        val owners = if (paths.isEmpty() && !unknown) identified else identified.filterKeys { it !in codexIds } + written
+        return Discovery(owners.keys, processes.any { p -> executables.values.any { isAgent(p, it) } } || owners.isNotEmpty(), owners, unknown && paths.isEmpty(), codexIds)
     }
 
     /** Discover fresh or resumed agents once per shell, entirely off the EDT. */
@@ -95,7 +110,7 @@ internal object SessionProcess {
         val pids = processes.filter { codex != null && isAgent(it, codex) }.mapTo(HashSet()) { it.pid }
         identifyTree(processes, sessions, executables, ProcessTranscripts.writableFiles(pids))
     } catch (_: Exception) {
-        Discovery(emptySet(), true) // Failed inspection is not proof that the old agent is still the target.
+        Discovery(emptySet(), true, unknown = true) // Preserve association when evidence is unavailable.
     }
 
     fun discover(shell: Long, sessions: List<Session>, executables: Map<AgentKind, String>): Set<String> =

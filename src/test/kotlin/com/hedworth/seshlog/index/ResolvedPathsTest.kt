@@ -5,6 +5,7 @@ import org.junit.Test
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 
 class ResolvedPathsTest {
@@ -33,5 +34,23 @@ class ResolvedPathsTest {
         val next = ResolvedPaths.resolve(listOf(missing, a, b))
         assertTrue(next.isUnderAny(missing, listOf(b)))
         assertFalse(next.isUnderAny(missing, listOf(a)))
+    }
+
+    @Test fun `incremental resolve keeps existing entries and resolves only new paths`() {
+        val firstPath = tmp.newFolder("first").toPath()
+        val secondPath = tmp.newFolder("second").toPath()
+        val calls = mutableListOf<Path>()
+        val first = ResolvedPaths.resolve(listOf(firstPath), resolver = { calls.add(it); it }, repositoryResolver = { null })
+
+        val next = ResolvedPaths.resolve(
+            listOf(firstPath, secondPath),
+            previous = first,
+            resolver = { calls.add(it); it },
+            repositoryResolver = { null },
+        )
+
+        assertEquals(listOf(firstPath, secondPath), calls)
+        assertTrue(next.isUnderAny(firstPath, listOf(firstPath)))
+        assertTrue(next.isUnderAny(secondPath, listOf(secondPath)))
     }
 }

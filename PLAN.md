@@ -105,7 +105,7 @@ Checked against the cached platforms:
     mixed case, phrases and a length-changing character such as `İ`. Put before/after benchmark
     timings in the commit message.
 
-- [ ] **1.4 Every scan redraws the list twice and reloads the preview.**
+- [x] **1.4 Every scan redraws the list twice and reloads the preview.**
   `ui/SessionTreePanel.kt:261` (`sessionsUpdated` listener) clears `requestedPaths`, so each scan
   renders at once and again when `preparePaths` (`:527`) finishes. Each render replaces the whole
   tree in `rebuildTree` (`:543`, `treeModel.setRoot`) and calls `preview.showSession` from `render`
@@ -118,7 +118,7 @@ Checked against the cached platforms:
     candidates changed.
   - Test: `SeshlogToolWindowTest`: deliver the same `sessionsUpdated` twice and assert the tree
     root instance and preview load count are unchanged; a changed session rebuilds once.
-  - Manual: scroll position and an open context menu survive a background rescan.
+  - Manual: still owed — scroll position and an open context menu survive a background rescan.
 
 - [x] **1.5 Continuous file changes postpone rescans indefinitely.**
   `index/SessionWatcher.kt:80` (`schedule`) cancels and re-arms a 1.5 s alarm on every VFS event

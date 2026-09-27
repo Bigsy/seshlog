@@ -228,7 +228,7 @@ class OpenTranscriptAction : TranscriptFileAction("Open Transcript", "Open the r
 
 class RefreshSessionsAction : DumbAwareAction("Refresh", "Rescan session transcripts", AllIcons.Actions.Refresh) {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
-    override fun actionPerformed(e: AnActionEvent) = SessionIndex.getInstance().refresh()
+    override fun actionPerformed(e: AnActionEvent) = SessionIndex.getInstance().refresh(forcePathResolution = true)
 }
 
 internal fun notify(project: Project, content: String, type: NotificationType) {

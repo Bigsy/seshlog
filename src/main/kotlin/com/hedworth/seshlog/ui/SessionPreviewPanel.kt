@@ -54,6 +54,10 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog preview", 1)
     private val generation = AtomicLong()
+    private var hasShownSession = false
+    /** Number of background preview reads requested; exposed for focused UI regression tests. */
+    internal var loadRequestCount = 0
+        private set
     private var completionReceipt: com.hedworth.seshlog.index.SessionAttention.Completion? = null
     private val viewObserver = CompletionViewObserver(this) {
         val target = session
@@ -98,30 +102,42 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     }
 
     /** Called on the EDT whenever the tree selection changes. */
-    fun showSession(session: Session?, query: String = "") {
-        completionReceipt = null
-        generation.incrementAndGet()
-        this.session = session
-        searchQuery = query.trim()
+    fun showSession(nextSession: Session?, query: String = "") {
+        val normalizedQuery = query.trim()
+        val previousSession = session
+        val sameContent = hasShownSession && previousSession?.id == nextSession?.id &&
+            previousSession?.lastActivityAt == nextSession?.lastActivityAt && searchQuery == normalizedQuery
+        session = nextSession
+        searchQuery = normalizedQuery
+        hasShownSession = true
         tailControls.isVisible = searchQuery.isEmpty()
         cards.show(body, if (searchQuery.isEmpty()) "tail" else "search")
-        conversation.clear(if (session == null) "Select a search result." else "Loading conversation…")
-        if (session == null) {
+        header.text = nextSession?.let { "<html><b>${esc(it.title)}</b></html>" } ?: ""
+        if (sameContent) return
+
+        completionReceipt = null
+        generation.incrementAndGet()
+        conversation.clear(if (nextSession == null) "Select a search result." else "Loading conversation…")
+        if (nextSession == null) {
             generation.incrementAndGet()
             alarm.cancelAllRequests()
-            header.text = ""
             render(emptyList(), "Select a session to preview its last messages.")
             return
         }
-        header.text = "<html><b>${esc(session.title)}</b></html>"
         scheduleLoad()
     }
 
     private fun scheduleLoad() {
+        loadRequestCount++
         completionReceipt = null
         generation.incrementAndGet()
         alarm.cancelAllRequests()
         alarm.addRequest({ load() }, DEBOUNCE_MS)
+    }
+
+    /** Re-read the selected transcript after a preview setting changed. */
+    internal fun reload() {
+        if (session != null) scheduleLoad()
     }
 
     private fun load() {

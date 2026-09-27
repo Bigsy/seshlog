@@ -75,6 +75,9 @@ class SessionIndex : Disposable {
 
     @Volatile var providerDiagnostics: Map<com.hedworth.seshlog.model.AgentKind, com.hedworth.seshlog.model.ProviderScan> = emptyMap()
         private set
+    /** Incremented for an explicit user refresh so UI caches can invalidate filesystem-derived data. */
+    @Volatile var pathRefreshGeneration: Long = 0
+        private set
     val isScanning: Boolean get() = scanning.get()
     private val scanning = AtomicBoolean(false)
     private val rescanRequested = AtomicBoolean(false)
@@ -106,7 +109,8 @@ class SessionIndex : Disposable {
     }
 
     /** Request a rescan. Coalesces: at most one scan runs at a time, one more can be queued. */
-    fun refresh() {
+    fun refresh(forcePathResolution: Boolean = false) {
+        if (forcePathResolution) pathRefreshGeneration++
         if (!scanning.compareAndSet(false, true)) {
             rescanRequested.set(true)
             return

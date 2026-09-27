@@ -63,8 +63,13 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     @Volatile private var resolvedPaths = ResolvedPaths.EMPTY
     private var requestedPaths: Set<Path> = emptySet()
-    private val pathScope = SearchRequestScope()
+    private var pathResolutionGeneration = 0L
     private var latestSessions: List<Session> = emptyList()
+    private var handledPathRefreshGeneration = index.pathRefreshGeneration
+    private var renderedGroups: List<ProjectGroup>? = null
+    private var lastSearchQuery: String? = null
+    private var lastSearchCandidates: List<Session>? = null
+    private var previewKey: PreviewKey? = null
 
     private val organisation get() = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
     private var showHidden = false
@@ -236,13 +241,19 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(statusLabel, BorderLayout.CENTER)
             add(retryButton, BorderLayout.EAST)
         }, BorderLayout.SOUTH)
-        retryButton.addActionListener { index.refresh(); if (activeQuery.isNotEmpty()) runSearch() }
+        retryButton.addActionListener {
+            invalidateResolvedPaths()
+            lastSearchQuery = null
+            lastSearchCandidates = null
+            index.refresh()
+            if (activeQuery.isNotEmpty()) runSearch()
+        }
         updateLoadingState()
         applyPreviewVisibility()
 
         tree.addTreeSelectionListener {
             selectedSession()?.let { rememberedSelection = it.id }
-            preview.showSession(selectedSession(), activeQuery)
+            showPreviewIfChanged()
         }
         tree.addTreeExpansionListener(object : javax.swing.event.TreeExpansionListener {
             override fun treeExpanded(event: javax.swing.event.TreeExpansionEvent) { rememberExpansion(event, false) }
@@ -258,7 +269,10 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             override fun scanStateChanged(scanning: Boolean) { updateLoadingState() }
             override fun sessionsUpdated(sessions: List<Session>) {
                 updateLoadingState()
-                requestedPaths = emptySet() // Refresh symlinks and missing ancestors on every scan.
+                if (handledPathRefreshGeneration != index.pathRefreshGeneration) {
+                    handledPathRefreshGeneration = index.pathRefreshGeneration
+                    invalidateResolvedPaths()
+                }
                 preparePaths(sessions)
                 // Agents without a pid file show their activity only while their owned tab still runs them.
                 renderer.runningOwned = OwnedTerminalTabs.getInstance(project).runningSessionIds()
@@ -269,6 +283,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(SeshlogSettingsListener.TOPIC, object : SeshlogSettingsListener {
             override fun settingsChanged() {
+                lastSearchQuery = null
+                lastSearchCandidates = null
                 this@SessionTreePanel.settingsChanged()
                 rerender()
             }
@@ -285,7 +301,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(
             com.hedworth.seshlog.settings.SessionOrganisation.TOPIC,
             object : com.hedworth.seshlog.settings.SessionOrganisation.Listener {
-                override fun changed() { rerender() }
+                override fun changed() {
+                    lastSearchQuery = null
+                    lastSearchCandidates = null
+                    rerender()
+                }
             },
         )
         render(index.sessions)
@@ -397,15 +417,17 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     /** Settings may have changed (configurable Apply): re-read preview visibility and count. */
     fun settingsChanged() {
+        previewKey = null
+        preview.reload()
         applyPreviewVisibility()
-        preview.showSession(selectedSession(), activeQuery)
+        showPreviewIfChanged()
     }
 
     private fun applyPreviewVisibility() {
         val show = settings.showPreview
         preview.isVisible = show
         splitter.secondComponent = if (show) preview else null
-        if (show) preview.showSession(selectedSession(), activeQuery)
+        if (show) showPreviewIfChanged()
         splitter.revalidate()
         splitter.repaint()
     }
@@ -422,10 +444,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             // Cleared (or too short): drop back to the plain list immediately.
             searchScope.cancel()
             searching = false
+            lastSearchQuery = null
+            lastSearchCandidates = null
             updateLoadingState()
             if (activeQuery.isNotEmpty()) {
                 activeQuery = ""
-                render(index.sessions)
+        render(index.sessions)
             }
             return
         }
@@ -438,10 +462,13 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         updateAgentMenu(index.sessions)
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) return
+        val candidates = baseFilter(index.sessions)
+        if (query == lastSearchQuery && candidates == lastSearchCandidates) return
+        lastSearchQuery = query
+        lastSearchCandidates = candidates
         activeQuery = query
         searching = true
         updateLoadingState()
-        val candidates = baseFilter(index.sessions)
         ContentSearchService.getInstance().search(searchScope, query, candidates) { hits ->
             // Stale delivery guard: the field may have changed since this search was requested.
             if (searchField.text.trim() == query) renderSearchResults(query, hits)
@@ -479,7 +506,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         val groups = SessionTreeModel.groupRanked(hits) { organisation.metadata(it.id).pinned }
         rebuildTree(groups)
-        preview.showSession(selectedSession(), activeQuery)
+        showPreviewIfChanged()
 
         val text: StatusText = tree.emptyText
         text.clear()
@@ -500,7 +527,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val app = ApplicationManager.getApplication()
         val update = Runnable {
             if (!project.isDisposed && !Disposer.isDisposed(this)) {
-                requestedPaths = emptySet()
+                invalidateResolvedPaths()
                 preparePaths(index.sessions)
                 rerender()
             }
@@ -519,21 +546,23 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         val groups = SessionTreeModel.group(filtered) { organisation.metadata(it.id).pinned }
         rebuildTree(groups)
-        preview.showSession(selectedSession(), activeQuery)
+        showPreviewIfChanged()
         updateEmptyText(all)
     }
 
     /** Capture UI roots here; resolution and all filesystem access happen on a worker. */
     private fun preparePaths(all: List<Session>) {
         val paths = (all.map { it.cwd } + projectRoots()).toSet()
-        if (paths == requestedPaths) return
-        requestedPaths = paths
-        val cancelled = pathScope.begin()
+        val missing = paths.filter { !resolvedPaths.contains(it) && it !in requestedPaths }.toSet()
+        if (missing.isEmpty()) return
+        requestedPaths = requestedPaths + missing
+        val generation = pathResolutionGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
-            val snapshot = ResolvedPaths.resolve(paths)
+            val snapshot = ResolvedPaths.resolve(missing, previous = resolvedPaths)
             ApplicationManager.getApplication().invokeLater {
-                if (!cancelled() && !project.isDisposed) {
-                    resolvedPaths = snapshot
+                if (generation == pathResolutionGeneration) requestedPaths = requestedPaths - missing
+                if (!project.isDisposed && !Disposer.isDisposed(this) && generation == pathResolutionGeneration) {
+                    resolvedPaths = resolvedPaths.merge(snapshot)
                     if (activeQuery.isNotEmpty()) runSearch() else render(latestSessions)
                 }
             }
@@ -541,6 +570,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     private fun rebuildTree(groups: List<ProjectGroup>) {
+        if (renderedGroups == groups) {
+            tree.repaint()
+            return
+        }
+        renderedGroups = groups.toList()
         val selection = selectedSession()?.id ?: rememberedSelection
         rebuildingTree = true
         try {
@@ -556,6 +590,32 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             rebuildingTree = false
         }
     }
+
+    private fun invalidateResolvedPaths() {
+        pathResolutionGeneration++
+        resolvedPaths = ResolvedPaths.EMPTY
+        requestedPaths = emptySet()
+    }
+
+    private fun showPreviewIfChanged() {
+        val session = selectedSession()
+        val key = PreviewKey(
+            session?.id,
+            session?.lastActivityAt,
+            activeQuery,
+            session?.let { organisation.title(it) },
+        )
+        if (key == previewKey) return
+        previewKey = key
+        preview.showSession(session, activeQuery)
+    }
+
+    private data class PreviewKey(
+        val sessionId: String?,
+        val lastActivityAt: java.time.Instant?,
+        val query: String,
+        val localTitle: String?,
+    )
 
     /** Re-select the session with [id] if it is still in the tree; a vanished session just loses selection. */
     private fun reselect(id: String) {
@@ -653,7 +713,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
     }
 
-    override fun dispose() { badgeClock.stop(); searchScope.dispose(); pathScope.dispose() }
+    override fun dispose() { badgeClock.stop(); searchScope.dispose() }
 
     companion object {
         const val MIN_QUERY_LENGTH = 2

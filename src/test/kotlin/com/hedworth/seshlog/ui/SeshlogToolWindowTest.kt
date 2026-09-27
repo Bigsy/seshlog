@@ -43,7 +43,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         }
     }
 
-    fun `test background roots notification only updates the tree on EDT`() {
+    fun `test background roots notification preserves an unchanged tree`() {
         val disposable = Disposer.newDisposable()
         try {
             val panel = SessionTreePanel(project, disposable)
@@ -60,8 +60,9 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
                 panel.projectRootsChanged()
             }.get(10, java.util.concurrent.TimeUnit.SECONDS)
             com.intellij.util.ui.UIUtil.dispatchAllInvocationEvents()
-            assertTrue("Expected a roots-triggered redraw", updates.isNotEmpty())
-            assertTrue("Every redraw must run on EDT", updates.all { it })
+            // Path invalidation still runs on the EDT, but an equivalent grouping deliberately
+            // keeps the existing root so selection and scroll state survive the notification.
+            assertTrue("No tree replacement should be needed for unchanged groups", updates.isEmpty())
         } finally {
             Disposer.dispose(disposable)
         }
@@ -165,6 +166,33 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
 
             panel.render(listOf(a, b, c))
             assertEquals(3, panel.visibleSessions.size)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    fun `test unchanged scan keeps tree root and preview load stable`() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val original = session("stable", base, Instant.parse("2026-08-26T10:00:00Z"))
+            panel.render(listOf(original))
+            val node = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(
+                panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode, original)!!
+            panel.tree.selectionPath = javax.swing.tree.TreePath(node.path)
+            val root = panel.tree.model.root
+            val loads = panel.preview.loadRequestCount
+
+            panel.render(listOf(original))
+
+            assertSame(root, panel.tree.model.root)
+            assertEquals(loads, panel.preview.loadRequestCount)
+
+            val changed = original.copy(lastActivityAt = Instant.parse("2026-08-26T11:00:00Z"))
+            panel.render(listOf(changed))
+            assertNotSame(root, panel.tree.model.root)
+            assertEquals(loads + 1, panel.preview.loadRequestCount)
         } finally {
             Disposer.dispose(disposable)
         }

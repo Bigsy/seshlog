@@ -202,7 +202,7 @@ Checked against the cached platforms:
   - Fix: `track` clears the session's observed agent.
   - Test: tracking after an observed exit does not release the new tab.
 
-- [ ] **2.4 An Error in a process tick stops tracking for the project.**
+- [x] **2.4 An Error in a process tick stops tracking for the project.**
   `terminal/OwnedTerminalTabs.kt:129` (`refreshRunning`) sets `checkingProcesses` before the pooled
   block and clears it only on the normal path.
   - Fix: clear it in `finally`.

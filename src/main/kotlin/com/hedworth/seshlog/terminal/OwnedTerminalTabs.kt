@@ -119,7 +119,11 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 
     private var running = emptySet<String>()
-    private var checkingProcesses = false
+    private val processInspection = ProcessInspection(
+        background = { ApplicationManager.getApplication().executeOnPooledThread(it) },
+        ui = { ApplicationManager.getApplication().invokeLater(it) },
+        failure = { LOG.debug("Terminal process inspection failed", it) },
+    )
     private var disposed = false
     private val processClock = javax.swing.Timer(2_000) { refreshRunning() }
 
@@ -127,7 +131,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     fun runningSessionIds(): Set<String> = running.intersect(registry.sessionIds)
 
     private fun refreshRunning() {
-        if (disposed || checkingProcesses) return
+        if (disposed || processInspection.isRunning) return
         acknowledgeVisibleCompletion()
         val snapshot = SessionIndex.getInstance().sessions
         // Shell startup and pane changes do not necessarily produce an index update. Retry
@@ -143,9 +147,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val previousOwners = inspected.keys.associateWith(registry::sessionFor)
         val executables = executables()
         val watched = agents.snapshot()
-        checkingProcesses = true
-        val app = ApplicationManager.getApplication()
-        app.executeOnPooledThread {
+        processInspection.run(inspect = {
             val found = candidates.mapNotNull { (id, shell, session) ->
                 SessionProcess.runningProcess(shell, session)?.let { id to it }
             }.toMap()
@@ -157,9 +159,10 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             val discoveries = inspections.groupBy({ it.second }, { it.first })
             val handles = inspections.mapNotNull { (_, id, handle) -> handle?.let { id to it } }.toMap()
             val exited = watched.filterValues { !it.isAlive }.keys
-            app.invokeLater {
-                checkingProcesses = false
-                if (!disposed && !project.isDisposed) {
+            ProcessObservations(found, discoveries, handles, exited)
+        }, apply = { result ->
+            val (found, discoveries, handles, exited) = result
+            if (!disposed && !project.isDisposed) {
                     // Ignore results for tabs replaced or closed while the check ran.
                     val valid = found.keys.filterTo(HashSet()) { id ->
                         val shell = candidates.first { it.first == id }.second
@@ -195,9 +198,15 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         project.messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningSessionIds())
                     }
                 }
-            }
-        }
+        })
     }
+
+    private data class ProcessObservations(
+        val found: Map<String, ProcessHandle>,
+        val discoveries: Map<String, List<Content>>,
+        val handles: Map<String, ProcessHandle>,
+        val exited: Set<String>,
+    )
 
     /** Remember that [widget]'s tab runs [session]. Must be called on the EDT. */
     fun track(session: Session, widget: TerminalHandle) {

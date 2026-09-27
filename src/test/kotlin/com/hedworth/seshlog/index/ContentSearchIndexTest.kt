@@ -108,6 +108,30 @@ class ContentSearchIndexTest {
     }
 
     @Test
+    fun `folded search preserves score and first snippet for mixed case and expanding unicode`() {
+        val folded = session("folded", "Other", listOf("prefix İSTANBUL and istanbul"))
+        val hits = index.search("iStAnBuL", listOf(folded))
+
+        assertEquals(1, hits.size)
+        assertEquals(2, hits.single().score)
+        assertEquals("prefix İSTANBUL and istanbul", hits.single().snippet)
+
+        val phrase = index.search("\"istanbul\"", listOf(folded)).single()
+        assertEquals(22, phrase.score)
+        assertEquals(hits.single().snippet, phrase.snippet)
+    }
+
+    @Test
+    fun `overlapping terms preserve distinct range count and shortest first match`() {
+        val overlapping = session("overlap", "Other", listOf("x".repeat(60) + "AB" + "z".repeat(60)))
+
+        val hit = index.search("ab a", listOf(overlapping)).single()
+
+        assertEquals(2, hit.score)
+        assertTrue(hit.snippet!!.endsWith("…"))
+    }
+
+    @Test
     fun `title match counts even without content match and outranks few content hits`() {
         val titled = session("t", "Rollback plan", listOf("unrelated"))
         val content = session("c", "Other", listOf("rollback rollback"))

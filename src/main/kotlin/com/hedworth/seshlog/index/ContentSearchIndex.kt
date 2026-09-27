@@ -38,6 +38,8 @@ class ContentSearchIndex(
     private class Entry(val stamp: Any?, val content: List<com.hedworth.seshlog.model.ConversationEntry>) {
         val searchable = content.filter { it.searchable }
         val texts = searchable.map { it.text }
+        /** Folded one-to-one with [texts], so indices can be used against the original text. */
+        val foldedTexts = texts.map(::foldCase)
         val partial = content.any { it.truncated || !it.searchable }
     }
 
@@ -60,24 +62,48 @@ class ContentSearchIndex(
             val entry = entryFor(session)
             val titles = listOf(session.title, localTitle(session))
             val texts = entry?.texts.orEmpty()
-            if (!parsed.matches(titles + session.cwd.toString() + texts)) continue
-            val titleTerms = parsed.terms.filter { term -> titles.any(term::matches) }
+            val foldedTitles = titles.map(::foldCase)
+            val foldedCwd = foldCase(session.cwd.toString())
+            val termMatched = BooleanArray(parsed.terms.size)
+            val phraseMatched = BooleanArray(parsed.terms.size)
+            parsed.terms.forEachIndexed { index, term ->
+                termMatched[index] = foldedTitles.any(term::matchesFolded) || term.matchesFolded(foldedCwd)
+            }
+            val titleTerms = parsed.terms.indices.count { index -> foldedTitles.any(parsed.terms[index]::matchesFolded) }
             var count = 0
             var snippet: String? = null
             var matchedEntry: com.hedworth.seshlog.model.ConversationEntry? = null
             for ((i, text) in texts.withIndex()) {
-                val ranges = parsed.ranges(text)
-                count = (count + ranges.size).coerceAtMost(9)
-                if (snippet == null && ranges.isNotEmpty()) {
-                    val first = ranges.first()
-                    matchedEntry = entry?.searchable?.get(i)
-                    snippet = (if (matchedEntry?.isTool == true) "${matchedEntry.label}: " else "") +
-                        snippet(text, first.first, first.last - first.first + 1)
+                val foldedText = entry!!.foldedTexts[i]
+                val seenRanges = HashSet<Long>()
+                var firstMatchAt: Int? = null
+                var firstMatchLength = 0
+                parsed.terms.forEachIndexed { termIndex, term ->
+                    var at = foldedText.indexOf(term.folded)
+                    if (at < 0) return@forEachIndexed
+                    termMatched[termIndex] = true
+                    if (term.phrase) phraseMatched[termIndex] = true
+                    if (firstMatchAt == null || at < firstMatchAt!! ||
+                        (at == firstMatchAt && term.folded.length < firstMatchLength)) {
+                        firstMatchAt = at
+                        firstMatchLength = term.folded.length
+                    }
+                    while (count < 9 && at >= 0) {
+                        val key = (at.toLong() shl 32) xor term.folded.length.toLong()
+                        if (seenRanges.add(key)) count++
+                        at = foldedText.indexOf(term.folded, at + term.folded.length)
+                    }
+                }
+                if (snippet == null && firstMatchAt != null) {
+                    matchedEntry = entry.searchable[i]
+                    snippet = (if (matchedEntry?.isTool == true) "${matchedEntry!!.label}: " else "") +
+                        snippet(text, firstMatchAt!!, firstMatchLength)
                 }
             }
-            val phraseBonus = parsed.terms.count { it.phrase && texts.any(it::matches) } * 20
-            hits += SearchHit(session, titleTerms.size * TITLE_BONUS + phraseBonus + count,
-                titleTerms.isNotEmpty(), snippet, matchedEntry?.sourceId, matchedEntry?.isTool == true, entry?.partial == true)
+            if (termMatched.any { !it }) continue
+            val phraseBonus = parsed.terms.indices.count { phraseMatched[it] } * 20
+            hits += SearchHit(session, titleTerms * TITLE_BONUS + phraseBonus + count,
+                titleTerms > 0, snippet, matchedEntry?.sourceId, matchedEntry?.isTool == true, entry?.partial == true)
         }
         hits.sortWith(compareByDescending<SearchHit> { it.score }.thenByDescending { it.session.lastActivityAt })
         return hits

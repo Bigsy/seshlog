@@ -26,4 +26,15 @@ class TextQueryTest {
         assertEquals(doc.text.indexOf("/tmp/a.kt"), matches.first().first)
         assertTrue(doc.matches("metadata-only").isEmpty())
     }
+
+    @Test fun `folding stays one UTF-16 character per source character`() {
+        val source = "xİstanbul"
+        val query = TextQuery.parse("ISTANBUL")
+        val range = query.ranges(source).single()
+
+        assertEquals(source.indexOf('İ'), range.first)
+        assertEquals(source.indexOf('İ') + "İstanbul".length - 1, range.last)
+        assertEquals("İstanbul", source.substring(range))
+        assertTrue(TextQuery.parse("i").matches(listOf("İ")))
+    }
 }

@@ -92,7 +92,7 @@ Checked against the cached platforms:
     Add Codex and Pi.
   - Test: none (skipped benchmark). Check its output contains no titles or paths.
 
-- [ ] **1.3 Search matching is slow on large histories.**
+- [x] **1.3 Search matching is slow on large histories.**
   A warm Codex query takes 3.3 s and runs on every keystroke (first query 11.3 s).
   `index/TextQuery.kt:9,16` (`QueryTerm.ranges`, `matches`) use `indexOf`/`contains(ignoreCase = true)`.
   `index/ContentSearchIndex.kt:54` (`search`) walks each text three times (match, ranges for count
@@ -104,6 +104,8 @@ Checked against the cached platforms:
   - Test: `ContentSearchIndexTest` cases proving identical hits, scores and snippet offsets for
     mixed case, phrases and a length-changing character such as `İ`. Put before/after benchmark
     timings in the commit message.
+  - Measured warm queries (before → after): Codex 1,019 → 139 ms, Claude 97 → 19 ms,
+    Pi 3 → 1 ms; hit counts unchanged. Numbers-only local benchmark, 2026-09-27.
 
 - [x] **1.4 Every scan redraws the list twice and reloads the preview.**
   `ui/SessionTreePanel.kt:261` (`sessionsUpdated` listener) clears `requestedPaths`, so each scan

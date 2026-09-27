@@ -2,18 +2,28 @@ package com.hedworth.seshlog.index
 
 /** Literal, case-insensitive terms; offsets always refer to the original UTF-16 text. */
 data class QueryTerm(val text: String, val phrase: Boolean) {
+    /** One-to-one folding keeps every index aligned with the original UTF-16 source. */
+    internal val folded: String = foldCase(text)
+
     fun ranges(source: String): List<IntRange> {
+        return rangesFolded(foldCase(source))
+    }
+
+    internal fun rangesFolded(foldedSource: String): List<IntRange> {
         val result = ArrayList<IntRange>()
         var from = 0
-        while (from <= source.length - text.length) {
-            val at = source.indexOf(text, from, ignoreCase = true)
+        while (from <= foldedSource.length - folded.length) {
+            val at = foldedSource.indexOf(folded, from)
             if (at < 0) break
-            result += at until at + text.length
-            from = at + text.length
+            result += at until at + folded.length
+            from = at + folded.length
         }
         return result
     }
-    fun matches(source: String): Boolean = source.contains(text, ignoreCase = true)
+
+    fun matches(source: String): Boolean = matchesFolded(foldCase(source))
+
+    internal fun matchesFolded(foldedSource: String): Boolean = foldedSource.indexOf(folded) >= 0
 }
 
 data class TextQuery(val terms: List<QueryTerm>) {
@@ -38,7 +48,14 @@ data class TextQuery(val terms: List<QueryTerm>) {
                 if (i > start) terms += QueryTerm(input.substring(start, i), phrase)
                 if (phrase && i < input.length) i++
             }
-            return TextQuery(terms.distinctBy { it.text.lowercase() to it.phrase })
+            return TextQuery(terms.distinctBy { it.folded to it.phrase })
         }
     }
+}
+
+/** Simple one-to-one Unicode case folding; unlike String.lowercase(), it cannot change length. */
+internal fun foldCase(value: String): String = buildString(value.length) {
+    // The upper-then-lower form mirrors String.regionMatches(ignoreCase = true), including
+    // pairs such as Greek sigma/final sigma, while retaining one UTF-16 unit per source unit.
+    value.forEach { append(Character.toLowerCase(Character.toUpperCase(it))) }
 }

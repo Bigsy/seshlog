@@ -23,6 +23,9 @@ import com.intellij.openapi.actionSystem.ActionToolbar
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.openapi.actionSystem.DataProvider
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.PlatformDataKeys
@@ -291,8 +294,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         })
 
         project.messageBus.connect(this).subscribe(
-            com.intellij.ProjectTopics.PROJECT_ROOTS,
-            object : com.intellij.openapi.roots.ModuleRootListener {
+            ModuleRootListener.TOPIC,
+            object : ModuleRootListener {
                 override fun rootsChanged(event: com.intellij.openapi.roots.ModuleRootEvent) {
                     projectRootsChanged()
                 }
@@ -312,16 +315,17 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         index.refresh()
     }
 
-    /**
-     * Run [action] on the current selection. Deliberately a direct call instead of going through
-     * ActionManager: ActionUtil.invokeAction is deprecated, its replacement (ActionUtil.performAction)
-     * only exists from 2025.2, and ActionManager.tryToExecute defers via
-     * IdeFocusManager.doWhenFocusSettlesDown — which would make double-click and Enter asynchronous.
-     * The context-menu path still goes through the action system, so listeners and stats keep working.
-     */
+    /** Run [action] through the action system on the current selection. */
     internal fun invoke(action: SessionAction) {
         val session = selectedSession() ?: return
-        action.perform(project, session)
+        val context = DataContext { dataId ->
+            when {
+                SeshlogDataKeys.SESSION.`is`(dataId) -> session
+                CommonDataKeys.PROJECT.`is`(dataId) -> project
+                else -> null
+            }
+        }
+        ActionUtil.performAction(action, AnActionEvent.createFromDataContext("Seshlog", null, context))
     }
 
     private fun createToolbar(): ActionToolbar {

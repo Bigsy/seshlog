@@ -1,11 +1,9 @@
 package com.hedworth.seshlog.settings
 
 import com.hedworth.seshlog.index.SessionIndex
-import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindItem
@@ -118,15 +116,7 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
     ) {
         group(title) {
             row(directoryLabel) {
-                // Row.textFieldWithBrowseButton's signature differs between 2024.1 (sinceBuild) and 2026.x
-                // (old overload is a compile error); a plain field + FileChooser works on both.
-                val field = TextFieldWithBrowseButton().apply {
-                    addActionListener {
-                        val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
-                        FileChooser.chooseFile(descriptor, null, null)?.let { text = it.path }
-                    }
-                }
-                cell(field)
+                textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor())
                     .bindText(dataDir)
                     .columns(40)
                     .comment(dataDirComment)

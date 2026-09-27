@@ -58,19 +58,8 @@ object TerminalTabs {
         return (tabs + widgets(project).mapNotNull { contentOf(project, it) }).distinct()
     }
 
-    private fun contentsRecursively(manager: ContentManager): List<Content> {
-        // This public API was added after our 2024.1 baseline. Use it when present to include
-        // reworked-terminal panes, which are not necessarily in the legacy widget registry.
-        return try {
-            val method = ContentManager::class.java.getMethod("getContentsRecursively")
-            (method.invoke(manager) as? List<*>)?.filterIsInstance<Content>() ?: manager.contents.toList()
-        } catch (_: NoSuchMethodException) {
-            manager.contents.toList()
-        } catch (e: ReflectiveOperationException) {
-            LOG.debug("Cannot enumerate nested terminal contents", e)
-            manager.contents.toList()
-        }
-    }
+    private fun contentsRecursively(manager: ContentManager): List<Content> =
+        manager.contentsRecursively.toList()
 
     /** The tool-window tab that hosts [widget], or null when it is not in a tab (yet). */
     fun contentOf(project: Project, widget: TerminalWidget): Content? = try {

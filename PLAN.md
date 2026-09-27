@@ -44,7 +44,7 @@ Checked against the cached platforms:
     Foojay resolver updated to 1.0.0 for Gradle 9.6 compatibility.
   - Manual: still owed — `make run`, resume in a reworked tab, copy from it, restart and restore.
 
-- [ ] **0.2 Delete compatibility code the new baseline makes dead.** No behaviour change.
+- [x] **0.2 Delete compatibility code the new baseline makes dead.** No behaviour change.
   - `terminal/ReworkedTerminal.kt:151` (`legacyRunning`) and the `!hasSessionApi` branches in
     `handle.shellPid`/`state` (`:103`, `:117`), plus `localProject` if nothing else uses it.
   - `terminal/TerminalTabs.kt:60` (`contentsRecursively`): call `ContentManager.getContentsRecursively()` directly.

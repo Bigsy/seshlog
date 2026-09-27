@@ -17,10 +17,9 @@ import javax.swing.tree.TreePath
 
 /**
  * The tree's Enter and double-click handlers run the Resume action on the current selection. They
- * used to go through the deprecated `ActionUtil.invokeAction`; they now call the action directly,
- * because both non-deprecated alternatives are unusable here — `ActionUtil.performAction` only
- * exists from 2025.2, and `ActionManager.tryToExecute` defers via
- * `IdeFocusManager.doWhenFocusSettlesDown`, which would make these handlers asynchronous.
+ * use `ActionUtil.performAction` with an explicit selection context rather than calling the action
+ * implementation directly. This keeps the same synchronous behavior while routing Enter and
+ * double-click through the platform action system.
  *
  * What these tests pin is the behaviour that has to survive that swap: Enter runs the action for the
  * selected session, and does nothing at all when there is no selection.

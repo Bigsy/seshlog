@@ -62,19 +62,19 @@ internal class ReworkedTerminal(
     }
 
     fun find(project: Project, content: Content): TerminalHandle? {
-        viewOf(content)?.let { return handle(content, it) { localProject(project) } }
+        viewOf(content)?.let { return handle(content, it) }
         return read {
             val manager = loadClass("${FRONTEND}.toolwindow.TerminalToolWindowTabsManager")
                 .getMethod("getInstance", Project::class.java).invoke(null, project)
-            findIn(manager, content) { localProject(project) }
+            findIn(manager, content)
         }
     }
 
-    internal fun findIn(manager: Any, content: Content, legacyLocal: () -> Boolean = { false }): TerminalHandle? = read {
+    internal fun findIn(manager: Any, content: Content): TerminalHandle? = read {
         val tabs = call(manager, "getTabs") as? List<*> ?: return@read null
         val tab = tabs.filterNotNull().firstOrNull { call(it, "getContent") === content } ?: return@read null
         val view = call(tab, "getView") ?: return@read null
-        handle(content, view, legacyLocal)
+        handle(content, view)
     }
 
     /** Null means this IDE lacks the API, or the user selected a different engine. */
@@ -93,20 +93,14 @@ internal class ReworkedTerminal(
         call(builder, "requestFocus", true)
         call(builder, "deferSessionStartUntilUiShown", false)
         val tab = requireNotNull(call(builder, "createTab"))
-        return handle(call(tab, "getContent") as Content, requireNotNull(call(tab, "getView"))) { localProject(project) }
+        return handle(call(tab, "getContent") as Content, requireNotNull(call(tab, "getView")))
     }
 
-    internal fun handle(content: Content?, view: Any, legacyLocal: () -> Boolean = { false }): TerminalHandle = object : TerminalHandle {
+    internal fun handle(content: Content?, view: Any): TerminalHandle = object : TerminalHandle {
         override val content = content
         init { content?.putUserData(VIEW_KEY, view) }
 
         override fun shellPid(): Long? = read {
-            if (!hasSessionApi(view)) {
-                if (!legacyLocal() || !legacyRunning(view)) return@read null
-                // 261 publishes only the local ProcessTtyConnector PID in startup options.
-                val options = completed(call(view, "getStartupOptionsDeferred")) ?: return@read null
-                return@read (call(options, "getPid") as? Number)?.toLong()?.takeIf { it > 0 }
-            }
             val session = session(view) ?: return@read null
             val descriptor = call(session, "getEelDescriptor") ?: return@read null
             // Remote PIDs must never be compared with, or used to terminate, local processes.
@@ -115,9 +109,7 @@ internal class ReworkedTerminal(
         }
 
         override fun state(): TerminalState = read {
-            if (hasSessionApi(view)) {
-                session(view) ?: return@read TerminalState.UNKNOWN
-            } else if (!legacyRunning(view)) return@read TerminalState.UNKNOWN
+            session(view) ?: return@read TerminalState.UNKNOWN
             val integration = completed(call(view, "getShellIntegrationDeferred")) ?: return@read TerminalState.UNKNOWN
             val status = (call(integration, "getOutputStatus") as? StateFlow<*>)?.value
             when (status?.javaClass?.simpleName) {
@@ -140,17 +132,6 @@ internal class ReworkedTerminal(
             super.rename(title)
         }
     }
-
-    private fun localProject(project: Project): Boolean = read {
-        val descriptor = loadClass("com.intellij.platform.eel.provider.EelProviderUtil")
-            .getMethod("getEelDescriptor", Project::class.java).invoke(null, project)
-        loadClass("com.intellij.platform.eel.provider.LocalEelDescriptor").isInstance(descriptor)
-    } ?: false
-
-    private fun hasSessionApi(view: Any) = view.javaClass.methods.any { it.name == "getSessionDeferred" && it.parameterCount == 0 }
-
-    private fun legacyRunning(view: Any): Boolean =
-        (call(view, "getSessionState") as? StateFlow<*>)?.value?.javaClass?.simpleName == "Running"
 
     /** null means the reworked API is absent; false includes initialization/failure. */
     fun tabsRestored(project: Project): Boolean? {

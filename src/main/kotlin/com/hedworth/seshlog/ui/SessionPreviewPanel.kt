@@ -28,6 +28,11 @@ import javax.swing.JEditorPane
 import javax.swing.JPanel
 import javax.swing.JSpinner
 import javax.swing.SpinnerNumberModel
+import com.hedworth.seshlog.index.SessionAttention
+import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.settings.SessionAttentionState
+import com.intellij.openapi.util.Disposer
+import java.awt.CardLayout
 
 /**
  * Bottom half of the tool window: the last N messages of the selected session, read lazily
@@ -45,7 +50,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         border = JBUI.Borders.empty(6)
     }
     internal val conversation = ConversationSearchPanel()
-    private val cards = java.awt.CardLayout()
+    private val cards = CardLayout()
     private val body = JPanel(cards)
     private val tailControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
     internal var searchQuery = ""
@@ -60,14 +65,14 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     /** Number of background preview reads requested; exposed for focused UI regression tests. */
     internal var loadRequestCount = 0
         private set
-    private var completionReceipt: com.hedworth.seshlog.index.SessionAttention.Completion? = null
+    private var completionReceipt: SessionAttention.Completion? = null
     private val viewObserver = CompletionViewObserver(this) {
         val target = session
         val viewed = if (searchQuery.isEmpty()) CompletionViewObserver.isViewed(editor) &&
             messages.any { it.role == Role.ASSISTANT } && editor.visibleRect.maxY >= editor.height - 4
         else CompletionViewObserver.isViewed(conversation.editor) && conversation.isLatestReplyVisible
         if (target != null && viewed) {
-            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().viewed(target.id, completionReceipt)
+            SessionAttentionState.getInstance().viewed(target.id, completionReceipt)
         }
     }
 
@@ -83,7 +88,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     internal val headerText: String get() = header.text
 
     init {
-        com.intellij.openapi.util.Disposer.register(parent, this)
+        Disposer.register(parent, this)
         countSpinner.toolTipText = "How many of the most recent messages to show"
         countSpinner.addChangeListener {
             settings.previewMessageCount = countSpinner.value as Int
@@ -147,7 +152,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
 
     private fun load() {
         val target = session ?: return
-        val receipt = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().receipt(target)
+        val receipt = SessionAttentionState.getInstance().receipt(target)
         val query = searchQuery
         val count = settings.previewMessageCount
         val myGen = generation.incrementAndGet()
@@ -156,7 +161,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
                 val provider = SessionIndex.getInstance().providerFor(target)
                 if (query.isNotEmpty()) provider.conversationEntries(target)
                 else provider.lastMessages(target, count).mapIndexed { i, message ->
-                    com.hedworth.seshlog.model.ConversationEntry(message, "preview:$i")
+                    ConversationEntry(message, "preview:$i")
                 }
             } catch (e: Exception) {
                 LOG.debug("Cannot read last messages of ${target.kind} session ${target.id}", e)
@@ -207,7 +212,14 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
                 val bg = if (m.role == Role.USER) " background-color:$userBg;" else ""
                 append("<div style='margin:0 0 8px 0; padding:4px 6px;$bg'>")
                 append("<span style='color:$gray'><b>").append(who).append("</b> ").append(ts).append("</span>")
-                append("<pre style='margin:2px 0 0 0; white-space:pre-wrap; font-family:inherit'>").append(esc(truncate(m.text))).append("</pre>")
+                if (m.role == Role.ASSISTANT) {
+                    append("<div style='margin:2px 0 0 0'>")
+                        .append(MarkdownPreviewRenderer.render(truncate(m.text)))
+                        .append("</div>")
+                } else {
+                    append("<pre style='margin:2px 0 0 0; white-space:pre-wrap; font-family:inherit'>")
+                        .append(esc(truncate(m.text))).append("</pre>")
+                }
                 append("</div>")
             }
             append("</body></html>")

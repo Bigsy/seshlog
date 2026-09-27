@@ -306,7 +306,7 @@ Checked against the cached platforms:
   - Manual: behaviour with the Markdown plugin disabled.
   - Verified with Markdown absent using a plain-text fallback; F3/Shift+F3 navigate carried search matches. Manual: still owed — splits and rendered Markdown view with the Markdown plugin enabled.
 
-- [ ] **4.4 Render Markdown in the preview.**
+- [x] **4.4 Render Markdown in the preview.**
   `ui/SessionPreviewPanel.kt:176` (`toHtml`) wraps each message in `<pre>`. Render assistant
   Markdown (headings, lists, code blocks) with the bundled `org.intellij.markdown` library,
   escaping raw HTML.

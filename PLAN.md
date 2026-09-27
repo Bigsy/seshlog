@@ -158,7 +158,7 @@ Checked against the cached platforms:
   - Test: synthetic fixture with one human queued prompt, one task notification and one peer
     message. Prompt count, `lastMessages` and conversation entries include only the human prompt.
 
-- [ ] **1.8 A local rename only shows in the tree.**
+- [x] **1.8 A local rename only shows in the tree.**
   The preview header (`ui/SessionPreviewPanel.kt:116`, `showSession`), the tooltip
   (`ui/SessionCellRenderer.kt:85`, `tooltip`), terminal tab titles (`terminal/TerminalTabs.kt:141,147,175`,
   `resume`/`fork`; `terminal/TabRegistry.kt:86`, `sync` retitles) and restore notifications
@@ -168,7 +168,7 @@ Checked against the cached platforms:
     The tooltip keeps the agent's title as a second line when they differ.
   - Test: rename a session, then assert the preview header, the `TabRegistry.sync` retitle and the
     fork tab title use the local title.
-  - Manual: rename a running session and watch its terminal tab title update.
+  - Manual: still owed — rename a running session and watch its terminal tab title update.
 
 ## 2. Tracking and restore hardening
 

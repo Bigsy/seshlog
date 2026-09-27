@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.SessionOrganisation
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
@@ -89,8 +90,8 @@ object TerminalTabs {
      * A terminal tab named [title] that is not running anything — typically a tab the terminal
      * plugin itself restored after a restart, which comes back as a plain shell.
      */
-    fun findIdleTab(project: Project, title: String): TerminalHandle? =
-        contents(project).asSequence().filter { it.displayName == title && OwnedTerminalTabs.getInstance(project).sessionFor(it) == null }
+    fun findIdleTab(project: Project, title: String, originalTitle: String? = null): TerminalHandle? =
+        contents(project).asSequence().filter { it.displayName in listOfNotNull(title, originalTitle) && OwnedTerminalTabs.getInstance(project).sessionFor(it) == null }
             .mapNotNull { terminalOf(project, it) }.firstOrNull { TerminalCommands.state(it) == TerminalState.IDLE }
 
     fun terminalOf(project: Project, content: Content): TerminalHandle? {
@@ -127,20 +128,21 @@ object TerminalTabs {
      */
     fun resume(project: Project, session: Session, command: String): TerminalHandle {
         val owned = OwnedTerminalTabs.getInstance(project)
+        val title = SessionOrganisation.getInstance().title(session)
         return ResumeTerminal.resume(
             session.id, owned.terminalFor(session.id),
-            contents(project).filter { it.displayName == session.title }.mapNotNull { terminalOf(project, it) },
+            contents(project).filter { it.displayName == title || it.displayName == session.title }.mapNotNull { terminalOf(project, it) },
             owns = { it.content?.let(owned::sessionFor) != null },
             idle = { TerminalCommands.state(it) == TerminalState.IDLE },
             execute = { TerminalCommands.execute(it, "cd ${ShellQuote.quote(session.cwd.toString())} && $command") },
-            launch = { TerminalLauncher.launch(project, session.cwd, session.title, command) },
+            launch = { TerminalLauncher.launch(project, session.cwd, title, command) },
             track = { _, terminal -> owned.track(session, terminal) },
             focus = { owned.focus(session.id) },
         )
     }
 
     /** Restore only after tab enumeration and the matching shell are ready. Called on EDT. */
-    fun prepareRestore(project: Project, title: String): Boolean {
+    fun prepareRestore(project: Project, title: String, originalTitle: String? = null): Boolean {
         val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
             ?: return false
         window.contentManager // Initialize the terminal's asynchronous restoration.
@@ -148,7 +150,7 @@ object TerminalTabs {
         // for classic-only IDEs; a missing API is the normal baseline path.
         return com.hedworth.seshlog.restore.RestoreTabReadiness.ready(
             restored = reworked.tabsRestored(project) != false,
-            matching = { contents(project).filter { it.displayName == title } },
+            matching = { contents(project).filter { it.displayName in listOfNotNull(title, originalTitle) } },
             state = { terminalOf(project, it)?.let(TerminalCommands::state) ?: TerminalState.UNKNOWN },
             // Restored shells start lazily when their component is shown, including inactive tabs.
             show = { waiting -> window.show { waiting.manager?.setSelectedContent(waiting, false) } },
@@ -161,7 +163,9 @@ object TerminalTabs {
      * by process ancestry in [OwnedTerminalTabs.sync] may pick the tab up on the next rescan.
      */
     fun fork(project: Project, session: Session, command: String): TerminalHandle =
-        TerminalLauncher.launch(project, session.cwd, forkTitle(session.title), command)
+        TerminalLauncher.launch(project, session.cwd, forkTitle(session), command)
+
+    internal fun forkTitle(session: Session): String = forkTitle(SessionOrganisation.getInstance().title(session))
 
     fun forkTitle(title: String): String = "$title (fork)"
 

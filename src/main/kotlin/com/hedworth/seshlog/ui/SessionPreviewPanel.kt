@@ -5,6 +5,7 @@ import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SeshlogSettings
+import com.hedworth.seshlog.settings.SessionOrganisation
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
@@ -35,6 +36,7 @@ import javax.swing.SpinnerNumberModel
 class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(BorderLayout()), Disposable {
     private val LOG = logger<SessionPreviewPanel>()
     private val settings get() = SeshlogSettings.getInstance()
+    private val organisation get() = SessionOrganisation.getInstance()
 
     private val editor = JEditorPane().apply {
         editorKit = HTMLEditorKitBuilder.simple()
@@ -77,6 +79,9 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     var messages: List<ConversationMessage> = emptyList()
         private set
 
+    /** Rendered header, exposed for focused UI regression tests. */
+    internal val headerText: String get() = header.text
+
     init {
         com.intellij.openapi.util.Disposer.register(parent, this)
         countSpinner.toolTipText = "How many of the most recent messages to show"
@@ -112,7 +117,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         hasShownSession = true
         tailControls.isVisible = searchQuery.isEmpty()
         cards.show(body, if (searchQuery.isEmpty()) "tail" else "search")
-        header.text = nextSession?.let { "<html><b>${esc(it.title)}</b></html>" } ?: ""
+        header.text = nextSession?.let { "<html><b>${esc(organisation.title(it))}</b></html>" } ?: ""
         if (sameContent) return
 
         completionReceipt = null

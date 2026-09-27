@@ -604,6 +604,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             session?.lastActivityAt,
             activeQuery,
             session?.let { organisation.title(it) },
+            session?.let { organisation.title(it) },
         )
         if (key == previewKey) return
         previewKey = key
@@ -614,6 +615,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val sessionId: String?,
         val lastActivityAt: java.time.Instant?,
         val query: String,
+        val localTitle: String?,
         val localTitle: String?,
     )
 

@@ -198,6 +198,31 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test local title is shown in preview and tooltip with provider title`() {
+        val disposable = Disposer.newDisposable()
+        val organisation = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+        try {
+            val panel = SessionTreePanel(project, disposable)
+            val session = session("renamed", Paths.get(project.basePath!!), Instant.EPOCH)
+            organisation.edit(session.id) { it.title = "Local name" }
+            val preview = SessionPreviewPanel(disposable)
+            preview.showSession(session)
+            assertTrue(preview.headerText.contains("Local name"))
+
+            val renderer = panel.tree.cellRenderer as SessionCellRenderer
+            renderer.getTreeCellRendererComponent(
+                panel.tree,
+                javax.swing.tree.DefaultMutableTreeNode(session),
+                false, false, true, 1, false,
+            )
+            assertTrue(renderer.toolTipText.contains("Local name"))
+            assertTrue(renderer.toolTipText.contains("Title renamed"))
+        } finally {
+            organisation.loadState(com.hedworth.seshlog.settings.SessionOrganisation.State())
+            Disposer.dispose(disposable)
+        }
+    }
+
     fun `test preview loads the tail of the selected session`() {
         val disposable = Disposer.newDisposable()
         try {

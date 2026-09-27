@@ -81,8 +81,10 @@ class SessionCellRenderer : ColoredTreeCellRenderer() {
     private fun tooltip(session: Session, hit: SearchHit? = null): String {
         val esc = { s: String -> s.replace("&", "&amp;").replace("<", "&lt;") }
         val fmt = { i: java.time.Instant? -> i?.let { TS.format(it.atZone(ZoneId.systemDefault())) } ?: "–" }
+        val localTitle = com.hedworth.seshlog.settings.SessionOrganisation.getInstance().title(session)
         return buildString {
-            append("<html><b>").append(esc(session.title)).append("</b><br>")
+            append("<html><b>").append(esc(localTitle)).append("</b><br>")
+            if (localTitle != session.title) append("Agent title: ").append(esc(session.title)).append("<br>")
             if (session.id == activeSessionId) append("Active terminal<br>")
             if (session.id in unread) append("Finished turn not yet viewed<br>")
             append("Agent: ").append(session.kind.displayName).append("<br>")

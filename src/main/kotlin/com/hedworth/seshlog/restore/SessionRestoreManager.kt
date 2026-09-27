@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class SessionRestoreManager(private val project: Project) : Disposable {
     private val LOG = logger<SessionRestoreManager>()
 
+    private val organisation get() = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
     private val settings get() = SeshlogSettings.getInstance()
     private val state get() = RestoreState.getInstance(project)
     private val index get() = SessionIndex.getInstance()
@@ -198,7 +199,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
             }
             RestoreMode.ASK -> {
                 val n = notification("Restore ${describe(plan.restore)}?", NotificationType.INFORMATION)
-                n.setSubtitle(plan.restore.joinToString(", ") { it.title })
+                n.setSubtitle(plan.restore.joinToString(", ") { organisation.title(it) })
                 if (plan.orphans.isNotEmpty()) {
                     n.setContent("${plan.orphans.size} left-over claude process${if (plan.orphans.size == 1) "" else "es"} from closed tabs will be stopped first.")
                 }
@@ -236,17 +237,17 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         for (session in plan.restore) {
             com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
                 readiness.await(
-                    ready = { TerminalTabs.prepareRestore(project, target.title) },
+                    ready = { TerminalTabs.prepareRestore(project, organisation.title(target), target.title) },
                     launch = {
                         try {
                             resumeRestored(target)
                         } catch (t: Throwable) {
                             LOG.warn("Could not restore session ${session.id}", t)
-                            notification("Could not restore '${session.title}': ${t.message}", NotificationType.ERROR).notify(project)
+                            notification("Could not restore '${organisation.title(session)}': ${t.message}", NotificationType.ERROR).notify(project)
                         }
                     },
                     timeout = {
-                        notification("Could not restore '${session.title}': its terminal is not ready. The session remains saved for restore.",
+                        notification("Could not restore '${organisation.title(session)}': its terminal is not ready. The session remains saved for restore.",
                             NotificationType.WARNING).notify(project)
                     },
                 )

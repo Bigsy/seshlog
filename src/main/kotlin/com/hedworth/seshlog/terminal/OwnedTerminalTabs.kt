@@ -228,6 +228,12 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
             override fun sessionsUpdated(sessions: List<Session>) = sync(sessions)
         })
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(
+            com.hedworth.seshlog.settings.SessionOrganisation.TOPIC,
+            object : com.hedworth.seshlog.settings.SessionOrganisation.Listener {
+                override fun changed() { sync(SessionIndex.getInstance().sessions) }
+            },
+        )
         // ProjectActivity starts on a background thread; terminal APIs require the EDT.
         ApplicationManager.getApplication().invokeLater {
             if (!disposed && !project.isDisposed) sync(SessionIndex.getInstance().sessions)
@@ -238,7 +244,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     fun sync(sessions: List<Session>) {
         if (project.isDisposed) return
         val openTabs = TerminalTabs.tabsWithShellPids(project)
-        val retitles = registry.sync(sessions, openTabs, ProcessTree.System) { it.displayName }
+        val retitles = registry.sync(sessions, openTabs, ProcessTree.System, sessionTitle = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()::title) { it.displayName }
         for ((content, title) in retitles) {
             LOG.debug("Retitling terminal tab '${content.displayName}' -> '$title'")
             TerminalTabs.terminalOf(project, content)?.rename(title)

@@ -63,14 +63,14 @@ class TabRegistry<T : Any> {
      *   elsewhere (or was resumed in another window): the entry is dropped.
      * - Registered, live sessions whose title differs from the tab's title get a retitle.
      */
-    fun sync(sessions: List<Session>, openTabs: Map<T, Long?>, tree: ProcessTree, titleOf: (T) -> String?): List<Retitle<T>> {
+    fun sync(sessions: List<Session>, openTabs: Map<T, Long?>, tree: ProcessTree, sessionTitle: (Session) -> String = { it.title }, titleOf: (T) -> String?): List<Retitle<T>> {
         val tabByShell = HashMap<Long, T>()
         for ((tab, pid) in openTabs) if (pid != null) tabByShell[pid] = tab
         val retitles = ArrayList<Retitle<T>>()
         synchronized(bySession) {
             for (session in sessions) {
                 val pid = session.livePid
-                if (!session.isLive || pid == null) continue
+                if (session.isLive && pid != null) {
                 val ancestry = tree.ancestry(pid)
                 // Include the process itself: `exec claude` replaces the terminal's shell.
                 val shell = ancestry.pids.firstOrNull { it in tabByShell }
@@ -82,8 +82,10 @@ class TabRegistry<T : Any> {
                     owner != null && openTabs[owner] != null && ancestry.complete &&
                         tree.isAlive(pid) -> bySession.remove(session.id) // verified elsewhere
                 }
+                }
                 val tab = bySession[session.id] ?: continue
-                if (titleOf(tab) != session.title) retitles += Retitle(tab, session.title)
+                val title = sessionTitle(session)
+                if (titleOf(tab) != title) retitles += Retitle(tab, title)
             }
         }
         return retitles

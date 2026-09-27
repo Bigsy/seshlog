@@ -117,10 +117,18 @@ class TabRegistryTest {
         val changed = registry.sync(listOf(session("a", 111, title = "Fix the flaky test")), mapOf(tabA to 110L), tree) { it.title }
         assertEquals(listOf(TabRegistry.Retitle(tabA, "Fix the flaky test")), changed)
 
-        // Not live yet (just launched): no retitle, entry kept.
+        // Not live yet (just launched): title still follows the session, entry kept.
         val pending = registry.sync(listOf(session("a", null, title = "Later")), mapOf(tabA to 110L), tree) { it.title }
-        assertTrue(pending.isEmpty())
+        assertEquals(listOf(TabRegistry.Retitle(tabA, "Later")), pending)
         assertTrue(registry.owns("a"))
+    }
+
+    @Test fun `local title resolver retitles an owned session without provider liveness`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("local", tabA)
+        val renamed = registry.sync(listOf(session("local", null)), mapOf(tabA to 110L), tree,
+            sessionTitle = { "Local title" }, titleOf = { it.title })
+        assertEquals(listOf(TabRegistry.Retitle(tabA, "Local title")), renamed)
     }
 
     @Test

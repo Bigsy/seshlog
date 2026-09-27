@@ -4,7 +4,6 @@ import com.hedworth.seshlog.index.ContentSearchService
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SearchHit
 import com.hedworth.seshlog.index.ResolvedPaths
-import com.hedworth.seshlog.index.SessionFilter
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.AgentKind
@@ -24,8 +23,6 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.ex.ActionUtil
-import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.openapi.actionSystem.DataProvider
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.PlatformDataKeys
@@ -33,8 +30,12 @@ import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.DoubleClickListener
 import com.intellij.ui.PopupHandler
 import com.intellij.ui.DocumentAdapter
@@ -60,6 +61,30 @@ import javax.swing.event.DocumentEvent
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeSelectionModel
+import com.hedworth.seshlog.index.DatePeriod
+import com.hedworth.seshlog.index.SessionAttention
+import com.hedworth.seshlog.index.SessionDateFilter
+import com.hedworth.seshlog.index.TextQuery
+import com.hedworth.seshlog.model.ConversationLimits
+import com.hedworth.seshlog.model.ProviderHealth
+import com.hedworth.seshlog.settings.SessionAttentionState
+import com.hedworth.seshlog.settings.SessionOrganisation
+import com.intellij.openapi.roots.ModuleRootEvent
+import com.intellij.ui.SimpleTextAttributes
+import java.awt.FlowLayout
+import java.awt.GridLayout
+import java.time.Instant
+import java.time.LocalDate
+import javax.swing.JButton
+import javax.swing.JCheckBoxMenuItem
+import javax.swing.JLabel
+import javax.swing.JMenuItem
+import javax.swing.JPopupMenu
+import javax.swing.JTextField
+import javax.swing.Timer
+import javax.swing.event.TreeExpansionEvent
+import javax.swing.event.TreeExpansionListener
+import javax.swing.tree.TreePath
 
 class SessionTreePanel(private val project: Project, parentDisposable: Disposable) :
     JBPanel<SessionTreePanel>(BorderLayout()), DataProvider, Disposable {
@@ -74,59 +99,51 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private var lastSearchCandidates: List<Session>? = null
     private var previewKey: PreviewKey? = null
 
-    private val organisation get() = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+    private val organisation get() = SessionOrganisation.getInstance()
+    private val attentionView get() = AttentionViewState.getInstance(project)
     private var showHidden = false
-    internal var dateFilter = com.hedworth.seshlog.index.SessionDateFilter()
+    internal var dateFilter = SessionDateFilter()
         private set
-    private val dateButton = javax.swing.JButton("All time")
-    private val clearDate = javax.swing.JButton("Clear date").apply { isVisible = false }
+    private val dateButton = JButton("All time")
+    private val clearDate = JButton("Clear date").apply { isVisible = false }
+    private var filtersAnchor: JComponent? = null
 
-    internal fun setDateFilter(filter: com.hedworth.seshlog.index.SessionDateFilter) {
+    internal fun setDateFilter(filter: SessionDateFilter) {
         dateFilter = filter
-        AttentionViewState.getInstance(project).update(dateFilter = filter)
+        attentionView.update(dateFilter = filter)
         dateButton.text = filter.label
-        clearDate.isVisible = filter.period != com.hedworth.seshlog.index.DatePeriod.ALL
+        clearDate.isVisible = filter.period != DatePeriod.ALL
         rerender()
     }
 
     private fun chooseDateFilter() {
-        val menu = javax.swing.JPopupMenu()
-        com.hedworth.seshlog.index.DatePeriod.values().forEach { period ->
-            menu.add(javax.swing.JMenuItem(period.label).apply {
+        val menu = JPopupMenu()
+        DatePeriod.values().forEach { period ->
+            menu.add(JMenuItem(period.label).apply {
                 addActionListener {
-                    if (period != com.hedworth.seshlog.index.DatePeriod.CUSTOM) {
-                        setDateFilter(com.hedworth.seshlog.index.SessionDateFilter(period))
+                    if (period != DatePeriod.CUSTOM) {
+                        setDateFilter(SessionDateFilter(period))
                     } else {
-                        val start = javax.swing.JTextField(dateFilter.start?.toString() ?: java.time.LocalDate.now().toString(), 10)
-                        val end = javax.swing.JTextField(dateFilter.end?.toString() ?: java.time.LocalDate.now().toString(), 10)
-                        val form = JPanel(java.awt.GridLayout(0, 2)).apply {
-                            add(javax.swing.JLabel("From (YYYY-MM-DD)")); add(start)
-                            add(javax.swing.JLabel("Through (YYYY-MM-DD)")); add(end)
-                        }
-                        while (javax.swing.JOptionPane.showConfirmDialog(this@SessionTreePanel, form,
-                                "Custom date range", javax.swing.JOptionPane.OK_CANCEL_OPTION) == javax.swing.JOptionPane.OK_OPTION) {
-                            val filter = runCatching { com.hedworth.seshlog.index.SessionDateFilter(period,
-                                java.time.LocalDate.parse(start.text.trim()), java.time.LocalDate.parse(end.text.trim())) }.getOrNull()
-                            if (filter != null) { setDateFilter(filter); break }
-                            javax.swing.JOptionPane.showMessageDialog(this@SessionTreePanel,
-                                "Enter valid dates with the start on or before the end.", "Invalid range", javax.swing.JOptionPane.ERROR_MESSAGE)
-                        }
+                        val dialog = CustomDateRangeDialog(project, dateFilter.start, dateFilter.end)
+                        if (dialog.showAndGet()) setDateFilter(dialog.filter())
                     }
                 }
             })
         }
-        menu.show(dateButton, 0, dateButton.height)
+        val anchor = filtersAnchor ?: this
+        menu.show(anchor, 0, anchor.height)
     }
 
     private val settings get() = SeshlogSettings.getInstance()
     private val index get() = SessionIndex.getInstance()
     private val agentFilter get() = AgentFilterState.getInstance(project)
 
-    internal val agentMenuButton = javax.swing.JButton("Agents ▾")
+    internal val agentMenuButton = JButton("Agents ▾")
 
-    private val statusLabel = javax.swing.JLabel()
-    private val retryButton = javax.swing.JButton("Retry")
+    private val statusLabel = JLabel()
+    private val retryButton = JButton("Retry")
     private var searching = false
+    private var searchPartial = false
 
     private val collapsedGroups = mutableSetOf<Path>()
     private var rebuildingTree = false
@@ -136,7 +153,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     val tree: Tree = Tree(treeModel)
     private val renderer = SessionCellRenderer()
     /** Refreshes the "waiting N min" badges; nothing else in the tree depends on wall-clock time. */
-    private val badgeClock = javax.swing.Timer(60_000) { refreshBadges(renderer.runningOwned) }
+    private val badgeClock = Timer(60_000) { refreshBadges(renderer.runningOwned) }
 
     /** Bottom pane showing the selected session's last messages. */
     val preview = SessionPreviewPanel(this)
@@ -165,12 +182,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.activeSessionId = OwnedTerminalTabs.getInstance(project).activeSessionId
         badgeClock.start()
         renderer.runningOwned = OwnedTerminalTabs.getInstance(project).runningSessionIds()
-        renderer.unread = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().unreadIds
+        renderer.unread = SessionAttentionState.getInstance().unreadIds
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(
-            com.hedworth.seshlog.settings.SessionAttentionState.TOPIC,
-            object : com.hedworth.seshlog.settings.SessionAttentionState.Listener {
+            SessionAttentionState.TOPIC,
+            object : SessionAttentionState.Listener {
                 override fun changed() {
-                    renderer.unread = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().unreadIds
+                    renderer.unread = SessionAttentionState.getInstance().unreadIds
                     refreshBadges(renderer.runningOwned)
                 }
             })
@@ -218,7 +235,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         PopupHandler.installPopupMenu(tree, contextMenu, "SeshlogPopup")
 
         searchField.textEditor.emptyText.text = "Search titles, paths and content"
-        searchField.toolTipText = com.hedworth.seshlog.index.TextQuery.HINT + " " + com.hedworth.seshlog.model.ConversationLimits.NOTICE
+        searchField.toolTipText = TextQuery.HINT + " " + ConversationLimits.NOTICE
         searchField.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = scheduleSearch()
         })
@@ -227,14 +244,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             createAgentMenu().show(agentMenuButton, 0, agentMenuButton.height)
         }
         dateButton.addActionListener { chooseDateFilter() }
-        clearDate.addActionListener { setDateFilter(com.hedworth.seshlog.index.SessionDateFilter()) }
+        clearDate.addActionListener { setDateFilter(SessionDateFilter()) }
         val header = JPanel(BorderLayout()).apply {
             add(createToolbar().component, BorderLayout.WEST)
             add(searchField, BorderLayout.CENTER)
-            add(JPanel(java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0)).apply {
-                add(agentMenuButton); add(dateButton); add(clearDate)
-                add(javax.swing.JLabel(com.hedworth.seshlog.index.TextQuery.HINT))
-                add(javax.swing.JLabel("Limited coverage").apply { toolTipText = com.hedworth.seshlog.model.ConversationLimits.NOTICE })
+            add(JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
+                add(createFiltersToolbar())
             }, BorderLayout.SOUTH)
         }
         add(header, BorderLayout.NORTH)
@@ -259,10 +274,10 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             selectedSession()?.let { rememberedSelection = it.id }
             showPreviewIfChanged()
         }
-        tree.addTreeExpansionListener(object : javax.swing.event.TreeExpansionListener {
-            override fun treeExpanded(event: javax.swing.event.TreeExpansionEvent) { rememberExpansion(event, false) }
-            override fun treeCollapsed(event: javax.swing.event.TreeExpansionEvent) { rememberExpansion(event, true) }
-            private fun rememberExpansion(event: javax.swing.event.TreeExpansionEvent, collapsed: Boolean) {
+        tree.addTreeExpansionListener(object : TreeExpansionListener {
+            override fun treeExpanded(event: TreeExpansionEvent) { rememberExpansion(event, false) }
+            override fun treeCollapsed(event: TreeExpansionEvent) { rememberExpansion(event, true) }
+            private fun rememberExpansion(event: TreeExpansionEvent, collapsed: Boolean) {
                 if (rebuildingTree) return
                 val group = (event.path.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? ProjectGroup ?: return
                 if (collapsed) collapsedGroups.add(group.cwd) else collapsedGroups.remove(group.cwd)
@@ -297,14 +312,14 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         project.messageBus.connect(this).subscribe(
             ModuleRootListener.TOPIC,
             object : ModuleRootListener {
-                override fun rootsChanged(event: com.intellij.openapi.roots.ModuleRootEvent) {
+                override fun rootsChanged(event: ModuleRootEvent) {
                     projectRootsChanged()
                 }
             },
         )
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(
-            com.hedworth.seshlog.settings.SessionOrganisation.TOPIC,
-            object : com.hedworth.seshlog.settings.SessionOrganisation.Listener {
+            SessionOrganisation.TOPIC,
+            object : SessionOrganisation.Listener {
                 override fun changed() {
                     lastSearchQuery = null
                     lastSearchCandidates = null
@@ -312,6 +327,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 }
             },
         )
+        attentionView.update(showHidden = showHidden, dateFilter = dateFilter)
         render(index.sessions)
         index.refresh()
     }
@@ -335,22 +351,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(ActionManager.getInstance().getAction("Seshlog.NewSession"))
             add(ActionManager.getInstance().getAction("Seshlog.NextAttention"))
             add(ToggleAllProjectsAction())
-            add(object : ToggleAction("Sibling Worktrees", "Include worktrees sharing this repository", AllIcons.Vcs.Branch) {
-                override fun getActionUpdateThread() = ActionUpdateThread.EDT
-                override fun isSelected(e: AnActionEvent) = agentFilter.includeWorktrees
-                override fun setSelected(e: AnActionEvent, state: Boolean) { agentFilter.includeWorktrees = state; rerender() }
-            })
             add(TogglePreviewAction())
             add(ActionManager.getInstance().getAction("Seshlog.OpenConversation"))
-            add(object : ToggleAction("Show Hidden", "Include locally hidden sessions", AllIcons.Actions.Show) {
-                override fun getActionUpdateThread() = ActionUpdateThread.EDT
-                override fun isSelected(e: AnActionEvent) = showHidden
-                override fun setSelected(e: AnActionEvent, state: Boolean) {
-                    showHidden = state
-                    AttentionViewState.getInstance(project).update(showHidden = state)
-                    rerender()
-                }
-            })
             addSeparator()
             add(object : DumbAwareAction("Settings", "Open Seshlog settings", AllIcons.General.Settings) {
                 override fun actionPerformed(e: AnActionEvent) =
@@ -382,17 +384,17 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
     }
 
-    internal fun createAgentMenu(): javax.swing.JPopupMenu = javax.swing.JPopupMenu().apply {
+    internal fun createAgentMenu(): JPopupMenu = JPopupMenu().apply {
         val scoped = unfilteredSessions(latestSessions)
         val available = scoped.map { it.kind }.toSet()
         val selected = AgentSessionFilter.effectiveKinds(scoped, agentFilter.mode)
-        add(javax.swing.JCheckBoxMenuItem("All agents", agentFilter.mode == AgentFilterMode.All).apply {
+        add(JCheckBoxMenuItem("All agents", agentFilter.mode == AgentFilterMode.All).apply {
             addActionListener {
                 agentFilter.mode = AgentFilterMode.All
                 rerender()
             }
         })
-        add(javax.swing.JCheckBoxMenuItem("Auto", agentFilter.mode == AgentFilterMode.Auto).apply {
+        add(JCheckBoxMenuItem("Auto", agentFilter.mode == AgentFilterMode.Auto).apply {
             toolTipText = "Automatically show the agent with the most sessions"
             addActionListener {
                 agentFilter.mode = AgentFilterMode.Auto
@@ -401,7 +403,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         })
         if (available.isNotEmpty()) addSeparator()
         AgentKind.entries.filter { it in available }.forEach { kind ->
-            add(javax.swing.JCheckBoxMenuItem(kind.displayName, kind in selected).apply {
+            add(JCheckBoxMenuItem(kind.displayName, kind in selected).apply {
                 addActionListener {
                     val current = AgentSessionFilter.effectiveKinds(unfilteredSessions(latestSessions), agentFilter.mode)
                     agentFilter.mode = AgentFilterMode.Selected(
@@ -411,6 +413,39 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 }
             })
         }
+    }
+
+    private fun createFiltersToolbar(): JComponent {
+        val group = createFilterActions()
+        val toolbar = ActionManager.getInstance().createActionToolbar("SeshlogFilters", group, false)
+        toolbar.targetComponent = this
+        filtersAnchor = toolbar.component
+        return toolbar.component
+    }
+
+    /** Filter actions shared by the toolbar and focused UI tests. */
+    internal fun createFilterActions(): DefaultActionGroup = DefaultActionGroup("Filters", true).apply {
+            add(object : DumbAwareAction("Agents", "Choose which agents are shown", null) {
+                override fun actionPerformed(e: AnActionEvent) {
+                    createAgentMenu().show(filtersAnchor ?: this@SessionTreePanel, 0, filtersAnchor?.height ?: 0)
+                }
+            })
+            add(object : DumbAwareAction("Date", "Limit sessions by activity date", null) {
+                override fun update(e: AnActionEvent) { e.presentation.text = "Date: ${dateFilter.label}" }
+                override fun actionPerformed(e: AnActionEvent) = chooseDateFilter()
+            })
+            add(object : ToggleAction("Sibling worktrees", "Include worktrees sharing this repository", AllIcons.Vcs.Branch) {
+                override fun isSelected(e: AnActionEvent) = agentFilter.includeWorktrees
+                override fun setSelected(e: AnActionEvent, state: Boolean) { agentFilter.includeWorktrees = state; rerender() }
+            })
+            add(object : ToggleAction("Show hidden", "Include locally hidden sessions", AllIcons.Actions.Show) {
+                override fun isSelected(e: AnActionEvent) = showHidden
+                override fun setSelected(e: AnActionEvent, state: Boolean) {
+                    showHidden = state
+                    attentionView.update(showHidden = state)
+                    rerender()
+                }
+            })
     }
 
     private fun updateAgentMenu(all: List<Session>) {
@@ -459,7 +494,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             updateLoadingState()
             if (activeQuery.isNotEmpty()) {
                 activeQuery = ""
-        render(index.sessions)
+                render(index.sessions)
             }
             return
         }
@@ -508,6 +543,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     fun renderSearchResults(query: String, hits: List<SearchHit>) {
         activeQuery = query
         searching = false
+        searchPartial = hits.any { it.partial }
         updateLoadingState()
         val byId = hits.associateBy { it.session.id }
         visibleSessions = hits.map { it.session }
@@ -521,7 +557,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val text: StatusText = tree.emptyText
         text.clear()
         if (hits.isEmpty()) text.appendText("No sessions match \"$query\"" +
-            if (dateFilter.period != com.hedworth.seshlog.index.DatePeriod.ALL) " · ${dateFilter.label}" else "")
+            if (dateFilter.period != DatePeriod.ALL) " · ${dateFilter.label}" else "")
     }
 
     /** Project base path + content roots. Read once per render, on the EDT (no filesystem access). */
@@ -546,6 +582,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     fun render(all: List<Session>) {
+        searchPartial = false
+        updateLoadingState()
         latestSessions = all
         preparePaths(all)
         updateAgentMenu(all)
@@ -593,7 +631,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             for (i in 0 until root.childCount) {
                 val node = root.getChildAt(i) as DefaultMutableTreeNode
                 val group = node.userObject as ProjectGroup
-                if (group.cwd !in collapsedGroups) tree.expandPath(javax.swing.tree.TreePath(node.path))
+                if (group.cwd !in collapsedGroups) tree.expandPath(TreePath(node.path))
             }
             selection?.let(::reselect)
         } finally {
@@ -614,7 +652,6 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             session?.lastActivityAt,
             activeQuery,
             session?.let { organisation.title(it) },
-            session?.let { organisation.title(it) },
         )
         if (key == previewKey) return
         previewKey = key
@@ -623,9 +660,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     private data class PreviewKey(
         val sessionId: String?,
-        val lastActivityAt: java.time.Instant?,
+        val lastActivityAt: Instant?,
         val query: String,
-        val localTitle: String?,
         val localTitle: String?,
     )
 
@@ -638,13 +674,18 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     private fun updateLoadingState() {
-        val errors = index.providerDiagnostics.filterValues { it.health == com.hedworth.seshlog.model.ProviderHealth.ERROR }
+        val errors = index.providerDiagnostics.filterValues { it.health == ProviderHealth.ERROR }
         val parts = mutableListOf<String>()
         if (index.isScanning) parts += "Scanning…"
         if (searching) parts += "Searching…"
+        if (searchPartial) parts += "Limited coverage"
         errors.forEach { (kind, _) -> parts += "${kind.displayName}: storage could not be read" }
         statusLabel.text = parts.joinToString(" · ")
-        statusLabel.toolTipText = errors.values.mapNotNull { it.problem }.joinToString("; ").ifEmpty { null }
+        statusLabel.toolTipText = when {
+            errors.isNotEmpty() -> errors.values.mapNotNull { it.problem }.joinToString("; ")
+            searchPartial -> ConversationLimits.NOTICE
+            else -> null
+        }
         retryButton.isVisible = errors.isNotEmpty()
     }
 
@@ -688,15 +729,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val root = treeModel.root as DefaultMutableTreeNode
         val displayed = root.depthFirstEnumeration().asSequence()
             .mapNotNull { (it as DefaultMutableTreeNode).userObject as? Session }.toList()
-        return com.hedworth.seshlog.index.SessionAttention.next(displayed,
-            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().unreadIds, selectedSession()?.id)
+        return SessionAttention.next(displayed,
+            SessionAttentionState.getInstance().unreadIds, selectedSession()?.id)
     }
 
     fun showNextAttention() {
         val target = nextAttentionSession() ?: return
         val root = treeModel.root as DefaultMutableTreeNode
         val node = TreeUtil.findNodeWithObject(root, target) ?: return
-        val path = javax.swing.tree.TreePath(node.path)
+        val path = TreePath(node.path)
         tree.expandPath(path.parentPath)
         tree.selectionPath = path
         tree.scrollPathToVisible(path)
@@ -736,4 +777,38 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         const val MIN_QUERY_LENGTH = 2
         const val SEARCH_DEBOUNCE_MS = 300
     }
+}
+
+private class CustomDateRangeDialog(
+    project: Project,
+    start: LocalDate?,
+    end: LocalDate?,
+) : DialogWrapper(project) {
+    private val startField = JTextField(start?.toString() ?: LocalDate.now().toString(), 12)
+    private val endField = JTextField(end?.toString() ?: LocalDate.now().toString(), 12)
+
+    init {
+        title = "Custom date range"
+        init()
+    }
+
+    override fun createCenterPanel(): JComponent = JPanel(GridLayout(0, 2, 8, 6)).apply {
+        add(JLabel("From (YYYY-MM-DD)")); add(startField)
+        add(JLabel("Through (YYYY-MM-DD)")); add(endField)
+    }
+
+    override fun doValidate(): ValidationInfo? {
+        val from = runCatching { LocalDate.parse(startField.text.trim()) }.getOrNull()
+            ?: return ValidationInfo("Enter a valid start date (YYYY-MM-DD).", startField)
+        val through = runCatching { LocalDate.parse(endField.text.trim()) }.getOrNull()
+            ?: return ValidationInfo("Enter a valid end date (YYYY-MM-DD).", endField)
+        if (from > through) return ValidationInfo("The start date must be on or before the end date.", endField)
+        return null
+    }
+
+    fun filter() = SessionDateFilter(
+        DatePeriod.CUSTOM,
+        LocalDate.parse(startField.text.trim()),
+        LocalDate.parse(endField.text.trim()),
+    )
 }

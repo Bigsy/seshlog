@@ -313,7 +313,7 @@ Checked against the cached platforms:
   - Test: a fixture reply with a list and a code block renders the expected HTML; raw `<script>`
     is escaped.
 
-- [ ] **4.5 Tidy the header.**
+- [x] **4.5 Tidy the header.**
   `ui/SessionTreePanel.kt:222` (header in `init`): the search hint and "Limited coverage" are
   permanent labels beside 8 toolbar actions and 3 plain `JButton`s. Move the hint into the search
   field's empty text and tooltip, and show coverage in the status line only when a search is
@@ -322,6 +322,7 @@ Checked against the cached platforms:
   `DialogWrapper`.
   - Test: existing filter tests in `SeshlogToolWindowTest` drive the new actions.
   - Manual: the header at a narrow tool window width.
+  - Manual: still owed — inspect the header at a narrow tool-window width.
 
 - [ ] **4.6 Claude subagent transcripts and continuations.**
   Subagent conversations now live in `<session>/subagents/agent-*.jsonl` (38 locally) and are not

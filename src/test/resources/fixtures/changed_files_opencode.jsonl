@@ -1,0 +1,2 @@
+{"tool":"write","input":{"filePath":"src/OpenCode.ts","content":"export const open = true"}}
+{"tool":"edit","input":{"filePath":"src/OpenCode.ts","oldString":"false","newString":"true"}}

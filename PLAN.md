@@ -332,11 +332,12 @@ Checked against the cached platforms:
   activity of the parent, and link a session to its continuation in the tooltip and viewer.
   - Test: a fixture session with a subagent file and a `continued-in` record.
 
-- [ ] **4.7 Files a session changed.**
+- [x] **4.7 Files a session changed.**
   List the files touched by Edit/Write/MultiEdit (Claude), apply_patch (Codex) and the opencode
   equivalents, which tool search already parses, with Open and Compare with Current actions.
   Paths only, extracted on demand, nothing written to disk.
   - Test: fixtures per agent yield the expected paths.
+  - Extraction uses bounded in-memory conversation data and reports incomplete coverage. Complete Write payloads can be compared with current files; patch payloads remain labeled as patches, never reconstructed historical files.
 
 - [x] **4.8 Read Codex metadata from `state_5.sqlite`.**
   codex-cli 0.157 keeps a `threads` table (rollout_path, source, cwd, title, name, archived,

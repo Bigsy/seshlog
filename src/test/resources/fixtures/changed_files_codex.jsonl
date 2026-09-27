@@ -1,0 +1,3 @@
+{"tool":"codex.apply_patch","input":"*** Begin Patch\n*** Update File: src/Codex.kt\n@@\n-old\n+new\n*** End Patch"}
+{"tool":"Move","input":{"source":"src/old.kt","destination":"src/new.kt"}}
+{"tool":"functions.apply_patch","input":"*** Begin Patch\n*** Update File: src/before.kt\n*** Move to: src/after.kt\n@@\n-old\n+new\n*** End Patch"}

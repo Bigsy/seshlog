@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.model
 
 import java.nio.file.Path
+import com.hedworth.seshlog.copy.CopyContent
 
 interface SessionProvider {
     val kind: AgentKind
@@ -61,12 +62,20 @@ interface SessionProvider {
     }
 
     /** Fresh, complete assistant text for clipboard use; never a truncated preview. */
-    fun lastAssistantMessage(session: Session): com.hedworth.seshlog.copy.CopyContent =
-        com.hedworth.seshlog.copy.CopyContent.Unsupported("Assistant copying is not supported by this provider.")
+    fun lastAssistantMessage(session: Session): CopyContent =
+        CopyContent.Unsupported("Assistant copying is not supported by this provider.")
 
     /** Latest explicitly identifiable plan; unsupported providers must not guess from dialogue. */
-    fun latestPlan(session: Session): com.hedworth.seshlog.copy.CopyContent =
-        com.hedworth.seshlog.copy.CopyContent.Unsupported()
+    fun latestPlan(session: Session): CopyContent =
+        CopyContent.Unsupported()
+
+    /** Changed-file operations, extracted on demand and retained in memory only. */
+    fun changedFileScan(session: Session): ChangedFileScan {
+        val entries = conversationEntries(session)
+        return ChangedFileScan(ChangedFileExtractor.fromEntries(entries, session.cwd), entries.any { it.kind == EntryKind.COVERAGE || it.truncated })
+    }
+
+    fun changedFiles(session: Session): List<ChangedFile> = changedFileScan(session).files
 
     /** The last [count] visible messages of [session] in chronological order, for the preview pane. */
     fun lastMessages(session: Session, count: Int): List<ConversationMessage>
@@ -76,7 +85,6 @@ interface SessionProvider {
      * session only when its stamp differs. `null` means "unknown, never cache".
      */
     fun contentStamp(session: Session): Any?
-
 
     /** Flushes provider-side metadata caches during application shutdown. */
     fun flush() {}

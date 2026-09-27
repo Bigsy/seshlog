@@ -1,0 +1,3 @@
+{"tool":"Write","input":{"file_path":"src/Claude.kt","content":"class Claude"}}
+{"tool":"Edit","input":{"file_path":"src/Claude.kt","old_string":"Claude","new_string":"ClaudeCode"}}
+{"tool":"MultiEdit","input":{"file_path":"src/Other.kt","edits":[{"old_string":"a","new_string":"b"}]}}

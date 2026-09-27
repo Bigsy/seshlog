@@ -205,6 +205,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             LOG.debug("No tab content for session ${session.id}; not tracking")
             return
         }
+        agents.forget(session.id)
         registry.register(session.id, content)
         tabObserver.refresh()
         refreshRunning()

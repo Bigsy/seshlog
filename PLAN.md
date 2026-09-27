@@ -193,7 +193,7 @@ Checked against the cached platforms:
   - Test: `ProcessTranscriptsTest`/`SessionProcessTest`: unknown evidence keeps the current
     session; exit-1 output with valid lines still parses.
 
-- [ ] **2.3 Kill then quick Resume detaches the new tab.**
+- [x] **2.3 Kill then quick Resume detaches the new tab.**
   `ObservedAgents` entries survive `OwnedTerminalTabs.track` (`terminal/OwnedTerminalTabs.kt:199`),
   so the next tick sees the old process as exited and `release`s the new tab (`:184`) until
   discovery re-adopts it 2 to 4 s later. Meanwhile "Show Tab" reverts to "Resume".

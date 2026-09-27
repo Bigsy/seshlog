@@ -10,6 +10,9 @@ internal class ObservedAgents<P : Any> {
 
     fun observe(sessionId: String, process: P) { seen[sessionId] = process }
 
+    /** A new launch invalidates evidence from the process previously using this session. */
+    fun forget(sessionId: String) { seen.remove(sessionId) }
+
     /** Copy for a background liveness check. */
     fun snapshot(): Map<String, P> = HashMap(seen)
 

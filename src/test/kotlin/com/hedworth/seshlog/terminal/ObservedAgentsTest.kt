@@ -44,6 +44,21 @@ class ObservedAgentsTest {
         assertTrue(cycle(agents, mapOf("s" to Process("second"))).isEmpty())
     }
 
+    @Test fun `tracking a new launch invalidates an old exit even while a poll is in flight`() {
+        val registry = TabRegistry<String>()
+        val agents = ObservedAgents<Process>()
+        val old = Process("old")
+        registry.register("s", "old-tab")
+        agents.observe("s", old)
+        val watched = agents.snapshot()
+        old.alive = false
+        registry.register("s", "new-tab")
+        agents.forget("s")
+        for (id in agents.ended(watched, setOf("s"))) registry.release(id, "new-tab")
+        assertEquals("new-tab", registry.tabFor("s"))
+        assertTrue(cycle(agents).isEmpty())
+    }
+
     @Test fun `release only ends the association it was observed for`() {
         val registry = TabRegistry<String>()
         registry.register("s", "moved-to")

@@ -523,22 +523,29 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     /** The project / worth-showing filter that applies to both the plain list and search candidates. */
     private fun baseFilter(all: List<Session>): List<Session> {
-        val bounds = dateFilter.bounds()
-        return AgentSessionFilter.apply(unfilteredSessions(all), agentFilter.mode)
-            .filter { bounds.contains(it.lastActivityAt) }
+        return SessionListViewModel.visible(all, projectRoots(), resolvedPaths, listFilters(), hiddenIds(all))
     }
 
     /** Project/worth filter before applying the provider selection. */
     private fun unfilteredSessions(all: List<Session>): List<Session> {
-        val minPrompts = settings.minPromptsForUntitled
-        val roots = projectRoots()
-        return all.asSequence()
-            .filter { showHidden || !organisation.metadata(it.id).hidden }
-            .filter { SessionFilter.isWorthShowing(it, minPrompts) }
-            .filter { settings.showAllProjects || resolvedPaths.isUnderAny(it.cwd, roots) ||
-                (agentFilter.includeWorktrees && resolvedPaths.belongsToRepository(it.cwd, roots)) }
-            .toList()
+        return SessionListViewModel.visible(
+            all, projectRoots(), resolvedPaths,
+            listFilters().copy(agentMode = AgentFilterMode.All, dateFilter = SessionDateFilter()),
+            hiddenIds(all),
+        )
     }
+
+    private fun listFilters() = SessionListFilters(
+        showAllProjects = settings.showAllProjects,
+        includeWorktrees = agentFilter.includeWorktrees,
+        showHidden = showHidden,
+        minPrompts = settings.minPromptsForUntitled,
+        agentMode = agentFilter.mode,
+        dateFilter = dateFilter,
+    )
+
+    private fun hiddenIds(all: List<Session>): Set<String> =
+        all.asSequence().filter { organisation.metadata(it.id).hidden }.map { it.id }.toSet()
 
     /** Show only the sessions in [hits], ranked best first within their project groups. */
     fun renderSearchResults(query: String, hits: List<SearchHit>) {
@@ -583,20 +590,21 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     fun render(all: List<Session>) {
-        searchPartial = false
-        updateLoadingState()
         latestSessions = all
         preparePaths(all)
         updateAgentMenu(all)
-        val filtered = baseFilter(all)
-        visibleSessions = filtered
+        val result = SessionListViewModel.build(
+            all, projectRoots(), resolvedPaths, listFilters(), hiddenIds(all),
+        ) { organisation.metadata(it.id).pinned }
+        visibleSessions = result.visible
+        searchPartial = false
+        updateLoadingState()
         renderer.hits = emptyMap()
         renderer.query = ""
 
-        val groups = SessionTreeModel.group(filtered) { organisation.metadata(it.id).pinned }
-        rebuildTree(groups)
+        rebuildTree(result.groups)
         showPreviewIfChanged()
-        updateEmptyText(all)
+        updateEmptyText(all, result)
     }
 
     /** Capture UI roots here; resolution and all filesystem access happen on a worker. */
@@ -690,31 +698,34 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         retryButton.isVisible = errors.isNotEmpty()
     }
 
-    private fun updateEmptyText(all: List<Session>) {
+    private fun updateEmptyText(all: List<Session>, model: SessionListViewModel.Result? = null) {
         val text: StatusText = tree.emptyText
         text.clear()
+        val result = model ?: SessionListViewModel.build(
+            all, projectRoots(), resolvedPaths, listFilters(), hiddenIds(all),
+        ) { organisation.metadata(it.id).pinned }
         when {
-            dateFilter.period != com.hedworth.seshlog.index.DatePeriod.ALL -> {
+            result.emptyReason == SessionListViewModel.EmptyReason.Date -> {
                 text.appendText("No sessions in ${dateFilter.label} with the current filters.")
-                text.appendLine("Clear date filter", com.intellij.ui.SimpleTextAttributes.LINK_ATTRIBUTES) {
-                    setDateFilter(com.hedworth.seshlog.index.SessionDateFilter())
+                text.appendLine("Clear date filter", SimpleTextAttributes.LINK_ATTRIBUTES) {
+                    setDateFilter(SessionDateFilter())
                 }
             }
-            all.isEmpty() -> {
+            result.emptyReason == SessionListViewModel.EmptyReason.NoSessions -> {
                 text.appendText("No coding-agent sessions found under")
                 index.dataRootDescriptions().forEach { text.appendLine(it) }
             }
-            baseFilter(all).isEmpty() && unfilteredSessions(all).isNotEmpty() -> {
+            result.emptyReason == SessionListViewModel.EmptyReason.Agent -> {
                 text.appendText(if (agentFilter.mode == AgentFilterMode.Selected(emptySet()))
                     "No agents selected." else "No sessions for the selected agents in the current scope.")
-                text.appendLine("Show all agents", com.intellij.ui.SimpleTextAttributes.LINK_ATTRIBUTES) {
+                text.appendLine("Show all agents", SimpleTextAttributes.LINK_ATTRIBUTES) {
                     agentFilter.mode = AgentFilterMode.All
                     rerender()
                 }
             }
             !settings.showAllProjects -> {
                 text.appendText("No sessions for this project.")
-                text.appendLine("Show all projects", com.intellij.ui.SimpleTextAttributes.LINK_ATTRIBUTES) {
+                text.appendLine("Show all projects", SimpleTextAttributes.LINK_ATTRIBUTES) {
                     settings.showAllProjects = true
                     rerender()
                 }

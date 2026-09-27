@@ -33,13 +33,12 @@ internal object AttentionProjectFilter {
         val scoped = sessions.asSequence()
             .filter { showHidden || it.id !in hiddenIds }
             .filter { SessionFilter.isWorthShowing(it, minPrompts) }
-            .filter { dateBounds == null || dateBounds.contains(it.lastActivityAt) }
             .filter { session ->
                 showAllProjects || canonical(session.cwd).startsWithAny(canonicalRoots) ||
                     (includeWorktrees && repository(session.cwd) in repositories)
             }
             .toList()
-        return AgentSessionFilter.apply(scoped, agentMode)
+        return AgentSessionFilter.apply(scoped, agentMode).filter { dateBounds == null || dateBounds.contains(it.lastActivityAt) }
     }
 
     private fun Path.startsWithAny(roots: Collection<Path>): Boolean = roots.any { startsWith(it) }

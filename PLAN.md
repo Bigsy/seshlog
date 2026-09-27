@@ -358,7 +358,7 @@ Checked against the cached platforms:
   out) applied on the EDT. About half of the last ten commits were tracking fixes; this gives
   them one tested place. Do it after section 2 so those tests carry over.
 
-- [ ] **5.2 Extract a list view model from `SessionTreePanel`.**
+- [x] **5.2 Extract a list view model from `SessionTreePanel`.**
   662 lines mixing filter state, menus, search orchestration and tree building. Move filtering,
   grouping and the empty-state choice into a pure class in the style of `SessionFilter`
   (sessions, filters, resolved paths and organisation in; groups out). This turns the

@@ -30,7 +30,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private val registry = TabRegistry<Content>()
     private val agents = ObservedAgents<ProcessHandle>()
     // A tab's session after its agent exited: no longer attached, but copy/fork still act on it.
-    private val endedSessions = java.util.WeakHashMap<Content, String>()
+    private val endedSessions = EndedSessions<Content>()
     private val started = AtomicBoolean(false)
     private var selectedContent: Content? = null
     var activeSessionId: String? = null

@@ -207,7 +207,7 @@ Checked against the cached platforms:
   - Test: with the tick body behind an injectable inspector, a throwing inspector does not block
     the next tick.
 
-- [ ] **2.5 `endedSessions` is read off the EDT.** `terminal/OwnedTerminalTabs.kt:33` is a
+- [x] **2.5 `endedSessions` is read off the EDT.** `terminal/OwnedTerminalTabs.kt:33` is a
   `WeakHashMap` written on the EDT and read on a background thread by
   `ForkTerminalTabSessionAction.update` (`ui/actions/SessionActions.kt:132`, via `lastSessionFor`).
   `WeakHashMap.get` also purges entries. Synchronise it.

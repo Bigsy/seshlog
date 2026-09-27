@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.opencode
 
+import com.hedworth.seshlog.copy.CopyContent
 import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
@@ -137,15 +139,15 @@ class OpenCodeSessionProvider(
         return db.read { conn -> db.conversationMessages(conn, session.id) }
     }
 
-    override fun conversationEntries(session: Session): List<com.hedworth.seshlog.model.ConversationEntry> {
+    override fun conversationEntries(session: Session): List<ConversationEntry> {
         val db = OpenCodeDatabase(storagePath())
         return db.read { conn -> db.conversationEntries(conn, session.id) }
     }
 
-    override fun lastAssistantMessage(session: Session): com.hedworth.seshlog.copy.CopyContent = try {
+    override fun lastAssistantMessage(session: Session): CopyContent = try {
         val db = database()
         db.read { db.lastAssistantMessage(it, session.id) }
-    } catch (_: Exception) { com.hedworth.seshlog.copy.CopyContent.Failed() }
+    } catch (_: Exception) { CopyContent.Failed() }
 
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> {
         val db = database()

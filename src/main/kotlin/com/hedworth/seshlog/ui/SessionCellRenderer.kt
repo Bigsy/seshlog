@@ -1,8 +1,10 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.SessionOrganisation
 import com.intellij.icons.AllIcons
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.JBColor
@@ -10,12 +12,10 @@ import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.text.DateFormatUtil
 import java.awt.Color
 import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.swing.JTree
 import javax.swing.tree.DefaultMutableTreeNode
-import com.hedworth.seshlog.index.SessionAttention
-import com.hedworth.seshlog.settings.SessionOrganisation
 
 class SessionCellRenderer : ColoredTreeCellRenderer() {
 

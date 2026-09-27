@@ -2,6 +2,7 @@ package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.ProcessTree
+import java.util.WeakHashMap
 
 /**
  * Which terminal tab runs which session — the pure part of "owning our tabs", free of IntelliJ
@@ -14,7 +15,7 @@ import com.hedworth.seshlog.restore.ProcessTree
 class TabRegistry<T : Any> {
     private val bySession = LinkedHashMap<String, T>()
     // Closed Content handles must not be retained solely by stale polling generations.
-    private val generationByTab = java.util.WeakHashMap<T, Long>()
+    private val generationByTab = WeakHashMap<T, Long>()
     private var nextGeneration = 0L
 
     val sessionIds: Set<String> get() = synchronized(bySession) { bySession.keys.toSet() }

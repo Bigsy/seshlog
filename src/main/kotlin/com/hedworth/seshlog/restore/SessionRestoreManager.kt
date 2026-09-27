@@ -3,10 +3,15 @@ package com.hedworth.seshlog.restore
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.RestoreMode
-import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.settings.SeshlogSettings
+import com.hedworth.seshlog.settings.SessionAttentionState
+import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
+import com.hedworth.seshlog.terminal.TerminalHandle
 import com.hedworth.seshlog.terminal.TerminalTabs
+import com.hedworth.seshlog.terminal.WorkingDirectoryRecovery
+import com.hedworth.seshlog.ui.AttentionPresentation
+import com.hedworth.seshlog.ui.WaitingSessionNotifier
 import com.intellij.ide.AppLifecycleListener
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
@@ -19,7 +24,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectCloseListener
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.wm.ToolWindowManager
-import com.hedworth.seshlog.terminal.TerminalHandle
+import com.intellij.util.Alarm
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -51,7 +56,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     private val started = AtomicBoolean(false)
     private var closing = false
     private var disposed = false
-    private val restoreAlarm = com.intellij.util.Alarm(com.intellij.util.Alarm.ThreadToUse.SWING_THREAD, this)
+    private val restoreAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val readiness = RestoreReadiness(
         later = { action -> restoreAlarm.addRequest(Runnable { action() }, 100) },
         cancelled = { disposed || closing || project.isDisposed },
@@ -311,7 +316,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
             ProcessTree.System.terminate(process)
         }
         for (session in plan.restore) {
-            com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
+            WorkingDirectoryRecovery.run(project, session) { target ->
                 readiness.await(
                     ready = { TerminalTabs.prepareRestore(project, organisation.title(target), target.title) },
                     launch = {
@@ -365,12 +370,12 @@ class SessionRestoreManager(private val project: Project) : Disposable {
 class SeshlogStartupActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
         OwnedTerminalTabs.getInstance(project).start()
-        com.hedworth.seshlog.ui.AttentionPresentation.getInstance(project)
+        AttentionPresentation.getInstance(project)
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
-            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().start()
+            SessionAttentionState.getInstance().start()
             SessionRestoreManager.getInstance(project).start()
-            com.hedworth.seshlog.ui.WaitingSessionNotifier.getInstance(project).start()
+            WaitingSessionNotifier.getInstance(project).start()
         }
     }
 }

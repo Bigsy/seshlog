@@ -5,12 +5,15 @@ import com.hedworth.seshlog.model.ChangedFile
 import com.hedworth.seshlog.model.ChangedFileScan
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SessionOrganisation
+import com.hedworth.seshlog.ui.actions.SessionAction
+import com.hedworth.seshlog.ui.actions.notify
 import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -18,22 +21,19 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.nio.file.Path
+import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
-import com.hedworth.seshlog.ui.actions.SessionAction
-import com.hedworth.seshlog.ui.actions.notify
-import com.intellij.notification.NotificationType
-import java.awt.Component
-import java.nio.file.Path
-import javax.swing.DefaultListCellRenderer
 import javax.swing.ListSelectionModel
 
 private const val MAX_CURRENT_FILE_BYTES = 8 * 1024 * 1024

@@ -17,10 +17,10 @@ import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.WindowManager
-import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.atomic.AtomicBoolean
+import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 
 /**
  * Balloon when a running session's agent stops working and waits for the user — the moment that

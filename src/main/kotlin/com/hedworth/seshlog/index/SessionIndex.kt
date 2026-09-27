@@ -1,11 +1,13 @@
 package com.hedworth.seshlog.index
 
 import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
-import com.hedworth.seshlog.pi.PiSessionProvider
 import com.hedworth.seshlog.codex.CodexSessionProvider
+import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.ProviderScan
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
 import com.hedworth.seshlog.opencode.OpenCodeSessionProvider
+import com.hedworth.seshlog.pi.PiSessionProvider
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -73,7 +75,7 @@ class SessionIndex : Disposable {
     var lastScanMillis: Long = 0
         private set
 
-    @Volatile var providerDiagnostics: Map<com.hedworth.seshlog.model.AgentKind, com.hedworth.seshlog.model.ProviderScan> = emptyMap()
+    @Volatile var providerDiagnostics: Map<AgentKind, ProviderScan> = emptyMap()
         private set
     /** Incremented for an explicit user refresh so UI caches can invalidate filesystem-derived data. */
     @Volatile var pathRefreshGeneration: Long = 0
@@ -144,7 +146,7 @@ class SessionIndex : Disposable {
         val start = System.currentTimeMillis()
         val previous = sessions.associateBy { it.id }
         val result = ArrayList<Session>()
-        val diagnostics = linkedMapOf<com.hedworth.seshlog.model.AgentKind, com.hedworth.seshlog.model.ProviderScan>()
+        val diagnostics = linkedMapOf<AgentKind, ProviderScan>()
         for (provider in providers) {
             val scan = provider.scanWithDiagnostics(previous)
             diagnostics[provider.kind] = scan

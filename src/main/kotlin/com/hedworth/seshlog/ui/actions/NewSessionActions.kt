@@ -5,10 +5,11 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.terminal.NewSessionCommand
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
-import com.hedworth.seshlog.terminal.TerminalLauncher
 import com.hedworth.seshlog.terminal.TerminalHandle
+import com.hedworth.seshlog.terminal.TerminalLauncher
 import com.hedworth.seshlog.ui.SeshlogDataKeys
 import com.intellij.icons.AllIcons
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAwareAction
@@ -36,7 +37,7 @@ abstract class NewSessionAction(private val kind: AgentKind, text: String) :
             // and resolves it only from exact process/PID/descriptor evidence for that tab.
             NewSessionTab.start(project, cwd, kind, command, existingIds)
         } catch (t: Throwable) {
-            notify(project, "Could not open terminal: ${t.message}", com.intellij.notification.NotificationType.ERROR)
+            notify(project, "Could not open terminal: ${t.message}", NotificationType.ERROR)
         }
     }
 }

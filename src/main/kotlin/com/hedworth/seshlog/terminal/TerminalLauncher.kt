@@ -2,8 +2,8 @@ package com.hedworth.seshlog.terminal
 
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
-import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.nio.file.Path
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 
 /**
  * Opens a new tab in the Terminal tool window and runs a command in it. All terminal-plugin API

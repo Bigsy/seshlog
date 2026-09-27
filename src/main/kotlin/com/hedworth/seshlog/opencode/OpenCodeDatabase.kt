@@ -2,16 +2,19 @@ package com.hedworth.seshlog.opencode
 
 import com.hedworth.seshlog.claude.TranscriptParser
 import com.hedworth.seshlog.claude.TranscriptTextExtractor
+import com.hedworth.seshlog.copy.CopyContent
 import com.hedworth.seshlog.model.Activity
+import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.model.ConversationLimits
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
-import org.sqlite.JDBC
-import org.sqlite.SQLiteConfig
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.ResultSet
 import java.sql.SQLException
 import java.time.Instant
+import org.sqlite.JDBC
+import org.sqlite.SQLiteConfig
 
 /**
  * Read-only access to opencode's SQLite database (`<data>/opencode.db`, WAL mode). Owns the JDBC
@@ -160,12 +163,12 @@ class OpenCodeDatabase(private val file: Path) {
     }
 
     /** Raw parts are bounded before JDBC materializes them. Malformed rows are skipped individually. */
-    fun conversationEntries(conn: Connection, sessionId: String): List<com.hedworth.seshlog.model.ConversationEntry> {
-        val out = com.hedworth.seshlog.model.ConversationLimits.Collector()
+    fun conversationEntries(conn: Connection, sessionId: String): List<ConversationEntry> {
+        val out = ConversationLimits.Collector()
         val sql = """
             SELECT m.id, CASE WHEN json_valid(m.data) THEN json_extract(m.data, '$.role') END,
                    m.time_created, p.id, length(p.data),
-                   CASE WHEN length(p.data) <= ${com.hedworth.seshlog.model.ConversationLimits.RECORD_CHARS} THEN p.data END
+                   CASE WHEN length(p.data) <= ${ConversationLimits.RECORD_CHARS} THEN p.data END
             FROM message m JOIN part p ON p.message_id = m.id
             WHERE m.session_id = ?
             ORDER BY m.time_created, m.id, p.id
@@ -176,7 +179,7 @@ class OpenCodeDatabase(private val file: Path) {
                 var sourceChars = 0L
                 while (rs.next()) {
                     sourceChars += rs.getLong(5)
-                    if (out.full || sourceChars > com.hedworth.seshlog.model.ConversationLimits.SOURCE_CHARS) {
+                    if (out.full || sourceChars > ConversationLimits.SOURCE_CHARS) {
                         out.limited = true; break
                     }
                     val raw = rs.getString(6)
@@ -190,7 +193,7 @@ class OpenCodeDatabase(private val file: Path) {
     }
 
     /** Newest assistant first, with complete text parts and bounded JDBC allocation. */
-    fun lastAssistantMessage(conn: Connection, sessionId: String): com.hedworth.seshlog.copy.CopyContent {
+    fun lastAssistantMessage(conn: Connection, sessionId: String): CopyContent {
         val sql = """
             SELECT m.id, length(p.data),
                    CASE WHEN length(p.data) <= 8388608 THEN p.data END
@@ -207,20 +210,20 @@ class OpenCodeDatabase(private val file: Path) {
                 val parts = arrayListOf<String>()
                 while (rs.next()) {
                     if (id != rs.getString(1)) {
-                        if (parts.isNotEmpty()) return com.hedworth.seshlog.copy.CopyContent.Found(parts.joinToString("\n"))
+                        if (parts.isNotEmpty()) return CopyContent.Found(parts.joinToString("\n"))
                         id = rs.getString(1)
                     }
                     scanned += rs.getLong(2)
                     val raw = rs.getString(3)
                     if (raw == null || scanned > 128L * 1024 * 1024)
-                        return com.hedworth.seshlog.copy.CopyContent.Failed("Session content exceeds the copy limit.")
+                        return CopyContent.Failed("Session content exceeds the copy limit.")
                     val obj = TranscriptParser.parseObject(raw) ?: continue
                     fun string(key: String) = obj.get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
                     if (string("type") != "text" || obj.get("synthetic")?.toString() == "true") continue
                     string("text")?.takeIf(String::isNotBlank)?.let(parts::add)
                 }
-                return if (parts.isEmpty()) com.hedworth.seshlog.copy.CopyContent.Absent()
-                    else com.hedworth.seshlog.copy.CopyContent.Found(parts.joinToString("\n"))
+                return if (parts.isEmpty()) CopyContent.Absent()
+                    else CopyContent.Found(parts.joinToString("\n"))
             }
         }
     }

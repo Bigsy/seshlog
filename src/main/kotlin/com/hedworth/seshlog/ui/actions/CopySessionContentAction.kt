@@ -6,13 +6,13 @@ import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.hedworth.seshlog.terminal.TerminalTabs
 import com.hedworth.seshlog.ui.SeshlogDataKeys
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
-import com.intellij.notification.NotificationType
 import java.awt.datatransfer.StringSelection
 
 @Service(Service.Level.PROJECT)

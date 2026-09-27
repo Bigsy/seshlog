@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.settings
 
+import com.hedworth.seshlog.model.AgentKind
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
@@ -101,18 +102,18 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         get() = state.piExtraArgs
         set(value) { state.piExtraArgs = value }
 
-    fun executable(kind: com.hedworth.seshlog.model.AgentKind): String = when (kind) {
-        com.hedworth.seshlog.model.AgentKind.CLAUDE_CODE -> claudeExecutable
-        com.hedworth.seshlog.model.AgentKind.CODEX -> codexExecutable
-        com.hedworth.seshlog.model.AgentKind.OPENCODE -> opencodeExecutable
-        com.hedworth.seshlog.model.AgentKind.PI -> piExecutable
+    fun executable(kind: AgentKind): String = when (kind) {
+        AgentKind.CLAUDE_CODE -> claudeExecutable
+        AgentKind.CODEX -> codexExecutable
+        AgentKind.OPENCODE -> opencodeExecutable
+        AgentKind.PI -> piExecutable
     }
 
-    fun extraArgs(kind: com.hedworth.seshlog.model.AgentKind): String = when (kind) {
-        com.hedworth.seshlog.model.AgentKind.CLAUDE_CODE -> claudeExtraArgs
-        com.hedworth.seshlog.model.AgentKind.CODEX -> codexExtraArgs
-        com.hedworth.seshlog.model.AgentKind.OPENCODE -> opencodeExtraArgs
-        com.hedworth.seshlog.model.AgentKind.PI -> piExtraArgs
+    fun extraArgs(kind: AgentKind): String = when (kind) {
+        AgentKind.CLAUDE_CODE -> claudeExtraArgs
+        AgentKind.CODEX -> codexExtraArgs
+        AgentKind.OPENCODE -> opencodeExtraArgs
+        AgentKind.PI -> piExtraArgs
     }
 
     fun resolvedPiSessionsDir(): Path = resolvePiSessionsDir(state.piSessionsDir)

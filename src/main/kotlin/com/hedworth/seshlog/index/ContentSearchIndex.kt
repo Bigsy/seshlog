@@ -1,10 +1,10 @@
 package com.hedworth.seshlog.index
 
-import com.hedworth.seshlog.model.Session
-import java.util.LinkedHashMap
 import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
+import com.hedworth.seshlog.model.Session
+import java.util.LinkedHashMap
 
 /** One session that matched a content search. */
 data class SearchHit(

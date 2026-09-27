@@ -1,7 +1,7 @@
 package com.hedworth.seshlog.model
 
-import java.nio.file.Path
 import com.hedworth.seshlog.copy.CopyContent
+import java.nio.file.Path
 
 interface SessionProvider {
     val kind: AgentKind

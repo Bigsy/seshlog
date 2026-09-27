@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.claude
 
+import com.google.gson.JsonObject
 import com.hedworth.seshlog.claude.TranscriptParser.bool
 import com.hedworth.seshlog.claude.TranscriptParser.getAsJsonObjectOrNull
 import com.hedworth.seshlog.claude.TranscriptParser.queuedPrompt
@@ -57,6 +58,6 @@ object ConversationMessages {
         return ConversationMessage(Role.ASSISTANT, text, timestamp(obj))
     }
 
-    private fun timestamp(obj: com.google.gson.JsonObject): Instant? =
+    private fun timestamp(obj: JsonObject): Instant? =
         obj.string("timestamp")?.let { runCatching { Instant.parse(it) }.getOrNull() }
 }

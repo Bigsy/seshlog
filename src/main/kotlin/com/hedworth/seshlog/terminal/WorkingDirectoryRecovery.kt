@@ -2,12 +2,12 @@ package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SessionOrganisation
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths

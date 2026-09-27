@@ -1,8 +1,8 @@
 package com.hedworth.seshlog.model
 
 import java.nio.file.Files
-import java.nio.file.Path
 import java.nio.file.NoSuchFileException
+import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 
 /** Missing installation, successfully empty storage, and unreadable storage are distinct outcomes. */

@@ -364,7 +364,7 @@ Checked against the cached platforms:
   (sessions, filters, resolved paths and organisation in; groups out). This turns the
   "unchanged" check in 1.4 into plain equality.
 
-- [ ] **5.3 Replace inline fully qualified names with imports.**
+- [x] **5.3 Replace inline fully qualified names with imports.**
   61 in `SessionTreePanel.kt`, more in `SessionActions.kt`, the providers, `OpenCodeDatabase.kt`
   and `SessionRestoreManager.kt`. Mechanical, no behaviour change.
 

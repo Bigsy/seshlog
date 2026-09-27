@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.index
 
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.SessionOrganisation
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
@@ -19,7 +20,7 @@ class ContentSearchService : Disposable {
     private val index = ContentSearchIndex(
         extractor = { session -> SessionIndex.getInstance().providerFor(session).conversationText(session) },
         entryExtractor = { session -> SessionIndex.getInstance().providerFor(session).conversationEntries(session) },
-        localTitle = { com.hedworth.seshlog.settings.SessionOrganisation.getInstance().metadata(it.id).title },
+        localTitle = { SessionOrganisation.getInstance().metadata(it.id).title },
         contentStamp = { session -> SessionIndex.getInstance().providerFor(session).contentStamp(session) },
     )
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog content search", 1)

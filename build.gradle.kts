@@ -35,6 +35,7 @@ dependencies {
         // Needed to open shell tabs in the Terminal tool window and run `claude --resume`.
         bundledPlugin("org.jetbrains.plugins.terminal")
         bundledModule("intellij.terminal.frontend")
+        // Platform Markdown parser; independent of the optional Markdown editor plugin.
         bundledModule("intellij.libraries.markdown")
 
         pluginVerifier()

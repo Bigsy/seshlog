@@ -1,13 +1,21 @@
 package com.hedworth.seshlog.terminal
 
+import com.hedworth.seshlog.copy.CopyTarget
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.restore.RestoreTabReadiness
 import com.hedworth.seshlog.settings.SessionOrganisation
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
+import com.jediterm.terminal.ProcessTtyConnector
+import java.awt.KeyboardFocusManager
+import java.awt.event.KeyEvent
+import javax.swing.SwingUtilities
 import org.jetbrains.plugins.terminal.ShellTerminalWidget
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
@@ -24,22 +32,22 @@ object TerminalTabs {
     data class ActionTarget(val isTerminal: Boolean, val content: Content?)
 
     /** Resolve the actual invoking view; selected/last-active tabs are never substitutes for focus. */
-    fun actionTarget(project: Project, event: com.intellij.openapi.actionSystem.AnActionEvent): ActionTarget {
+    fun actionTarget(project: Project, event: AnActionEvent): ActionTarget {
         // The manager's enumeration excludes tabs while moving and terminals hosted in an
         // editor. Retain those known contents as candidates, but require exact view/focus evidence.
         val candidates = (contents(project) + OwnedTerminalTabs.getInstance(project).knownContents()).distinct()
         reworked.contextView(event.dataContext)?.let { view ->
             return ActionTarget(true, reworked.contentForView(project, view, candidates))
         }
-        val context = event.getData(com.intellij.openapi.actionSystem.PlatformDataKeys.CONTEXT_COMPONENT)
-        val keySource = (event.inputEvent as? java.awt.event.KeyEvent)?.component
-        val focus = com.hedworth.seshlog.copy.CopyTarget.invocationComponent(
-            context, keySource, java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner)
-        val content = com.hedworth.seshlog.copy.CopyTarget.focusedContent(focus, candidates) { it.component }
+        val context = event.getData(PlatformDataKeys.CONTEXT_COMPONENT)
+        val keySource = (event.inputEvent as? KeyEvent)?.component
+        val focus = CopyTarget.invocationComponent(
+            context, keySource, KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner)
+        val content = CopyTarget.focusedContent(focus, candidates) { it.component }
         val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
         val terminal = content != null || (focus != null && window != null &&
-            javax.swing.SwingUtilities.isDescendingFrom(focus, window.component)) ||
-            event.getData(com.intellij.openapi.actionSystem.PlatformDataKeys.TOOL_WINDOW)?.id == TerminalToolWindowFactory.TOOL_WINDOW_ID
+            SwingUtilities.isDescendingFrom(focus, window.component)) ||
+            event.getData(PlatformDataKeys.TOOL_WINDOW)?.id == TerminalToolWindowFactory.TOOL_WINDOW_ID
         return ActionTarget(terminal, content)
     }
 
@@ -137,7 +145,7 @@ object TerminalTabs {
         window.contentManager // Initialize the terminal's asynchronous restoration.
         // Legacy/classic restoration is synchronous. Do not instantiate the reworked manager
         // for classic-only IDEs; a missing API is the normal baseline path.
-        return com.hedworth.seshlog.restore.RestoreTabReadiness.ready(
+        return RestoreTabReadiness.ready(
             restored = reworked.tabsRestored(project) != false,
             matching = { contents(project).filter { it.displayName in listOfNotNull(title, originalTitle) } },
             state = { terminalOf(project, it)?.let(TerminalCommands::state) ?: TerminalState.UNKNOWN },
@@ -168,7 +176,7 @@ object TerminalTabs {
     fun shellPid(widget: TerminalWidget): Long? = try {
         val classic = runCatching { ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget) }.getOrNull()
         classic?.processTtyConnector?.process?.pid()
-            ?: (widget.ttyConnector as? com.jediterm.terminal.ProcessTtyConnector)?.process?.pid()
+            ?: (widget.ttyConnector as? ProcessTtyConnector)?.process?.pid()
     } catch (_: Throwable) {
         null // Not a local process connector, or not started yet.
     }

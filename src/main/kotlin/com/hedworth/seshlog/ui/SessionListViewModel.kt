@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.ui
 
+import com.hedworth.seshlog.index.DatePeriod
 import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SessionDateFilter
 import com.hedworth.seshlog.index.SessionFilter
@@ -7,7 +8,6 @@ import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentSessionFilter
 import java.nio.file.Path
-import com.hedworth.seshlog.index.DatePeriod
 
 /** Pure input and output for the session list; the Swing tree only renders this result. */
 data class SessionListFilters(

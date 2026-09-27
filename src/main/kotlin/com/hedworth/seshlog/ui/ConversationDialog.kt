@@ -1,19 +1,28 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchRequestScope
+import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.index.TextQuery
+import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.SessionAttentionState
 import com.hedworth.seshlog.settings.SessionOrganisation
+import com.intellij.ide.DataManager
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.JBColor
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.GridLayout
+import java.awt.datatransfer.StringSelection
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.text.DefaultHighlighter
@@ -23,10 +32,10 @@ class ConversationDialog(
     private val project: Project,
     private val session: Session,
     query: String,
-    private val loader: (Session) -> List<com.hedworth.seshlog.model.ConversationEntry> =
+    private val loader: (Session) -> List<ConversationEntry> =
         { SessionIndex.getInstance().providerFor(it).conversationEntries(it) },
     private val copy: (String) -> Unit = {
-        com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(it))
+        CopyPasteManager.getInstance().setContents(StringSelection(it))
     },
     private val startAtLatest: Boolean = false,
 ) : DialogWrapper(project, false) {
@@ -43,7 +52,7 @@ class ConversationDialog(
     internal val copyDialogueButton = JButton("Copy Conversation (dialogue only)")
     private var loading = true
     private var current = -1
-    private var completionReceipt: com.hedworth.seshlog.index.SessionAttention.Completion? = null
+    private var completionReceipt: SessionAttention.Completion? = null
 
     init {
         title = SessionOrganisation.getInstance().title(session)
@@ -52,7 +61,7 @@ class ConversationDialog(
         CompletionViewObserver(disposable) {
             if (!loading && CompletionViewObserver.isViewed(editor)) {
                 if (CompletionViewObserver.isLatestReplyVisible(document, editor))
-                    com.hedworth.seshlog.settings.SessionAttentionState.getInstance().viewed(session.id, completionReceipt)
+                    SessionAttentionState.getInstance().viewed(session.id, completionReceipt)
             }
         }
         previous.addActionListener { navigate(-1) }
@@ -89,13 +98,13 @@ class ConversationDialog(
 
     override fun createActions(): Array<Action> = arrayOf(cancelAction)
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
-        com.intellij.ide.DataManager.registerDataProvider(this) { id ->
+        DataManager.registerDataProvider(this) { id ->
             if (SeshlogDataKeys.SESSION.`is`(id)) session else null
         }
         preferredSize = Dimension(850, 650)
-        add(JPanel(java.awt.GridLayout(0, 1)).apply {
+        add(JPanel(GridLayout(0, 1)).apply {
             add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
-                toolTipText = com.hedworth.seshlog.index.TextQuery.HINT
+                toolTipText = TextQuery.HINT
                 add(JLabel("Find")); add(search); add(previous); add(next)
             })
             add(JPanel(FlowLayout(FlowLayout.LEFT)).apply {
@@ -109,7 +118,7 @@ class ConversationDialog(
 
     private fun load() {
         completionReceipt = null
-        val receipt = com.hedworth.seshlog.settings.SessionAttentionState.getInstance().receipt(session)
+        val receipt = SessionAttentionState.getInstance().receipt(session)
         status.text = "Loading conversation…"
         loading = true
         updateActions()
@@ -164,7 +173,7 @@ class ConversationDialog(
         }
         editor.highlighter.removeAllHighlights()
         editor.highlighter.addHighlight(range.first, range.last + 1,
-            DefaultHighlighter.DefaultHighlightPainter(com.intellij.ui.JBColor.YELLOW))
+            DefaultHighlighter.DefaultHighlightPainter(JBColor.YELLOW))
         editor.caretPosition = range.first
         status.text = "Match ${current + 1} of ${matches.size}" + coverageStatus()
     }

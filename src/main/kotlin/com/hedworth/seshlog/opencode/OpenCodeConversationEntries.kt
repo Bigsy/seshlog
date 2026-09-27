@@ -1,10 +1,10 @@
 package com.hedworth.seshlog.opencode
 
+import com.hedworth.seshlog.claude.ClaudeConversationEntries
 import com.hedworth.seshlog.claude.TranscriptParser
-import com.hedworth.seshlog.claude.TranscriptParser.string
 import com.hedworth.seshlog.claude.TranscriptParser.bool
 import com.hedworth.seshlog.claude.TranscriptParser.getAsJsonObjectOrNull
-import com.hedworth.seshlog.claude.ClaudeConversationEntries
+import com.hedworth.seshlog.claude.TranscriptParser.string
 import com.hedworth.seshlog.model.*
 import java.time.Instant
 

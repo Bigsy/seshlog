@@ -2,9 +2,11 @@ package com.hedworth.seshlog.claude
 
 import com.hedworth.seshlog.cache.FileBackedParseCache
 import com.hedworth.seshlog.cache.FileStamp
+import com.hedworth.seshlog.copy.LastAssistantReader
 import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.model.ConversationLimits
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.EntryKind
 import com.hedworth.seshlog.model.Session
@@ -17,8 +19,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
-import com.hedworth.seshlog.copy.LastAssistantReader
-import com.hedworth.seshlog.model.ConversationLimits
 
 /**
  * Reads Claude Code's local data (`~/.claude`). Read-only, always.
@@ -200,8 +200,6 @@ class ClaudeCodeSessionProvider(
 
     private fun subagentPaths(session: Session): List<Path> =
         session.subagentTranscriptPaths.ifEmpty { session.transcriptPath?.let(::listSubagentTranscripts).orEmpty() }
-
-
 
     override fun flush() = cache.persist()
 }

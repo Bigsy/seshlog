@@ -1,9 +1,9 @@
 package com.hedworth.seshlog.codex
 
-import com.hedworth.seshlog.model.ConversationMessage
-import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.codex.CodexTranscriptParser.objectValue
 import com.hedworth.seshlog.codex.CodexTranscriptParser.string
+import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.Role
 
 /** Extracts visible user and assistant messages from a Codex rollout record. */
 object CodexConversationMessages {

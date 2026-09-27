@@ -1,8 +1,8 @@
 package com.hedworth.seshlog.codex
 
+import com.hedworth.seshlog.claude.ClaudeConversationEntries
 import com.hedworth.seshlog.codex.CodexTranscriptParser.objectValue
 import com.hedworth.seshlog.codex.CodexTranscriptParser.string
-import com.hedworth.seshlog.claude.ClaudeConversationEntries
 import com.hedworth.seshlog.model.*
 
 object CodexConversationEntries {

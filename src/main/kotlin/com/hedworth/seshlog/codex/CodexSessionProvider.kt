@@ -4,7 +4,10 @@ import com.hedworth.seshlog.cache.FileBackedParseCache
 import com.hedworth.seshlog.cache.FileStamp
 import com.hedworth.seshlog.claude.TranscriptTailReader
 import com.hedworth.seshlog.claude.TranscriptTextExtractor
+import com.hedworth.seshlog.copy.LastAssistantReader
 import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.model.ConversationLimits
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
@@ -15,9 +18,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
-import com.hedworth.seshlog.copy.LastAssistantReader
-import com.hedworth.seshlog.model.ConversationEntry
-import com.hedworth.seshlog.model.ConversationLimits
 
 /**
  * Read-only provider for Codex CLI rollout sessions under `$CODEX_HOME/sessions`.
@@ -168,6 +168,7 @@ class CodexSessionProvider(
         return result
     }
 
+    override fun flush() = cache.persist()
 
     companion object {
         private val UUID_AT_END = Regex("([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\.jsonl$")
@@ -176,7 +177,4 @@ class CodexSessionProvider(
         internal fun idFromFileName(path: Path): String? =
             UUID_AT_END.find(path.fileName.toString())?.groupValues?.get(1)
     }
-
-
-    override fun flush() = cache.persist()
 }

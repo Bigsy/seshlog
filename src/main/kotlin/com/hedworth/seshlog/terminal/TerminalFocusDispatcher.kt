@@ -1,10 +1,10 @@
 package com.hedworth.seshlog.terminal
 
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.components.Service
+import com.intellij.ide.DataManager
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.ide.DataManager
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import java.awt.Component
 import java.awt.KeyboardFocusManager

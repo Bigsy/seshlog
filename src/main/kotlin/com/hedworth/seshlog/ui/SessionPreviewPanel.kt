@@ -1,14 +1,18 @@
 package com.hedworth.seshlog.ui
 
+import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SeshlogSettings
+import com.hedworth.seshlog.settings.SessionAttentionState
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.JBColor
 import com.intellij.ui.ScrollPaneFactory
@@ -20,6 +24,7 @@ import com.intellij.util.ui.HTMLEditorKitBuilder
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
+import java.awt.CardLayout
 import java.awt.FlowLayout
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -28,11 +33,6 @@ import javax.swing.JEditorPane
 import javax.swing.JPanel
 import javax.swing.JSpinner
 import javax.swing.SpinnerNumberModel
-import com.hedworth.seshlog.index.SessionAttention
-import com.hedworth.seshlog.model.ConversationEntry
-import com.hedworth.seshlog.settings.SessionAttentionState
-import com.intellij.openapi.util.Disposer
-import java.awt.CardLayout
 
 /**
  * Bottom half of the tool window: the last N messages of the selected session, read lazily

@@ -1,21 +1,27 @@
 package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.index.SessionIndex
-import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.AgentKind
-import com.hedworth.seshlog.settings.SeshlogSettings
+import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.ProcessTree
+import com.hedworth.seshlog.restore.SessionRestoreManager
+import com.hedworth.seshlog.settings.SeshlogSettings
+import com.hedworth.seshlog.settings.SessionAttentionState
+import com.hedworth.seshlog.settings.SessionOrganisation
+import com.hedworth.seshlog.ui.CompletionViewObserver
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
-import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.content.Content
 import com.intellij.util.messages.Topic
-import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
+import java.awt.KeyboardFocusManager
 import java.util.concurrent.atomic.AtomicBoolean
+import javax.swing.Timer
+import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 
 /**
  * Project-level, in-memory map of session id → Terminal tool window tab: the tabs Seshlog opened
@@ -140,7 +146,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private var disposed = false
     private var pollingState = ProcessPollingPolicy.State()
     private val batchInspector = ProcessBatchInspector()
-    private val processClock = javax.swing.Timer(2_000) { refreshRunning() }
+    private val processClock = Timer(2_000) { refreshRunning() }
 
     /** Cached process evidence; collecting it must never block the EDT. */
     fun runningSessionIds(): Set<String> = running.intersect(registry.sessionIds)
@@ -217,7 +223,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         observedNow = agents.snapshot(),
                         exited = exited,
                         tabTitles = stableTabs.associateWith { it.displayName },
-                        displayTitle = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()::title,
+                        displayTitle = SessionOrganisation.getInstance()::title,
                         generationsAtInspection = previousGenerations,
                         generationsNow = generationNow,
                         runningProcesses = validFound,
@@ -236,7 +242,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                     if (pending) {
                         pendingSessions.resolve(tab, candidateIds)
                         SessionIndex.getInstance().sessionById(id)?.let {
-                            com.hedworth.seshlog.restore.SessionRestoreManager.getInstance(project).recordLaunch(it)
+                            SessionRestoreManager.getInstance(project).recordLaunch(it)
                         }
                     }
                 }
@@ -266,7 +272,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         TerminalTabs.terminalOf(project, tab)?.shellPid() == inspected[tab]
                 }
                 val changed = running != valid || ownershipBefore != registry.snapshot()
-                val active = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow != null
+                val active = KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow != null
                 val cadence = ProcessPollingPolicy.next(pollingState, active, changed)
                 pollingState = cadence.state
                 processClock.delay = cadence.delayMillis.toInt()
@@ -315,8 +321,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             override fun sessionsUpdated(sessions: List<Session>) = sync(sessions)
         })
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(
-            com.hedworth.seshlog.settings.SessionOrganisation.TOPIC,
-            object : com.hedworth.seshlog.settings.SessionOrganisation.Listener {
+            SessionOrganisation.TOPIC,
+            object : SessionOrganisation.Listener {
                 override fun changed() { sync(SessionIndex.getInstance().sessions) }
             },
         )
@@ -335,7 +341,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 
     private fun retitleOwned(sessions: List<Session>) {
-        val organisation = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+        val organisation = SessionOrganisation.getInstance()
         for (session in sessions) {
             val content = undisposedContent(session.id) ?: continue
             val title = organisation.title(session)
@@ -355,9 +361,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private fun acknowledgeVisibleCompletion() {
         val content = selectedContent ?: return
         if (Disposer.isDisposed(content) || content.manager?.isSelected(content) != true) return
-        if (!com.hedworth.seshlog.ui.CompletionViewObserver.isViewed(content.component)) return
+        if (!CompletionViewObserver.isViewed(content.component)) return
         lastSessionFor(content)?.let {
-            com.hedworth.seshlog.settings.SessionAttentionState.getInstance().viewedTerminal(it)
+            SessionAttentionState.getInstance().viewedTerminal(it)
         }
     }
 

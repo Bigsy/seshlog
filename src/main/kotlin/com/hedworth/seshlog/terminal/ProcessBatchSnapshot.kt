@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.terminal
 
+import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.ProcessTree
 
@@ -89,12 +90,12 @@ internal class ProcessBatchInspector(
     fun inspect(
         shellPids: Set<Long>,
         sessions: List<Session>,
-        executables: Map<com.hedworth.seshlog.model.AgentKind, String>,
+        executables: Map<AgentKind, String>,
     ): ProcessBatchResult {
         if (shellPids.isEmpty()) return ProcessBatchResult(ProcessTableSnapshot.of(emptyList()), emptyMap(), emptyMap())
         val table = snapshot()
         val evidenceByShell = shellPids.associateWith { shell -> table.under(shell).map { it.evidence() } }
-        val codexExecutable = executables[com.hedworth.seshlog.model.AgentKind.CODEX]
+        val codexExecutable = executables[AgentKind.CODEX]
         val codexPids = evidenceByShell.values.asSequence().flatten()
             .filter { codexExecutable != null && SessionProcess.isAgent(it, codexExecutable) }
             .mapTo(LinkedHashSet()) { it.pid }

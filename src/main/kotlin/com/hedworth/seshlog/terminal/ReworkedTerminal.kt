@@ -1,7 +1,10 @@
 package com.hedworth.seshlog.terminal
 
+import com.hedworth.seshlog.copy.CopyTarget
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import com.intellij.platform.eel.provider.LocalEelDescriptor
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
@@ -12,9 +15,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.jetbrains.plugins.terminal.TerminalEngine
 import org.jetbrains.plugins.terminal.TerminalOptionsProvider
 import org.jetbrains.plugins.terminal.view.shellIntegration.TerminalOutputStatus
-import com.hedworth.seshlog.copy.CopyTarget
-import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.util.Key
 
 /**
  * Reworked-terminal adapter for the 2026.2 baseline. Never wait for a session or shell

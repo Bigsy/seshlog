@@ -1,10 +1,12 @@
 package com.hedworth.seshlog.claude
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.hedworth.seshlog.claude.TranscriptParser.bool
-import com.hedworth.seshlog.claude.TranscriptParser.string
 import com.hedworth.seshlog.claude.TranscriptParser.getAsJsonObjectOrNull
 import com.hedworth.seshlog.claude.TranscriptParser.queuedPrompt
+import com.hedworth.seshlog.claude.TranscriptParser.string
 import com.hedworth.seshlog.model.*
 import java.time.Instant
 
@@ -68,13 +70,13 @@ object ClaudeConversationEntries {
                 val obj = el.asJsonObject
                 if (obj.string("type") in setOf("image", "image_url", "input_image", "audio", "file", "document") ||
                     obj.string("encoding") == "base64") return null
-                val result = com.google.gson.JsonObject()
+                val result = JsonObject()
                 obj.entrySet().forEach { (key, child) ->
                     if (key !in setOf("base64", "image_url", "image_data", "audio_data")) clean(child)?.let { result.add(key, it) }
                 }
                 return result
             }
-            if (el.isJsonArray) return com.google.gson.JsonArray().apply { el.asJsonArray.forEach { clean(it)?.let(::add) } }
+            if (el.isJsonArray) return JsonArray().apply { el.asJsonArray.forEach { clean(it)?.let(::add) } }
             return el.takeUnless { it.isJsonNull }
         }
         val cleaned = clean(value) ?: return null

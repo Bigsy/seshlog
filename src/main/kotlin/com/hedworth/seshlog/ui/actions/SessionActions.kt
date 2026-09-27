@@ -1,17 +1,19 @@
 package com.hedworth.seshlog.ui.actions
 
-import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.claude.LiveSessionReader
+import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.AgentKind
-import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.SessionRestoreManager
+import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
-import com.hedworth.seshlog.terminal.TerminalTabs
 import com.hedworth.seshlog.terminal.SessionProcesses
-import com.intellij.openapi.application.ApplicationManager
-import com.hedworth.seshlog.ui.SeshlogDataKeys
+import com.hedworth.seshlog.terminal.ShellQuote
+import com.hedworth.seshlog.terminal.TerminalState
+import com.hedworth.seshlog.terminal.TerminalTabs
+import com.hedworth.seshlog.terminal.WorkingDirectoryRecovery
 import com.hedworth.seshlog.ui.ConversationEditorTabs
+import com.hedworth.seshlog.ui.SeshlogDataKeys
 import com.intellij.icons.AllIcons
 import com.intellij.ide.actions.RevealFileAction
 import com.intellij.notification.NotificationGroupManager
@@ -19,18 +21,16 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.PlatformDataKeys
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
-import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 import java.awt.datatransfer.StringSelection
-import com.hedworth.seshlog.terminal.TerminalState
-import com.hedworth.seshlog.terminal.ShellQuote
-import com.hedworth.seshlog.terminal.WorkingDirectoryRecovery
 import java.nio.file.Path
 import javax.swing.Icon
+import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 
 /** Base for actions that need a selected session. */
 abstract class SessionAction(text: String, description: String? = null, icon: Icon? = null) :

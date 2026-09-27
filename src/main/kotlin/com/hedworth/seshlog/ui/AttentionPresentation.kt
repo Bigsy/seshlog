@@ -1,22 +1,27 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.SeshlogIcons
-import com.hedworth.seshlog.index.SessionAttention
+import com.hedworth.seshlog.index.DateBounds
 import com.hedworth.seshlog.index.ResolvedPaths
+import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentFilterState
-import com.hedworth.seshlog.settings.SessionAttentionState
-import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.SeshlogSettingsListener
+import com.hedworth.seshlog.settings.SessionAttentionState
+import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ModuleRootEvent
+import com.intellij.openapi.roots.ModuleRootListener
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.openapi.wm.WindowManager
 import com.intellij.ui.BadgeIconSupplier
 import com.intellij.util.concurrency.AppExecutorUtil
 import java.nio.file.Path
@@ -57,9 +62,9 @@ class AttentionPresentation(private val project: Project) : Disposable {
             object : AgentFilterState.Listener { override fun changed() = refresh() })
         project.messageBus.connect(this).subscribe(AttentionViewState.TOPIC,
             object : AttentionViewState.Listener { override fun changed() = refresh() })
-        project.messageBus.connect(this).subscribe(com.intellij.openapi.roots.ModuleRootListener.TOPIC,
-            object : com.intellij.openapi.roots.ModuleRootListener {
-                override fun rootsChanged(event: com.intellij.openapi.roots.ModuleRootEvent) = refresh()
+        project.messageBus.connect(this).subscribe(ModuleRootListener.TOPIC,
+            object : ModuleRootListener {
+                override fun rootsChanged(event: ModuleRootEvent) = refresh()
             })
     }
 
@@ -103,7 +108,7 @@ class AttentionPresentation(private val project: Project) : Disposable {
         ToolWindowManager.getInstance(project).getToolWindow("Seshlog")?.setIcon(
             if (next.unread > 0) badge.infoIcon else SeshlogIcons.ToolWindow,
         )
-        val status = com.intellij.openapi.wm.WindowManager.getInstance().getStatusBar(project)
+        val status = WindowManager.getInstance().getStatusBar(project)
             ?.getWidget(AttentionStatusBarWidget.ID) as? AttentionStatusBarWidget
         status?.update(next)
     }
@@ -135,10 +140,10 @@ class AttentionPresentation(private val project: Project) : Disposable {
         val roots: List<Path>,
         val pathRefreshGeneration: Long,
         val showHidden: Boolean,
-        val dateBounds: com.hedworth.seshlog.index.DateBounds,
+        val dateBounds: DateBounds,
         val showAllProjects: Boolean,
         val includeWorktrees: Boolean,
-        val agentMode: com.hedworth.seshlog.settings.AgentFilterMode,
+        val agentMode: AgentFilterMode,
         val hiddenIds: Set<String>,
         val minPrompts: Int,
     )

@@ -1,11 +1,11 @@
 package com.hedworth.seshlog.codex
 
-import org.sqlite.JDBC
-import org.sqlite.SQLiteConfig
+import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.SQLException
-import java.nio.file.Files
+import org.sqlite.JDBC
+import org.sqlite.SQLiteConfig
 
 /**
  * Read-only metadata access to Codex CLI's state_5.sqlite. A null result means that this version

@@ -1,11 +1,12 @@
 package com.hedworth.seshlog.ui
 
+import com.hedworth.seshlog.model.Role
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import java.awt.Component
+import javax.swing.JComponent
 import javax.swing.SwingUtilities
 import javax.swing.Timer
-import javax.swing.JComponent
 import javax.swing.text.JTextComponent
 
 /** Also notices returning to an IDE window or revealing an already-loaded reply. No I/O. */
@@ -23,7 +24,7 @@ internal class CompletionViewObserver(parent: Disposable, private val check: () 
         fun isLatestReplyVisible(document: ConversationDocument, editor: JTextComponent): Boolean {
             if (document.entries.any { it.truncated || !it.searchable }) return false
             val last = document.entries.indexOfLast {
-                !it.isTool && it.message.role == com.hedworth.seshlog.model.Role.ASSISTANT && it.text.isNotBlank()
+                !it.isTool && it.message.role == Role.ASSISTANT && it.text.isNotBlank()
             }
             val end = document.messageRanges.getOrNull(last)?.last ?: return false
             return end >= 0 && editor.modelToView2D(end)?.intersects(editor.visibleRect) == true

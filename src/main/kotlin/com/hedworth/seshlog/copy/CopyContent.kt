@@ -2,6 +2,7 @@ package com.hedworth.seshlog.copy
 
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
+import java.io.ByteArrayOutputStream
 import java.io.RandomAccessFile
 import java.nio.file.Path
 
@@ -25,7 +26,7 @@ object LastAssistantReader {
                 var position = file.length()
                 var scanned = 0L
                 val block = ByteArray(8192)
-                val line = java.io.ByteArrayOutputStream()
+                val line = ByteArrayOutputStream()
                 fun message(): String? {
                     val bytes = line.toByteArray()
                     bytes.reverse()

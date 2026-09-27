@@ -1,38 +1,38 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchRequestScope
+import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.index.TextQuery
 import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SessionAttentionState
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.actionSystem.CustomShortcutSet
-import com.intellij.openapi.project.DumbAwareAction
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.fileTypes.UnknownFileType
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.testFramework.LightVirtualFile
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.testFramework.LightVirtualFile
 import com.intellij.util.concurrency.AppExecutorUtil
+import java.awt.event.ActionEvent
+import java.awt.event.KeyEvent
 import java.util.Collections
 import java.util.HashMap
 import java.util.IdentityHashMap
 import javax.swing.AbstractAction
 import javax.swing.KeyStroke
-import java.awt.event.KeyEvent
-import com.hedworth.seshlog.index.SessionAttention
-import com.hedworth.seshlog.index.TextQuery
-import com.intellij.openapi.editor.ScrollType
-import java.awt.event.ActionEvent
 
 /** Opens a conversation as a read-only in-memory Markdown editor tab. */
 object ConversationEditorTabs {

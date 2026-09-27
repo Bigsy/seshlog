@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.terminal
 
+import com.hedworth.seshlog.copy.CopyTarget
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.content.Content
@@ -8,6 +10,7 @@ import com.intellij.ui.content.ContentManager
 import com.intellij.ui.content.ContentManagerEvent
 import com.intellij.ui.content.ContentManagerListener
 import java.awt.Component
+import java.awt.KeyboardFocusManager
 
 /** Observes terminal tabs even when the platform moves them between pane content managers. */
 internal class TerminalTabObserver(
@@ -15,7 +18,7 @@ internal class TerminalTabObserver(
     private val openContents: () -> List<Content>,
     private val selectionChanged: (Content?) -> Unit,
     private val tabClosed: (Content) -> Unit,
-    private val later: (() -> Unit) -> Unit = { com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(it) },
+    private val later: (() -> Unit) -> Unit = { ApplicationManager.getApplication().invokeLater(it) },
     /** Production observers identify their project; null keeps the pure test seam. */
     internal val project: Project? = null,
 ) : Disposable {
@@ -57,7 +60,7 @@ internal class TerminalTabObserver(
         for (manager in currentManagers - managers) manager.addContentManagerListener(listener)
         managers.clear()
         managers.addAll(currentManagers)
-        select(contentAt(java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().permanentFocusOwner)
+        select(contentAt(KeyboardFocusManager.getCurrentKeyboardFocusManager().permanentFocusOwner)
             ?: selected?.takeIf { it in contents && it.manager?.isSelected(it) == true }
             ?: root?.selectedContent?.takeIf { it in contents }
             ?: contents.firstOrNull { it.manager?.isSelected(it) == true }, notify)
@@ -73,7 +76,7 @@ internal class TerminalTabObserver(
     }
 
     private fun contentAt(component: Component?): Content? =
-        com.hedworth.seshlog.copy.CopyTarget.focusedContent(component, contents) { it.component }
+        CopyTarget.focusedContent(component, contents) { it.component }
 
     private fun refreshLater() = later { if (!disposed) refresh() }
 

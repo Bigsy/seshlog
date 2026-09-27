@@ -2,6 +2,8 @@ package com.hedworth.seshlog.copy
 
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.model.Session
+import java.awt.Component
+import javax.swing.SwingUtilities
 
 /** A new invocation supersedes pending clipboard writes, even when its target is unknown. */
 class CopyRequest(
@@ -41,13 +43,13 @@ class CopyRequest(
 /** Terminal context wins even when it has no known association. Never infer from cwd. */
 object CopyTarget {
     /** A keyboard action may expose a wrapper as its context component; use its actual source. */
-    fun invocationComponent(context: java.awt.Component?, keySource: java.awt.Component?, focus: java.awt.Component?): java.awt.Component? {
+    fun invocationComponent(context: Component?, keySource: Component?, focus: Component?): Component? {
         if (keySource != null) return keySource
         if (context == null) return focus
-        return focus?.takeIf { javax.swing.SwingUtilities.isDescendingFrom(it, context) } ?: context
+        return focus?.takeIf { SwingUtilities.isDescendingFrom(it, context) } ?: context
     }
 
-    fun <T> focusedContent(focus: java.awt.Component?, contents: List<T>, component: (T) -> java.awt.Component): T? {
+    fun <T> focusedContent(focus: Component?, contents: List<T>, component: (T) -> Component): T? {
         // Recursive enumeration can include a containing pane as well as its terminal. The
         // nearest ancestor identifies the actual terminal; equal-depth ambiguity stays unknown.
         var ancestor = focus

@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.terminal
 
+import com.hedworth.seshlog.codex.CodexTranscriptParser
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import java.nio.file.Path
@@ -61,7 +62,7 @@ internal object SessionProcess {
     internal fun identifyTree(
         processes: List<Evidence>, sessions: List<Session>, executables: Map<AgentKind, String>,
         writableFiles: Map<Long, Set<Path>>,
-        isCliTranscript: (Path) -> Boolean = com.hedworth.seshlog.codex.CodexTranscriptParser::isCliTranscript,
+        isCliTranscript: (Path) -> Boolean = CodexTranscriptParser::isCliTranscript,
     ): Discovery {
         return identifyTree(processes, sessions, executables, ProcessTranscripts.Result(writableFiles), isCliTranscript)
     }
@@ -69,7 +70,7 @@ internal object SessionProcess {
     internal fun identifyTree(
         processes: List<Evidence>, sessions: List<Session>, executables: Map<AgentKind, String>,
         evidence: ProcessTranscripts.Result,
-        isCliTranscript: (Path) -> Boolean = com.hedworth.seshlog.codex.CodexTranscriptParser::isCliTranscript,
+        isCliTranscript: (Path) -> Boolean = CodexTranscriptParser::isCliTranscript,
     ): Discovery {
         val writableFiles = evidence.files
         val codex = executables[AgentKind.CODEX]

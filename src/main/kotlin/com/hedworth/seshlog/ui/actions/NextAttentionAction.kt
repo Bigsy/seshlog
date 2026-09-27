@@ -1,7 +1,8 @@
 package com.hedworth.seshlog.ui.actions
 
-import com.hedworth.seshlog.ui.SessionTreePanel
+import com.hedworth.seshlog.settings.SessionAttentionState
 import com.hedworth.seshlog.ui.SeshlogDataKeys
+import com.hedworth.seshlog.ui.SessionTreePanel
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAwareAction
@@ -12,7 +13,7 @@ class NextAttentionAction : DumbAwareAction() {
     override fun update(e: AnActionEvent) {
         val panel = e.getData(SeshlogDataKeys.PANEL)
         e.presentation.isEnabled = e.project != null && if (panel != null) panel.nextAttentionSession() != null
-            else com.hedworth.seshlog.settings.SessionAttentionState.getInstance().unreadIds.isNotEmpty()
+            else SessionAttentionState.getInstance().unreadIds.isNotEmpty()
     }
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return

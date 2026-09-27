@@ -15,6 +15,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
+import com.hedworth.seshlog.copy.LastAssistantReader
+import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.model.ConversationLimits
 
 /**
  * Read-only provider for Codex CLI rollout sessions under `$CODEX_HOME/sessions`.
@@ -39,6 +42,7 @@ class CodexSessionProvider(
     override fun dataRoot(): Path = dataDir()
     private fun sessionsDir() = dataDir().resolve("sessions")
     private fun namesFile() = dataDir().resolve("session_index.jsonl")
+    private fun stateFile() = dataDir().resolve("state_5.sqlite")
 
     @Volatile override var scanProblem: String? = null
         private set
@@ -46,7 +50,7 @@ class CodexSessionProvider(
 
     override fun isAvailable(): Boolean = Files.isDirectory(sessionsDir())
 
-    override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile())
+    override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile(), stateFile())
 
     override fun resumeCommand(session: Session): String =
         ExtraArguments.append("${ShellQuote.quote(executable())} resume ${ShellQuote.quote(session.id)}", extraArgs())
@@ -59,7 +63,13 @@ class CodexSessionProvider(
         val root = sessionsDir()
         if (!Files.isDirectory(root)) return emptyList()
         val names = CodexSessionIndexReader.read(namesFile())
-        val paths = listTranscripts(root)
+        val databaseRows = CodexStateDatabase(stateFile()).read()
+        val rowsByPath = databaseRows?.associateBy { resolveRolloutPath(it.rolloutPath) }
+        // state_5 is a metadata index and can lag the files being written. Always discover
+        // rollouts from disk, then enrich matching paths with database rows.
+        val paths = (listTranscripts(root) + rowsByPath.orEmpty().keys)
+            .filter { Files.isRegularFile(it) }
+            .distinct()
         cache.retainOnly(paths.toSet())
         val result = ArrayList<Session>(paths.size)
         for (path in paths) {
@@ -70,12 +80,20 @@ class CodexSessionProvider(
             }
             val modified = Instant.ofEpochMilli(attrs.lastModifiedTime().toMillis())
             val idFromName = idFromFileName(path)
-            val info = cache.get(path, attrs) ?: continue
+            val row = rowsByPath?.get(path)
+            // The state DB has no prompt/activity columns. Keep those correct by parsing on a
+            // cache miss, while reusing the persisted transcript metadata on warm scans.
+            val parsed = cache.get(path, attrs) ?: continue
+            val info = row?.let { metadata(it, parsed) } ?: parsed
             if (info.isSubagentRollout) continue
             val id = info.sessionId ?: idFromName ?: continue
             val cwd = info.cwd?.let { runCatching { Path.of(it) }.getOrNull() } ?: continue
             val promptTitle = info.promptTitle
-            val explicitTitle = names[id]
+            // Archived state is retained by the reader for future filtering; Codex has no
+            // Seshlog setting for it, so archived threads remain visible as before.
+            val explicitTitle = names[id] ?: row?.displayTitle
+            val lastActivity = row?.updatedAtMillis?.let { Instant.ofEpochMilli(maxOf(it, attrs.lastModifiedTime().toMillis())) }
+                ?: modified
             result += Session(
                 kind = kind,
                 id = id,
@@ -83,7 +101,7 @@ class CodexSessionProvider(
                 cwd = cwd,
                 gitBranch = info.gitBranch,
                 startedAt = info.startedAt,
-                lastActivityAt = modified,
+                lastActivityAt = lastActivity,
                 transcriptPath = path,
                 isLive = false,
                 livePid = null,
@@ -99,19 +117,33 @@ class CodexSessionProvider(
         return result
     }
 
+    private fun resolveRolloutPath(path: Path): Path =
+        if (path.isAbsolute) path.normalize() else stateFile().parent.resolve(path).normalize()
+
+    private fun metadata(row: CodexStateDatabase.ThreadRow, parsed: CodexTranscriptInfo): CodexTranscriptInfo =
+        parsed.copy(
+            // The transcript payload id is authoritative. The database id is a fallback for
+            // older or incomplete rollouts and must not recreate the pre-1.1 parent merge.
+            sessionId = parsed.sessionId ?: row.id,
+            cwd = row.cwd ?: parsed.cwd,
+            gitBranch = row.gitBranch ?: parsed.gitBranch,
+            // The DB title/name is applied by scan; retain the prompt-derived title for search and fallback.
+            startedAt = parsed.startedAt,
+        )
+
     override fun conversationText(session: Session): List<String> =
         session.transcriptPath?.let { TranscriptTextExtractor.extract(it, CodexConversationMessages::parseLine) } ?: emptyList()
 
     override fun conversationMessages(session: Session): List<ConversationMessage> =
         session.transcriptPath?.let { TranscriptTextExtractor.messages(it, parseLine = CodexConversationMessages::parseLine) } ?: emptyList()
 
-    override fun conversationEntries(session: Session): List<com.hedworth.seshlog.model.ConversationEntry> =
-        session.transcriptPath?.let { com.hedworth.seshlog.model.ConversationLimits.read(it, CodexConversationEntries::parse) } ?: emptyList()
+    override fun conversationEntries(session: Session): List<ConversationEntry> =
+        session.transcriptPath?.let { ConversationLimits.read(it, CodexConversationEntries::parse) } ?: emptyList()
 
     override fun latestPlan(session: Session) = CodexPlanReader.read(session)
 
     override fun lastAssistantMessage(session: Session) =
-        com.hedworth.seshlog.copy.LastAssistantReader.read(session.transcriptPath, CodexConversationMessages::parseClipboardLine)
+        LastAssistantReader.read(session.transcriptPath, CodexConversationMessages::parseClipboardLine)
 
     override fun lastMessages(session: Session, count: Int): List<ConversationMessage> =
         session.transcriptPath?.let { TranscriptTailReader.lastMessages(it, count, parseLine = CodexConversationMessages::parseLine) }
@@ -135,6 +167,7 @@ class CodexSessionProvider(
         }
         return result
     }
+
 
     companion object {
         private val UUID_AT_END = Regex("([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\.jsonl$")

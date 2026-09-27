@@ -337,13 +337,14 @@ Checked against the cached platforms:
   Paths only, extracted on demand, nothing written to disk.
   - Test: fixtures per agent yield the expected paths.
 
-- [ ] **4.8 Read Codex metadata from `state_5.sqlite`.**
+- [x] **4.8 Read Codex metadata from `state_5.sqlite`.**
   codex-cli 0.157 keeps a `threads` table (rollout_path, source, cwd, title, name, archived,
   git_branch, updated_at_ms). One query could replace parsing about 1,040 rollouts (cold scan
   3.5 s). Fall back to rollout parsing when the table or a column is missing; read-only, like
   `OpenCodeDatabase`.
   - Test: a fixture database built from SQL like `opencode_fixture.sql`; a missing table falls
     back to rollouts.
+  - Adjustment: union database paths with disk discovery so database lag cannot hide fresh sessions. Cold transcript parsing remains necessary for prompt/activity fields absent from SQLite; archived sessions remain visible.
 
 ## 5. Code health
 

@@ -10,6 +10,8 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.util.Properties
+import org.sqlite.JDBC
 
 class CodexSessionProviderTest {
     @get:Rule
@@ -80,7 +82,8 @@ class CodexSessionProviderTest {
             """{"id":"$id","thread_name":"Make error numbers clickable"}""")
         val cacheFile = root.resolve("cache.json")
         repeat(2) {
-            val session = CodexSessionProvider({ root }, { "codex" }, cacheFile).scan(emptyMap()).single()
+            val provider = CodexSessionProvider({ root }, { "codex" }, cacheFile)
+            val session = provider.scan(emptyMap()).single()
             assertEquals(id, session.id)
             assertEquals("Make error numbers clickable", session.title)
             assertEquals(userRollout, session.transcriptPath)
@@ -103,6 +106,79 @@ class CodexSessionProviderTest {
     }
 
     @Test
+    fun `state database supplies metadata while rollout parsing preserves prompt counts`() {
+        val root = tmp.root.toPath()
+        val day = Files.createDirectories(root.resolve("sessions/2026/09/27"))
+        val id = "019a1111-2222-7333-8444-555555555555"
+        val rollout = day.resolve("rollout-2026-09-27T10-00-00-$id.jsonl")
+        Files.copy(Paths.get(javaClass.getResource("/fixtures/codex_session.jsonl")!!.toURI()), rollout)
+        val db = root.resolve("state_5.sqlite")
+        JDBC.createConnection("jdbc:sqlite:$db", Properties()).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("CREATE TABLE threads (rollout_path text, source text, cwd text, title text, name text, archived integer, git_branch text, updated_at_ms integer)")
+            }
+            connection.prepareStatement("INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)").use { statement ->
+                statement.setString(1, rollout.toString())
+                statement.setString(2, "cli")
+                statement.setString(3, "/state/database/project")
+                statement.setString(4, "State DB title")
+                statement.setString(5, null)
+                statement.setInt(6, 0)
+                statement.setString(7, "state-branch")
+                statement.setLong(8, 1788000007000)
+                statement.executeUpdate()
+            }
+        }
+
+        val provider = CodexSessionProvider({ root }, { "codex" })
+        val session = provider.scan(emptyMap()).single()
+        assertEquals("State DB title", session.title)
+        assertEquals(Paths.get("/state/database/project"), session.cwd)
+        assertEquals("state-branch", session.gitBranch)
+        assertEquals(2, session.promptCount)
+        assertTrue(provider.watchRoots().contains(db))
+    }
+
+    @Test
+    fun `disk discovery includes rollouts missing from a lagging state database and preserves payload id`() {
+        val root = tmp.root.toPath()
+        val day = Files.createDirectories(root.resolve("sessions/2026/09/27"))
+        val filenameId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        val payloadId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        val missingId = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+        val indexed = day.resolve("rollout-2026-09-27T10-00-00-$filenameId.jsonl")
+        val missing = day.resolve("rollout-2026-09-27T10-01-00-$missingId.jsonl")
+        Files.writeString(indexed, """{"type":"session_meta","payload":{"id":"$payloadId","cwd":"/payload"}}
+""")
+        Files.writeString(missing, """{"type":"session_meta","payload":{"id":"$missingId","cwd":"/missing"}}
+""")
+
+        val db = root.resolve("state_5.sqlite")
+        JDBC.createConnection("jdbc:sqlite:$db", Properties()).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("CREATE TABLE threads (rollout_path text, source text, cwd text, title text, name text, archived integer, git_branch text, updated_at_ms integer)")
+            }
+            connection.prepareStatement("INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)").use { statement ->
+                statement.setString(1, indexed.toString())
+                statement.setString(2, "cli")
+                statement.setString(3, "/database")
+                statement.setString(4, "Indexed title")
+                statement.setString(5, null)
+                statement.setInt(6, 0)
+                statement.setString(7, "db-branch")
+                statement.setLong(8, 1788000007000)
+                statement.executeUpdate()
+            }
+        }
+
+        val sessions = CodexSessionProvider({ root }, { "codex" }).scan(emptyMap()).associateBy { it.id }
+        assertEquals(setOf(payloadId, missingId), sessions.keys)
+        assertEquals("Indexed title", sessions.getValue(payloadId).title)
+        assertEquals(Paths.get("/database"), sessions.getValue(payloadId).cwd)
+        assertEquals(Paths.get("/missing"), sessions.getValue(missingId).cwd)
+    }
+
+    @Test
     fun `previous cache version is discarded so guardian metadata is reparsed`() {
         assertTrue(CodexTranscriptInfoStore.fromJson("""{"version":1,"entries":[{"path":"/rollout.jsonl","size":1,"mtime":1}]}""").isEmpty())
     }
@@ -120,8 +196,8 @@ class CodexSessionProviderTest {
 {"id":"child","thread_name":"Review access record"}""")
         val cacheFile = root.resolve("cache.json")
         repeat(2) {
-            val sessions = CodexSessionProvider({ root }, { "codex" }, cacheFile)
-                .scan(emptyMap()).associateBy { it.id }
+            val provider = CodexSessionProvider({ root }, { "codex" }, cacheFile)
+            val sessions = provider.scan(emptyMap()).associateBy { it.id }
             assertEquals(2, sessions.size)
             assertEquals(sessions.getValue("parent").title, sessions.getValue("child").title)
             assertEquals(null, sessions.getValue("parent").forkedFromId)

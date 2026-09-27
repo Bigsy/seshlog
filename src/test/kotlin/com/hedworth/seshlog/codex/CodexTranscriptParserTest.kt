@@ -5,6 +5,7 @@ import com.hedworth.seshlog.claude.TranscriptTailReader
 import com.hedworth.seshlog.claude.TranscriptTextExtractor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -96,5 +97,27 @@ class CodexTranscriptParserTest {
         val noStamp = CodexTranscriptParser.parseLines(sequenceOf(meta, """{"type":"event_msg","payload":{"type":"task_started"}}"""))
         assertEquals(Activity.WORKING, noStamp.activity)
         assertNull(noStamp.activityAt)
+    }
+
+    @Test
+    fun `subagent rollouts use their own id and are marked for exclusion`() {
+        val parent = """{"type":"session_meta","payload":{"id":"parent","session_id":"parent","cwd":"/p","source":"cli"}}"""
+        val spawned = """{"type":"session_meta","payload":{"id":"child","session_id":"parent","cwd":"/p","source":{"subagent":{"thread_spawn":{"parent_thread_id":"parent"}}}}}"""
+        val review = """{"type":"session_meta","payload":{"id":"review","session_id":"parent","cwd":"/p","source":{"subagent":{"review":{"parent_thread_id":"parent"}}}}}"""
+
+        val parentInfo = CodexTranscriptParser.parseLines(sequenceOf(parent))
+        assertEquals("parent", parentInfo.sessionId)
+        assertEquals(false, parentInfo.isSubagentRollout)
+
+        val spawnedInfo = CodexTranscriptParser.parseLines(sequenceOf(spawned))
+        assertEquals("child", spawnedInfo.sessionId)
+        assertEquals(true, spawnedInfo.isSubagentRollout)
+
+        val reviewInfo = CodexTranscriptParser.parseLines(sequenceOf(review))
+        assertEquals("review", reviewInfo.sessionId)
+        assertEquals(true, reviewInfo.isSubagentRollout)
+
+        val directReview = """{"type":"session_meta","payload":{"id":"direct-review","cwd":"/p","source":"review"}}"""
+        assertTrue(CodexTranscriptParser.parseLines(sequenceOf(directReview)).isSubagentRollout)
     }
 }

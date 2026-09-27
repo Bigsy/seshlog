@@ -21,7 +21,8 @@ data class CodexTranscriptInfo(
     val promptTitle: String?,
     val startedAt: Instant?,
     val promptCount: Int,
-    val isGuardianReview: Boolean = false,
+    /** Internal thread_spawn/review/guardian rollouts are not user conversations. */
+    val isSubagentRollout: Boolean = false,
     val forkedFromId: String? = null,
     /** From the last `task_started` / `task_complete` / `turn_aborted` event, see [Activity]. */
     val activity: Activity = Activity.UNKNOWN,
@@ -68,7 +69,7 @@ object CodexTranscriptParser {
         var promptTitle: String? = null
         var startedAt: Instant? = null
         var promptCount = 0
-        var isGuardianReview = false
+        var isSubagentRollout = false
         var forkedFromId: String? = null
         var activity = Activity.UNKNOWN
         var activityAt: Instant? = null
@@ -97,10 +98,10 @@ object CodexTranscriptParser {
             val obj = parseObject(line) ?: return
             if (obj.string("type") != "session_meta") return
             val payload = obj.objectValue("payload") ?: return
-            // Internal approval reviews share the user's session_id but have their own rollout.
-            isGuardianReview = isGuardianReview || payload.string("thread_source") == "guardian_review" ||
-                payload.objectValue("source")?.objectValue("subagent")?.string("other") == "guardian"
-            if (sessionId == null) sessionId = payload.string("session_id") ?: payload.string("id")
+            // Subagent and approval rollouts share the parent's session_id, but have their own id.
+            // Keep the id so a malformed or unusual rollout cannot merge into its parent.
+            isSubagentRollout = isSubagentRollout || payload.isInternalSubagent()
+            if (sessionId == null) sessionId = payload.string("id")
             if (forkedFromId == null) forkedFromId = payload.string("forked_from_id")?.takeIf { it.isNotBlank() }
             if (cwd == null) cwd = payload.string("cwd")
             if (gitBranch == null) gitBranch = payload.objectValue("git")?.string("branch")
@@ -123,7 +124,7 @@ object CodexTranscriptParser {
         }
 
         fun build() = CodexTranscriptInfo(
-            sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isGuardianReview, forkedFromId, activity, activityAt,
+            sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isSubagentRollout, forkedFromId, activity, activityAt,
         )
     }
 
@@ -172,4 +173,20 @@ object CodexTranscriptParser {
 
     internal fun JsonObject.objectValue(name: String): JsonObject? =
         get(name)?.takeIf { it.isJsonObject }?.asJsonObject
+
+    /** Identifies Codex's internal subagent and approval rollout source variants. */
+    private fun JsonObject.isInternalSubagent(): Boolean {
+        if (string("thread_source") in setOf("guardian_review", "thread_spawn", "review")) return true
+        val source = get("source") ?: return false
+        if (source.isJsonPrimitive) {
+            return source.asString in setOf("subagent", "thread_spawn", "review", "guardian", "guardian_review")
+        }
+        if (!source.isJsonObject) return false
+        val subagentElement = source.asJsonObject.get("subagent") ?: return false
+        if (subagentElement.isJsonPrimitive) {
+            return subagentElement.asString in setOf("thread_spawn", "review", "guardian")
+        }
+        val subagent = subagentElement.takeIf { it.isJsonObject }?.asJsonObject ?: return false
+        return subagent.has("thread_spawn") || subagent.has("review") || subagent.string("other") == "guardian"
+    }
 }

@@ -89,6 +89,20 @@ class CodexSessionProviderTest {
     }
 
     @Test
+    fun `thread spawn and review rollouts sharing a parent id are excluded`() {
+        val root = tmp.root.toPath()
+        val day = Files.createDirectories(root.resolve("sessions/2026/09/27"))
+        val fixtureDir = Paths.get(javaClass.getResource("/fixtures/codex_subagents")!!.toURI())
+        Files.copy(fixtureDir.resolve("parent.jsonl"), day.resolve("rollout-2026-09-27T10-00-00-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl"))
+        Files.copy(fixtureDir.resolve("thread_spawn.jsonl"), day.resolve("rollout-2026-09-27T10-01-00-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.jsonl"))
+        Files.copy(fixtureDir.resolve("review.jsonl"), day.resolve("rollout-2026-09-27T10-02-00-cccccccc-cccc-cccc-cccc-cccccccccccc.jsonl"))
+
+        val sessions = CodexSessionProvider({ root }, { "codex" }).scan(emptyMap())
+        assertEquals(listOf("parent"), sessions.map { it.id })
+        assertEquals(1, sessions.map { it.id }.toSet().size)
+    }
+
+    @Test
     fun `previous cache version is discarded so guardian metadata is reparsed`() {
         assertTrue(CodexTranscriptInfoStore.fromJson("""{"version":1,"entries":[{"path":"/rollout.jsonl","size":1,"mtime":1}]}""").isEmpty())
     }

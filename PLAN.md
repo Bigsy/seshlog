@@ -68,7 +68,7 @@ Checked against the cached platforms:
 
 ## 1. Fix first
 
-- [ ] **1.1 Codex subagent rollouts are listed under their parent's id.**
+- [x] **1.1 Codex subagent rollouts are listed under their parent's id.**
   `codex/CodexTranscriptParser.kt:103` (`offerSessionMeta`) prefers `payload.session_id` over
   `payload.id`. Spawned subagents (`source.subagent.thread_spawn`) carry the parent's
   `session_id`, so 46 local rollouts list as their parent: 852 rows, 803 distinct ids. Resume or
@@ -80,6 +80,8 @@ Checked against the cached platforms:
     another agent) stay visible. Bump `CACHE_VERSION` in `codex/CodexTranscriptInfoStore.kt`.
   - Test: synthetic fixture with a parent rollout, a `thread_spawn` rollout sharing its
     `session_id`, and a `review` rollout. Scan returns only the parent, and ids are unique.
+
+  - Verified: synthetic parent/spawn/review fixtures pass under `make check`. MCP rollouts stay visible.
 
 - [ ] **1.2 Make the benchmark numbers-only and representative.**
   `src/test/kotlin/com/hedworth/seshlog/claude/RealDataScanBenchmark.kt:23,42` prints real

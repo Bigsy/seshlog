@@ -1,17 +1,16 @@
 package com.hedworth.seshlog.terminal
 
-import com.intellij.openapi.project.Project
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab
+import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabBuilder
+import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
+import com.intellij.terminal.frontend.view.TerminalView
+import com.intellij.ui.content.ContentFactory
+import org.jetbrains.plugins.terminal.TerminalEngine
+import java.lang.reflect.Proxy
+import javax.swing.JPanel
 
 class TerminalEngineLaunchTest : BasePlatformTestCase() {
-    enum class Engine { REWORKED, CLASSIC }
-    class Options {
-        fun getTerminalEngine() = engine
-        companion object {
-            var engine = Engine.CLASSIC
-            @JvmStatic fun getInstance() = Options()
-        }
-    }
     class Builder {
         var directory: String? = null
         var title: String? = null
@@ -19,50 +18,72 @@ class TerminalEngineLaunchTest : BasePlatformTestCase() {
         var deferred = true
         var fail = false
         var created = 0
-        fun workingDirectory(value: String): Builder { directory = value; return this }
-        fun tabName(value: String): Builder { title = value; return this }
-        fun requestFocus(value: Boolean): Builder { focused = value; return this }
-        fun deferSessionStartUntilUiShown(value: Boolean): Builder { deferred = value; return this }
-        fun createTab(): Tab {
-            created++
-            check(!fail) { "Creation failed" }
-            return Tab()
-        }
-    }
-    class Tab {
-        fun getView() = ReworkedTerminalTest.View()
-        fun getContent() = com.intellij.ui.content.ContentFactory.getInstance().createContent(javax.swing.JPanel(), "new", false)
-    }
-    class Manager {
-        fun createTabBuilder() = builder
-        companion object {
-            var builder = Builder()
-            @JvmStatic fun getInstance(@Suppress("UNUSED_PARAMETER") project: Project) = Manager()
-        }
-    }
-    private val adapter = ReworkedTerminal {
-        when (it) {
-            "org.jetbrains.plugins.terminal.TerminalOptionsProvider" -> Options::class.java
-            "com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager" -> Manager::class.java
-            else -> throw ClassNotFoundException(it)
+        private val content = ContentFactory.getInstance().createContent(JPanel(), "new", false)
+        private val view: TerminalView = Proxy.newProxyInstance(
+            TerminalView::class.java.classLoader, arrayOf(TerminalView::class.java),
+        ) { _, _, _ -> null } as TerminalView
+        private val tab: TerminalToolWindowTab = Proxy.newProxyInstance(
+            TerminalToolWindowTab::class.java.classLoader, arrayOf(TerminalToolWindowTab::class.java),
+        ) { _, method, _ ->
+            when (method.name) {
+                "getView" -> view
+                "getContent" -> content
+                else -> null
+            }
+        } as TerminalToolWindowTab
+        private lateinit var proxy: TerminalToolWindowTabBuilder
+        val api: TerminalToolWindowTabBuilder
+            get() = proxy
+
+        init {
+            proxy = Proxy.newProxyInstance(
+                TerminalToolWindowTabBuilder::class.java.classLoader, arrayOf(TerminalToolWindowTabBuilder::class.java),
+            ) { _, method, args ->
+                when (method.name) {
+                    "workingDirectory" -> { directory = args?.singleOrNull() as String?; proxy }
+                    "tabName" -> { title = args?.singleOrNull() as String?; proxy }
+                    "requestFocus" -> { focused = args?.singleOrNull() as Boolean; proxy }
+                    "deferSessionStartUntilUiShown" -> { deferred = args?.singleOrNull() as Boolean; proxy }
+                    "createTab" -> {
+                        created++
+                        check(!fail) { "Creation failed" }
+                        tab
+                    }
+                    else -> proxy
+                }
+            } as TerminalToolWindowTabBuilder
         }
     }
 
+    class Manager {
+        var builder = Builder()
+        val api: TerminalToolWindowTabsManager = Proxy.newProxyInstance(
+            TerminalToolWindowTabsManager::class.java.classLoader, arrayOf(TerminalToolWindowTabsManager::class.java),
+        ) { _, method, _ -> if (method.name == "createTabBuilder") builder.api else null } as TerminalToolWindowTabsManager
+    }
+
+    private var engine = TerminalEngine.CLASSIC
+    private lateinit var manager: Manager
+    private val adapter = ReworkedTerminal(
+        terminalEngine = { engine },
+        tabsManager = { manager.api },
+    )
+
     override fun setUp() {
         super.setUp()
-        Manager.builder = Builder()
-        Options.engine = Engine.CLASSIC
+        manager = Manager()
+        engine = TerminalEngine.CLASSIC
     }
 
     fun `test classic preference leaves launch to the classic adapter`() {
         assertNull(adapter.launch(project, "/project", "session"))
-        assertEquals(0, Manager.builder.created)
+        assertEquals(0, manager.builder.created)
     }
 
     fun `test reworked preference creates and configures a new-engine tab`() {
-        Options.engine = Engine.REWORKED
+        engine = TerminalEngine.REWORKED
         assertNotNull(adapter.launch(project, "/my project", "session"))
-        with(Manager.builder) {
+        with(manager.builder) {
             assertEquals("/my project", directory)
             assertEquals("session", title)
             assertTrue(focused)
@@ -72,13 +93,13 @@ class TerminalEngineLaunchTest : BasePlatformTestCase() {
     }
 
     fun `test failure after starting new tab creation is surfaced instead of triggering fallback`() {
-        Options.engine = Engine.REWORKED
-        Manager.builder.fail = true
+        engine = TerminalEngine.REWORKED
+        manager.builder.fail = true
         try {
             adapter.launch(project, "/project", "session")
             fail("Expected creation failure")
-        } catch (_: java.lang.reflect.InvocationTargetException) {
-            assertEquals(1, Manager.builder.created)
+        } catch (_: IllegalStateException) {
+            assertEquals(1, manager.builder.created)
         }
     }
 }

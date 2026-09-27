@@ -4,6 +4,14 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.ProcessTree
 import com.hedworth.seshlog.restore.RestoreCandidates
+import com.intellij.platform.eel.EelDescriptor
+import com.intellij.platform.eel.EelOsFamily
+import com.intellij.platform.eel.provider.LocalEelDescriptor
+import com.intellij.terminal.frontend.view.TerminalView
+import org.jetbrains.plugins.terminal.view.shellIntegration.TerminalShellIntegration
+import org.jetbrains.plugins.terminal.view.shellIntegration.TerminalOutputStatus
+import org.jetbrains.plugins.terminal.session.impl.TerminalSession
+import org.jetbrains.plugins.terminal.view.TerminalSendTextBuilder
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,34 +19,60 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.nio.file.Path
 import java.time.Instant
+import java.lang.reflect.Proxy
+import javax.swing.JPanel
 
 class ReworkedTerminalTest {
-    class Local
-    class Remote
-    class TypingCommand
-    class ExecutingCommand
-    class WaitingForPrompt
-    class SessionApi(val processId: Long = 110, val eelDescriptor: Any = Local(), private val closed: Boolean = false) {
-        fun isClosed() = closed
+    private class RemoteDescriptor : EelDescriptor {
+        override val name = "Remote"
+        override val osFamily = EelOsFamily.Posix
     }
-    class Integration(status: Any) { val outputStatus = MutableStateFlow(status) }
-    interface Sender {
-        fun shouldExecute(): Sender
-        fun send(command: String)
+
+    private class Sender : TerminalSendTextBuilder {
+        var sent: String? = null
+        override fun shouldExecute() = this
+        override fun send(text: String) { sent = text }
+        override fun useBracketedPasteMode() = this
     }
-    class View(
-        val sessionDeferred: Deferred<Any> = CompletableDeferred(SessionApi()),
-        val shellIntegrationDeferred: Deferred<Any> = CompletableDeferred(Integration(TypingCommand())),
+
+    private class View(
+        sessionDeferred: Deferred<TerminalSession> = CompletableDeferred(session()),
+        shellIntegrationDeferred: Deferred<TerminalShellIntegration> = CompletableDeferred(integration(TerminalOutputStatus.TypingCommand)),
     ) {
         val title = com.intellij.terminal.TerminalTitle()
-        var executed = false
-        var sent: String? = null
-        // A non-public implementation tests reflection through a public interface.
-        fun createSendTextBuilder(): Sender = object : Sender {
-            override fun shouldExecute(): Sender { executed = true; return this }
-            override fun send(command: String) { sent = command }
-        }
+        val sender = Sender()
+        val component = JPanel()
+        val api: TerminalView = Proxy.newProxyInstance(
+            TerminalView::class.java.classLoader, arrayOf(TerminalView::class.java),
+        ) { _, method, _ ->
+            when (method.name) {
+                "getSessionDeferred" -> sessionDeferred
+                "getShellIntegrationDeferred" -> shellIntegrationDeferred
+                "getTitle" -> title
+                "getComponent", "getPreferredFocusableComponent" -> component
+                "createSendTextBuilder" -> sender
+                else -> null
+            }
+        } as TerminalView
     }
+
+    private companion object {
+        fun session(processId: Long = 110, descriptor: EelDescriptor = LocalEelDescriptor, closed: Boolean = false): TerminalSession =
+            Proxy.newProxyInstance(TerminalSession::class.java.classLoader, arrayOf(TerminalSession::class.java)) { _, method, _ ->
+                when (method.name) {
+                    "getProcessId" -> processId
+                    "getEelDescriptor" -> descriptor
+                    "isClosed" -> closed
+                    else -> null
+                }
+            } as TerminalSession
+
+        fun integration(status: TerminalOutputStatus): TerminalShellIntegration =
+            Proxy.newProxyInstance(TerminalShellIntegration::class.java.classLoader, arrayOf(TerminalShellIntegration::class.java)) { _, method, _ ->
+                if (method.name == "getOutputStatus") MutableStateFlow(status) else null
+            } as TerminalShellIntegration
+    }
+
     class RestoringManager(private val tabsRestoredDeferred: Deferred<Unit>)
 
     @Test fun `view without the baseline session API is unknown`() {
@@ -57,35 +91,32 @@ class ReworkedTerminalTest {
         assertFalse(adapter.restored(Any()))
     }
 
-    private val adapter = ReworkedTerminal { name ->
-        if (name == "com.intellij.platform.eel.provider.LocalEelDescriptor") Local::class.java
-        else throw ClassNotFoundException(name)
-    }
-    private fun handle(view: View = View()) = adapter.handle(null, view)
+    private val adapter = ReworkedTerminal()
+    private fun handle(view: View = View()) = adapter.handle(null, view.api)
 
     @Test fun `local reworked session exposes shell pid and prompt state`() {
         val terminal = handle()
         assertEquals(110L, terminal.shellPid())
         assertEquals(TerminalState.IDLE, terminal.state())
-        for (status in listOf(ExecutingCommand(), WaitingForPrompt())) {
-            assertEquals(TerminalState.BUSY, handle(View(shellIntegrationDeferred = CompletableDeferred(Integration(status)))).state())
+        for (status in listOf(TerminalOutputStatus.ExecutingCommand, TerminalOutputStatus.WaitingForPrompt)) {
+            assertEquals(TerminalState.BUSY, handle(View(shellIntegrationDeferred = CompletableDeferred(integration(status)))).state())
         }
     }
 
     @Test fun `starting failed and closed sessions are not treated as idle`() {
-        val failed = CompletableDeferred<Any>().apply { completeExceptionally(IllegalStateException("failed")) }
-        val pending = CompletableDeferred<Any>()
-        for (session in listOf(pending, failed, CompletableDeferred(SessionApi(closed = true)))) {
+        val failed = CompletableDeferred<TerminalSession>().apply { completeExceptionally(IllegalStateException("failed")) }
+        val pending = CompletableDeferred<TerminalSession>()
+        for (session in listOf(pending, failed, CompletableDeferred(session(closed = true)))) {
             val terminal = handle(View(sessionDeferred = session))
             assertNull(terminal.shellPid())
             assertEquals(TerminalState.UNKNOWN, terminal.state())
         }
-        assertEquals(TerminalState.UNKNOWN, handle(View(shellIntegrationDeferred = pending)).state())
+        assertEquals(TerminalState.UNKNOWN, handle(View(shellIntegrationDeferred = CompletableDeferred<TerminalShellIntegration>())).state())
         assertEquals(TerminalState.UNKNOWN, adapter.handle(null, Any()).state())
     }
 
     @Test fun `remote and invalid pids never enter the local process tree`() {
-        for (session in listOf(SessionApi(eelDescriptor = Remote()), SessionApi(processId = -1), SessionApi(processId = 0))) {
+        for (session in listOf(session(descriptor = RemoteDescriptor()), session(processId = -1), session(processId = 0))) {
             assertNull(handle(View(sessionDeferred = CompletableDeferred(session))).shellPid())
         }
     }
@@ -94,8 +125,7 @@ class ReworkedTerminalTest {
         val view = View()
         val command = "cd '/some project' && claude --resume 'session-id'"
         handle(view).execute(command)
-        assertTrue(view.executed)
-        assertEquals(command, view.sent)
+        assertEquals(command, view.sender.sent)
     }
 
     @Test fun `rename updates the persistent view title`() {

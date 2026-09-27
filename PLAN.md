@@ -58,7 +58,7 @@ Checked against the cached platforms:
   - Test: existing `ReworkedTerminalTest`, `ReworkedTerminalPlatformTest`, `TerminalTabObserverTest`
     and `SeshlogToolWindowTest` pass unchanged.
 
-- [ ] **0.3 Decide: link the reworked terminal API directly, or keep reflection.**
+- [x] **0.3 Decide: link the reworked terminal API directly, or keep reflection.**
   Direct linking means `verifyPlugin` reports API breaks in CI (including EAP 263) instead of
   `ReworkedTerminal.read` silently returning null at runtime, and removes `call`/`loadApiClass`.
   It needs a plugin dependency on the `intellij.terminal.frontend` content module
@@ -67,6 +67,7 @@ Checked against the cached platforms:
   declared cleanly, keep the reflective adapter and record why here.
 
 ## 1. Fix first
+  - Decision: use the declared terminal frontend content module and typed APIs. Keep the tab-key fallback, private restoration readiness, and internal session/PID lookup reflective. The verifier rejects direct references to TerminalSession and getSessionDeferred as internal API usage; failed reflective inspection remains unknown and never blocks. Local validation targets IU-262.10968.63; EAP 263 remains a CI/manual compatibility check.
 
 - [x] **1.1 Codex subagent rollouts are listed under their parent's id.**
   `codex/CodexTranscriptParser.kt:103` (`offerSessionMeta`) prefers `payload.session_id` over

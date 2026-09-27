@@ -34,6 +34,7 @@ dependencies {
 
         // Needed to open shell tabs in the Terminal tool window and run `claude --resume`.
         bundledPlugin("org.jetbrains.plugins.terminal")
+        bundledModule("intellij.terminal.frontend")
 
         pluginVerifier()
         zipSigner()

@@ -180,7 +180,7 @@ object TerminalTabs {
             // TerminalWidget's newer default returns false even when it cannot inspect the
             // shell. Only trust an engine implementation, never that default's apparent idle.
             check(!widget.javaClass.getMethod("isCommandRunning").declaringClass.isInterface)
-            ReworkedTerminal.call(widget, "isCommandRunning") as Boolean
+            widget.isCommandRunning()
         }
     }
 }

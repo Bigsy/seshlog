@@ -24,6 +24,9 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.plugins.terminal</depends>
+    <dependencies>
+        <module name="intellij.terminal.frontend" />
+    </dependencies>
 
     <change-notes><![CDATA[
     <b>0.6.3</b>

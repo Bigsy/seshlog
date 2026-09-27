@@ -2,6 +2,7 @@ package com.hedworth.seshlog.claude
 
 import com.hedworth.seshlog.claude.TranscriptParser.bool
 import com.hedworth.seshlog.claude.TranscriptParser.getAsJsonObjectOrNull
+import com.hedworth.seshlog.claude.TranscriptParser.queuedPrompt
 import com.hedworth.seshlog.claude.TranscriptParser.string
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
@@ -13,14 +14,21 @@ import java.time.Instant
  * (subagents), meta records, slash commands, title records. Never throws.
  */
 object ConversationMessages {
-    private val TYPE_REGEX = Regex("\"type\"\\s*:\\s*\"(user|assistant)\"")
+    private val TYPE_REGEX = Regex("\"type\"\\s*:\\s*\"(user|assistant|attachment)\"")
 
     fun parseLine(line: String): ConversationMessage? =
         when (TYPE_REGEX.find(line)?.groupValues?.get(1)) {
             "user" -> userMessage(line)
             "assistant" -> assistantMessage(line)
+            "attachment" -> queuedMessage(line)
             else -> null
         }
+
+    private fun queuedMessage(line: String): ConversationMessage? {
+        val obj = TranscriptParser.parseObject(line) ?: return null
+        val text = obj.queuedPrompt() ?: return null
+        return ConversationMessage(Role.USER, text, timestamp(obj))
+    }
 
     private fun userMessage(line: String): ConversationMessage? {
         // Tool results are `user` records too, and they can be huge — skip without parsing.

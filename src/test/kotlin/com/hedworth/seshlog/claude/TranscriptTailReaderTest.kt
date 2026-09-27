@@ -2,6 +2,8 @@ package com.hedworth.seshlog.claude
 
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Role
+import com.hedworth.seshlog.copy.CopyContent
+import com.hedworth.seshlog.copy.LastAssistantReader
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -52,5 +54,26 @@ class TranscriptTailReaderTest {
         val empty = tmp.newFile("empty.jsonl").toPath()
         assertEquals(emptyList<ConversationMessage>(), TranscriptTailReader.lastMessages(empty, 3))
         assertEquals(1, TranscriptTailReader.lastMessages(fixture("malformed.jsonl"), 3).count { it.role == Role.USER })
+    }
+
+    @Test
+    fun `queued human prompts are included while task and peer attachments are skipped`() {
+        val messages = TranscriptTailReader.lastMessages(fixture("claude_queued_commands.jsonl"), 10)
+
+        assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER, Role.ASSISTANT), messages.map { it.role })
+        assertEquals(listOf(
+            "Start the queued example",
+            "Working on it.",
+            "Please also cover the edge case.",
+            "Queued edge case covered.",
+        ), messages.map { it.text })
+    }
+
+    @Test
+    fun `last assistant reader still finds the reply after a queued prompt`() {
+        assertEquals(
+            CopyContent.Found("Queued edge case covered."),
+            LastAssistantReader.read(fixture("claude_queued_commands.jsonl"), ConversationMessages::parseLine),
+        )
     }
 }

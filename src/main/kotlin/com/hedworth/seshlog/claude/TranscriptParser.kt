@@ -106,8 +106,21 @@ object TranscriptParser {
                     if (sessionId == null) sessionId = obj.string("sessionId")
                 }
                 "user" -> offerUser(line)
+                "attachment" -> offerQueuedPrompt(line)
                 else -> Unit
             }
+        }
+
+        private fun offerQueuedPrompt(line: String) {
+            val obj = parseObject(line) ?: return
+            val text = obj.queuedPrompt() ?: return
+            if (sessionId == null) sessionId = obj.string("sessionId")
+            if (cwd == null) cwd = obj.string("cwd")
+            if (gitBranch == null) gitBranch = obj.string("gitBranch")
+            if (version == null) version = obj.string("version")
+            promptCount++
+            if (promptTitle == null) promptTitle = promptToTitle(text)
+            if (startedAt == null) startedAt = obj.string("timestamp")?.let { runCatching { Instant.parse(it) }.getOrNull() }
         }
 
         private fun offerUser(line: String) {
@@ -182,4 +195,18 @@ object TranscriptParser {
 
     internal fun JsonObject.getAsJsonObjectOrNull(name: String): JsonObject? =
         get(name)?.takeIf { it.isJsonObject }?.asJsonObject
+
+    /** Human prompts queued while Claude is busy are stored in attachment records. */
+    internal fun JsonObject.queuedPrompt(): String? {
+        if (string("type") != "attachment") return null
+        val attachment = getAsJsonObjectOrNull("attachment") ?: return null
+        if (attachment.string("type") != "queued_command") return null
+        if ((attachment.string("commandMode") ?: string("commandMode")) != "prompt") return null
+        if (bool("isMeta") || attachment.bool("isMeta")) return null
+        val origin = attachment.getAsJsonObjectOrNull("origin") ?: getAsJsonObjectOrNull("origin")
+        if (origin?.bool("isMeta") == true) return null
+        if (origin?.string("kind")?.let { it != "human" } == true) return null
+        val prompt = attachment.get("prompt") ?: get("prompt") ?: return null
+        return promptText(prompt)?.takeIf(::isRealPrompt)
+    }
 }

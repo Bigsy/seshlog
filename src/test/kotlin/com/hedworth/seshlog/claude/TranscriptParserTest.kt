@@ -99,4 +99,12 @@ class TranscriptParserTest {
                 .contains("yyyy"),
         )
     }
+
+    @Test
+    fun `counts only human queued prompts`() {
+        val info = TranscriptParser.parse(fixture("claude_queued_commands.jsonl"))
+
+        assertEquals(2, info.promptCount)
+        assertEquals("Start the queued example", info.promptTitle)
+    }
 }

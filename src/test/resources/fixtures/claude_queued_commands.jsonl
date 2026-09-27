@@ -1,0 +1,6 @@
+{"type":"user","sessionId":"queued-session","cwd":"/Users/tester/project","timestamp":"2026-09-27T10:00:00Z","message":{"role":"user","content":"Start the queued example"}}
+{"type":"assistant","sessionId":"queued-session","timestamp":"2026-09-27T10:00:01Z","message":{"role":"assistant","content":[{"type":"text","text":"Working on it."}]}}
+{"type":"attachment","sessionId":"queued-session","timestamp":"2026-09-27T10:00:02Z","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":[{"type":"text","text":"Please also cover the edge case."}]}}
+{"type":"attachment","sessionId":"queued-session","timestamp":"2026-09-27T10:00:03Z","attachment":{"type":"queued_command","commandMode":"task-notification","prompt":"Internal task notification."}}
+{"type":"attachment","sessionId":"queued-session","timestamp":"2026-09-27T10:00:04Z","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"peer"},"isMeta":true,"prompt":[{"type":"text","text":"Peer-generated context."}]}}
+{"type":"assistant","sessionId":"queued-session","timestamp":"2026-09-27T10:00:05Z","message":{"role":"assistant","content":[{"type":"text","text":"Queued edge case covered."}]}}

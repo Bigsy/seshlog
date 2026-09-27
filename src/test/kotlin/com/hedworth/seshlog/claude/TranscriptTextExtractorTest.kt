@@ -33,4 +33,14 @@ class TranscriptTextExtractorTest {
         assertTrue(texts.contains("hello world"))
         assertEquals(emptyList<String>(), TranscriptTextExtractor.extractLines(sequenceOf("{not json", "", "\"type\":\"user\"")))
     }
+
+    @Test
+    fun `queued human prompts are searchable`() {
+        assertEquals(listOf(
+            "Start the queued example",
+            "Working on it.",
+            "Please also cover the edge case.",
+            "Queued edge case covered.",
+        ), TranscriptTextExtractor.extract(fixture("claude_queued_commands.jsonl")))
+    }
 }

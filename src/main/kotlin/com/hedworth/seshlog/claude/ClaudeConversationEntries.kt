@@ -4,6 +4,7 @@ import com.google.gson.JsonElement
 import com.hedworth.seshlog.claude.TranscriptParser.bool
 import com.hedworth.seshlog.claude.TranscriptParser.string
 import com.hedworth.seshlog.claude.TranscriptParser.getAsJsonObjectOrNull
+import com.hedworth.seshlog.claude.TranscriptParser.queuedPrompt
 import com.hedworth.seshlog.model.*
 import java.time.Instant
 
@@ -11,6 +12,12 @@ object ClaudeConversationEntries {
     fun parse(line: String, source: String): List<ConversationEntry> {
         val obj = TranscriptParser.parseObject(line) ?: return emptyList()
         if (obj.bool("isSidechain") || obj.bool("isMeta")) return emptyList()
+        if (obj.string("type") == "attachment") {
+            val text = obj.queuedPrompt() ?: return emptyList()
+            val time = obj.string("timestamp")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            val identity = obj.string("uuid") ?: source
+            return listOf(ConversationEntry(ConversationMessage(Role.USER, text, time), identity))
+        }
         val role = when (obj.string("type")) {
             "user" -> Role.USER
             "assistant" -> Role.ASSISTANT

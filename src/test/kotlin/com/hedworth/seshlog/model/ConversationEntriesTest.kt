@@ -98,6 +98,15 @@ class ConversationEntriesTest {
         assertEquals(2, attempts)
     }
 
+    @Test fun claudeQueuedHumanPromptIsAConversationEntry() {
+        val path = Paths.get(javaClass.getResource("/fixtures/claude_queued_commands.jsonl")!!.toURI())
+        val entries = ConversationLimits.read(path, ClaudeConversationEntries::parse)
+
+        assertEquals(listOf("Start the queued example", "Working on it.",
+            "Please also cover the edge case.", "Queued edge case covered."),
+            entries.filter { it.kind == EntryKind.DIALOGUE }.map { it.text })
+    }
+
     @Test fun entryCountAndSourceScanBudgetsAreEnforced() {
         val file = tmp.newFile("many.jsonl").toPath()
         Files.newBufferedWriter(file).use { writer ->

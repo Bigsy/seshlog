@@ -143,7 +143,7 @@ Checked against the cached platforms:
   - Test: fake `TerminalHandle`s, two sessions with the same title: resuming both uses two tabs
     and the first registration survives.
 
-- [ ] **1.7 Claude prompts queued while the agent is busy are invisible.**
+- [x] **1.7 Claude prompts queued while the agent is busy are invisible.**
   Claude Code 2.1.x saves them as `type: "attachment"` records with
   `attachment.type == "queued_command"`, never as `user` records. The parsers read only
   `user`/`assistant` (`claude/TranscriptParser.kt:108`, `claude/ConversationMessages.kt:20`,

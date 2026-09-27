@@ -365,6 +365,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
 class SeshlogStartupActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
         OwnedTerminalTabs.getInstance(project).start()
+        com.hedworth.seshlog.ui.AttentionPresentation.getInstance(project)
         ApplicationManager.getApplication().invokeLater {
             if (project.isDisposed) return@invokeLater
             com.hedworth.seshlog.settings.SessionAttentionState.getInstance().start()

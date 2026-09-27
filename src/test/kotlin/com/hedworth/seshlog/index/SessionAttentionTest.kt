@@ -112,4 +112,16 @@ class SessionAttentionTest {
         assertEquals("2 working · 1 unread", SessionAttention.summary(sessions, setOf("owned"), setOf("unread", "elsewhere")))
         assertEquals("", SessionAttention.summary(listOf(session()), emptySet(), emptySet()))
     }
+
+    @Test fun `counts expose working and unread totals independently of presentation`() {
+        val sessions = listOf(
+            session("live", Activity.WORKING),
+            session("owned", Activity.WORKING, live = false),
+            session("waiting", live = false),
+        )
+        val counts = SessionAttention.counts(sessions, setOf("owned"), setOf("waiting", "elsewhere"))
+        assertEquals(2, counts.working)
+        assertEquals(1, counts.unread)
+        assertEquals("2 working · 1 unread", counts.summary())
+    }
 }

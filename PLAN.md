@@ -273,13 +273,13 @@ Checked against the cached platforms:
 
 ## 4. Features
 
-- [ ] **4.1 Show attention outside the tool window.**
+- [x] **4.1 Show attention outside the tool window.**
   Unread and working counts appear only in the Seshlog panel. Badge the Seshlog tool window icon
   when anything is unread (`BadgeIconSupplier` or `ExecutionUtil.getLiveIndicator`), and add an
   optional status bar widget ("2 working · 1 unread") that runs Next Session Needing Attention on
   click. Counts follow the project's filters, like the project rows (`index/SessionAttention.kt`, `summary`).
   - Test: a pure count function over sessions, running ids and unread ids; widget text from counts.
-  - Manual: the badge shows with the tool window hidden and clears when the session is viewed.
+  - Manual: still owed — the badge shows with the tool window hidden and clears when the session is viewed.
 
 - [ ] **4.2 New session action.**
   Start a fresh Claude Code, Codex, opencode or Pi session in the project directory from the

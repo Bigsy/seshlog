@@ -8,6 +8,7 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.StoragePathMacros
 import com.intellij.openapi.project.Project
+import com.intellij.util.messages.Topic
 
 /**
  * Which agents the tool window shows. Legacy Auto, All and single-agent preferences remain readable.
@@ -48,7 +49,7 @@ sealed class AgentFilterMode(val displayName: String) {
 /** Project-specific agent-filter preference, stored in workspace.xml. */
 @Service(Service.Level.PROJECT)
 @State(name = "SeshlogAgentFilter", storages = [Storage(StoragePathMacros.WORKSPACE_FILE)])
-class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
+class AgentFilterState(private val project: Project? = null) : PersistentStateComponent<AgentFilterState.State> {
     class State {
         var includeWorktrees: Boolean = true
         var mode: String = AgentFilterMode.Auto.serialize()
@@ -63,13 +64,24 @@ class AgentFilterState : PersistentStateComponent<AgentFilterState.State> {
 
     var includeWorktrees: Boolean
         get() = state.includeWorktrees
-        set(value) { state.includeWorktrees = value }
+        set(value) {
+            if (state.includeWorktrees == value) return
+            state.includeWorktrees = value
+            project?.messageBus?.syncPublisher(TOPIC)?.changed()
+        }
 
     var mode: AgentFilterMode
         get() = AgentFilterMode.parse(state.mode)
-        set(value) { state.mode = value.serialize() }
+        set(value) {
+            if (state.mode == value.serialize()) return
+            state.mode = value.serialize()
+            project?.messageBus?.syncPublisher(TOPIC)?.changed()
+        }
+
+    interface Listener { fun changed() }
 
     companion object {
+        val TOPIC = Topic.create("Seshlog agent filter", Listener::class.java)
         fun getInstance(project: Project): AgentFilterState = project.getService(AgentFilterState::class.java)
     }
 }

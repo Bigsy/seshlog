@@ -83,6 +83,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     internal fun setDateFilter(filter: com.hedworth.seshlog.index.SessionDateFilter) {
         dateFilter = filter
+        AttentionViewState.getInstance(project).update(dateFilter = filter)
         dateButton.text = filter.label
         clearDate.isVisible = filter.period != com.hedworth.seshlog.index.DatePeriod.ALL
         rerender()
@@ -343,7 +344,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(object : ToggleAction("Show Hidden", "Include locally hidden sessions", AllIcons.Actions.Show) {
                 override fun getActionUpdateThread() = ActionUpdateThread.EDT
                 override fun isSelected(e: AnActionEvent) = showHidden
-                override fun setSelected(e: AnActionEvent, state: Boolean) { showHidden = state; rerender() }
+                override fun setSelected(e: AnActionEvent, state: Boolean) {
+                    showHidden = state
+                    AttentionViewState.getInstance(project).update(showHidden = state)
+                    rerender()
+                }
             })
             addSeparator()
             add(object : DumbAwareAction("Settings", "Open Seshlog settings", AllIcons.General.Settings) {

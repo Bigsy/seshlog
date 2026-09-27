@@ -5,6 +5,15 @@ import com.hedworth.seshlog.model.Session
 
 /** Metadata only. First observation establishes a baseline, never an unread backlog. */
 class SessionAttention(val unread: MutableMap<String, Completion> = linkedMapOf()) {
+    data class Counts(val working: Int, val unread: Int) {
+        val hasAttention: Boolean get() = working > 0 || unread > 0
+
+        fun summary(): String = listOfNotNull(
+            if (working > 0) "$working working" else null,
+            if (unread > 0) "$unread unread" else null,
+        ).joinToString(" · ")
+    }
+
     data class Completion(var activityAt: String = "", var contentAt: String = "")
     private var previous = emptyMap<String, Session>()
     private var previouslyRunning = emptySet<String>()
@@ -47,10 +56,12 @@ class SessionAttention(val unread: MutableMap<String, Completion> = linkedMapOf(
         }
 
         fun summary(sessions: List<Session>, running: Set<String>, unread: Set<String>): String {
-            val working = sessions.count { it.activity == Activity.WORKING && (it.isLive || it.id in running) }
-            val unseen = sessions.count { it.id in unread }
-            return listOfNotNull(if (working > 0) "$working working" else null,
-                if (unseen > 0) "$unseen unread" else null).joinToString(" · ")
+            return counts(sessions, running, unread).summary()
         }
+
+        fun counts(sessions: List<Session>, running: Set<String>, unread: Set<String>): Counts = Counts(
+            working = sessions.count { it.activity == Activity.WORKING && (it.isLive || it.id in running) },
+            unread = sessions.count { it.id in unread },
+        )
     }
 }

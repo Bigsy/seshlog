@@ -68,6 +68,7 @@
         <notificationGroup id="Seshlog" displayType="BALLOON"/>
         <toolWindow id="Seshlog" anchor="right" icon="com.hedworth.seshlog.SeshlogIcons.ToolWindow"
                     factoryClass="com.hedworth.seshlog.ui.SeshlogToolWindowFactory"/>
+        <statusBarWidgetFactory id="Seshlog.Attention" implementation="com.hedworth.seshlog.ui.AttentionStatusBarWidgetFactory"/>
         <postStartupActivity implementation="com.hedworth.seshlog.restore.SeshlogStartupActivity"/>
         <applicationConfigurable parentId="tools" instance="com.hedworth.seshlog.settings.SeshlogConfigurable"
                                  id="com.hedworth.seshlog.settings" displayName="Seshlog"/>

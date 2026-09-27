@@ -3,6 +3,8 @@ package com.hedworth.seshlog.claude
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.hedworth.seshlog.cache.IncrementalJsonl
+import com.hedworth.seshlog.cache.IncrementalParseResult
 import com.intellij.openapi.diagnostic.logger
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -62,6 +64,11 @@ object TranscriptParser {
             parse(BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8), 1 shl 16))
         }
 
+    internal fun parseIncremental(path: Path, previous: TranscriptInfo?, offset: Long): IncrementalParseResult<TranscriptInfo> {
+        val accumulator = Accumulator(previous)
+        val completed = IncrementalJsonl.read(path, offset, accumulator::offer)
+        return IncrementalParseResult(accumulator.build(), completed)
+    }
 
     fun parseLines(lines: Sequence<String>): TranscriptInfo {
         val acc = Accumulator()
@@ -79,16 +86,16 @@ object TranscriptParser {
     }
 
     private class Accumulator(previous: TranscriptInfo? = null) {
-        var sessionId: String? = null
-        var cwd: String? = null
-        var gitBranch: String? = null
-        var version: String? = null
-        var promptTitle: String? = null
-        var aiTitle: String? = null
-        var customTitle: String? = null
-        var startedAt: Instant? = null
-        var promptCount = 0
-        var continuationId: String? = null
+        var sessionId: String? = previous?.sessionId
+        var cwd: String? = previous?.cwd
+        var gitBranch: String? = previous?.gitBranch
+        var version: String? = previous?.version
+        var promptTitle: String? = previous?.promptTitle
+        var aiTitle: String? = previous?.aiTitle
+        var customTitle: String? = previous?.customTitle
+        var startedAt: Instant? = previous?.startedAt
+        var promptCount = previous?.promptCount ?: 0
+        var continuationId: String? = previous?.continuationId
 
         fun offer(line: String) {
             if (line.isBlank()) return

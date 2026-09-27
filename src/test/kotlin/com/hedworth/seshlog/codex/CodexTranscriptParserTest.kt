@@ -10,8 +10,13 @@ import org.junit.Test
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
+import java.nio.file.Files
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 
 class CodexTranscriptParserTest {
+    @get:Rule
+    val tmp = TemporaryFolder()
     private fun fixture(): Path = Paths.get(javaClass.getResource("/fixtures/codex_session.jsonl")!!.toURI())
 
     @Test
@@ -119,5 +124,26 @@ class CodexTranscriptParserTest {
 
         val directReview = """{"type":"session_meta","payload":{"id":"direct-review","cwd":"/p","source":"review"}}"""
         assertTrue(CodexTranscriptParser.parseLines(sequenceOf(directReview)).isSubagentRollout)
+    }
+
+    @Test
+    fun `incremental parsing retains activity and counts across an append`() {
+        val path = tmp.newFile("rollout.jsonl").toPath()
+        val first = """
+            {"type":"session_meta","payload":{"id":"s","cwd":"/p"}}
+            {"type":"response_item","payload":{"type":"message","role":"user","content":"first"}}
+            {"type":"event_msg","timestamp":"2026-09-27T10:00:00Z","payload":{"type":"task_started"}}
+        """.trimIndent() + "\n"
+        val partial = """{"type":"response_item","payload":{"type":"message","role":"user","content":"second"}}"""
+        Files.writeString(path, first + partial)
+
+        val initial = CodexTranscriptParser.parseIncremental(path, null, 0)
+        assertEquals(1, initial.info.promptCount)
+        assertEquals(Activity.WORKING, initial.info.activity)
+
+        Files.writeString(path, "\n", java.nio.file.StandardOpenOption.APPEND)
+        val resumed = CodexTranscriptParser.parseIncremental(path, initial.info, initial.completedOffset)
+        assertEquals(2, resumed.info.promptCount)
+        assertEquals(Activity.WORKING, resumed.info.activity)
     }
 }

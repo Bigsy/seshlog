@@ -171,6 +171,9 @@ class SessionIndex : Disposable {
     }
 
     override fun dispose() {
+        providers.forEach { provider ->
+            runCatching { provider.flush() }.onFailure { LOG.debug("Could not flush ${provider.kind} cache", it) }
+        }
         executor.shutdownNow()
     }
 

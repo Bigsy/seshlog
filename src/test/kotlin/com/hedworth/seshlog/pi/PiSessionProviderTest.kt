@@ -44,6 +44,7 @@ class PiSessionProviderTest {
         val provider = PiSessionProvider({ root }, { "pi" }, cache) { parses++; PiTranscriptParser.parse(it) }
         val path = fixture(root)
         provider.scan(emptyMap())
+        provider.flush()
         provider.scan(emptyMap())
         assertEquals(1, parses)
         val disk = Files.readString(cache)

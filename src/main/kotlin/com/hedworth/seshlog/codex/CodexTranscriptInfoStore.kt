@@ -8,7 +8,7 @@ import com.hedworth.seshlog.model.Activity
 import java.time.Instant
 
 /** Persistent metadata-only cache for parsed Codex rollouts (see [InfoStore]). Version 5 separates subagent rollouts. */
-private const val CACHE_VERSION = 5
+private const val CACHE_VERSION = 6
 
 object CodexTranscriptInfoStore : InfoStore<CodexTranscriptInfo>(CACHE_VERSION, ::write, ::read) {
     const val VERSION = CACHE_VERSION

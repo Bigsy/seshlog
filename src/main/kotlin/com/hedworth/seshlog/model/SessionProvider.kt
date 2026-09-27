@@ -76,4 +76,8 @@ interface SessionProvider {
      * session only when its stamp differs. `null` means "unknown, never cache".
      */
     fun contentStamp(session: Session): Any?
+
+
+    /** Flushes provider-side metadata caches during application shutdown. */
+    fun flush() {}
 }

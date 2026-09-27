@@ -9,8 +9,13 @@ import org.junit.Test
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
+import java.nio.file.Files
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 
 class TranscriptParserTest {
+    @get:Rule
+    val tmp = TemporaryFolder()
 
     private fun fixture(name: String): Path =
         Paths.get(javaClass.getResource("/fixtures/$name")!!.toURI())
@@ -115,4 +120,20 @@ class TranscriptParserTest {
         assertEquals("successor-session", info.continuationId)
     }
 
+    @Test
+    fun `incremental parsing retries an unterminated record after append`() {
+        val path = tmp.newFile("claude.jsonl").toPath()
+        val first = """{"type":"user","sessionId":"s","cwd":"/p","message":{"role":"user","content":"first"}}""" + "\n"
+        val partial = """{"type":"user","sessionId":"s","message":{"role":"user","content":"second"}}"""
+        Files.writeString(path, first + partial)
+
+        val initial = TranscriptParser.parseIncremental(path, null, 0)
+        assertEquals(1, initial.info.promptCount)
+        assertEquals(first.toByteArray().size.toLong(), initial.completedOffset)
+
+        Files.writeString(path, "\n", java.nio.file.StandardOpenOption.APPEND)
+        val resumed = TranscriptParser.parseIncremental(path, initial.info, initial.completedOffset)
+        assertEquals(2, resumed.info.promptCount)
+        assertEquals(Files.size(path), resumed.completedOffset)
+    }
 }

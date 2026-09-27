@@ -71,7 +71,6 @@ class PiSessionProvider(
                 false, null, info.promptTitle, info.promptCount, info.explicitTitle != null,
                 activity = info.activity, activitySince = info.activityAt))
         }
-        cache.persist()
         return sessions.values.toList()
     }
 
@@ -94,4 +93,7 @@ class PiSessionProvider(
 
     override fun lastMessages(session: Session, count: Int) = conversationMessages(session).takeLast(count.coerceAtLeast(0))
     override fun contentStamp(session: Session): Any? = FileStamp.of(session.transcriptPath)
+
+
+    override fun flush() = cache.persist()
 }

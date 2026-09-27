@@ -39,6 +39,7 @@ class ClaudeCodeSessionProvider(
     override val kind: AgentKind = AgentKind.CLAUDE_CODE
 
     private val cache = FileBackedParseCache(TranscriptInfoStore, cacheFile, TranscriptParser::parse,
+        incrementalParse = TranscriptParser::parseIncremental,
         onReadFailure = { path, error -> scanProblem = "Cannot read $path: ${error.message}" },
     )
 
@@ -106,7 +107,6 @@ class ClaudeCodeSessionProvider(
                 continuationId = info.continuationId,
             )
         }
-        cache.persist()
         return sessions
     }
 
@@ -201,4 +201,7 @@ class ClaudeCodeSessionProvider(
     private fun subagentPaths(session: Session): List<Path> =
         session.subagentTranscriptPaths.ifEmpty { session.transcriptPath?.let(::listSubagentTranscripts).orEmpty() }
 
+
+
+    override fun flush() = cache.persist()
 }

@@ -3,6 +3,8 @@ package com.hedworth.seshlog.codex
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.hedworth.seshlog.cache.IncrementalJsonl
+import com.hedworth.seshlog.cache.IncrementalParseResult
 import com.hedworth.seshlog.claude.TranscriptParser
 import com.hedworth.seshlog.model.Activity
 import com.intellij.openapi.diagnostic.logger
@@ -56,23 +58,29 @@ object CodexTranscriptParser {
             parseLines(generateSequence { reader.readLine() })
         }
 
+    internal fun parseIncremental(path: Path, previous: CodexTranscriptInfo?, offset: Long): IncrementalParseResult<CodexTranscriptInfo> {
+        val accumulator = Accumulator(previous)
+        val completed = IncrementalJsonl.read(path, offset, accumulator::offer)
+        return IncrementalParseResult(accumulator.build(), completed)
+    }
+
     fun parseLines(lines: Sequence<String>): CodexTranscriptInfo {
         val acc = Accumulator()
         lines.forEach(acc::offer)
         return acc.build()
     }
 
-    private class Accumulator {
-        var sessionId: String? = null
-        var cwd: String? = null
-        var gitBranch: String? = null
-        var promptTitle: String? = null
-        var startedAt: Instant? = null
-        var promptCount = 0
-        var isSubagentRollout = false
-        var forkedFromId: String? = null
-        var activity = Activity.UNKNOWN
-        var activityAt: Instant? = null
+    private class Accumulator(previous: CodexTranscriptInfo? = null) {
+        var sessionId: String? = previous?.sessionId
+        var cwd: String? = previous?.cwd
+        var gitBranch: String? = previous?.gitBranch
+        var promptTitle: String? = previous?.promptTitle
+        var startedAt: Instant? = previous?.startedAt
+        var promptCount = previous?.promptCount ?: 0
+        var isSubagentRollout = previous?.isSubagentRollout ?: false
+        var forkedFromId: String? = previous?.forkedFromId
+        var activity = previous?.activity ?: Activity.UNKNOWN
+        var activityAt: Instant? = previous?.activityAt
 
         fun offer(line: String) {
             if (line.isBlank()) return

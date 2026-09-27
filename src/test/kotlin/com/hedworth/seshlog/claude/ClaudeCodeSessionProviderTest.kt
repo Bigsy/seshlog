@@ -55,7 +55,9 @@ class ClaudeCodeSessionProviderTest {
         Files.copy(fixtures.resolve("ai_title_only.jsonl"), transcript)
         val cacheFile = root.resolve("system/seshlog/index.json")
 
-        val first = ClaudeCodeSessionProvider({ root }, { "claude" }, cacheFile).scan(emptyMap())
+        val firstProvider = ClaudeCodeSessionProvider({ root }, { "claude" }, cacheFile)
+        val first = firstProvider.scan(emptyMap())
+        firstProvider.flush()
         assertEquals(1, first.size)
         val cached = TranscriptInfoStore.load(cacheFile)
         assertEquals(setOf(transcript), cached.keys)
@@ -70,7 +72,9 @@ class ClaudeCodeSessionProviderTest {
 
         // Deleted transcripts drop out of the persisted cache on the next scan.
         Files.delete(transcript)
-        ClaudeCodeSessionProvider({ root }, { "claude" }, cacheFile).scan(emptyMap())
+        val deletedProvider = ClaudeCodeSessionProvider({ root }, { "claude" }, cacheFile)
+        deletedProvider.scan(emptyMap())
+        deletedProvider.flush()
         assertTrue(TranscriptInfoStore.load(cacheFile).isEmpty())
     }
 

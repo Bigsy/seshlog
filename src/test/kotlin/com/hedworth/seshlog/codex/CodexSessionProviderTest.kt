@@ -84,6 +84,7 @@ class CodexSessionProviderTest {
         repeat(2) {
             val provider = CodexSessionProvider({ root }, { "codex" }, cacheFile)
             val session = provider.scan(emptyMap()).single()
+            provider.flush()
             assertEquals(id, session.id)
             assertEquals("Make error numbers clickable", session.title)
             assertEquals(userRollout, session.transcriptPath)
@@ -198,6 +199,7 @@ class CodexSessionProviderTest {
         repeat(2) {
             val provider = CodexSessionProvider({ root }, { "codex" }, cacheFile)
             val sessions = provider.scan(emptyMap()).associateBy { it.id }
+            provider.flush()
             assertEquals(2, sessions.size)
             assertEquals(sessions.getValue("parent").title, sessions.getValue("child").title)
             assertEquals(null, sessions.getValue("parent").forkedFromId)

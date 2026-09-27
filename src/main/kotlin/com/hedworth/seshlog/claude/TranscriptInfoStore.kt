@@ -10,7 +10,7 @@ import java.time.Instant
  * Persistent metadata-only cache for parsed Claude Code transcripts (see [InfoStore]). Version 1
  * stored the raw first prompt; those caches are dropped rather than migrated.
  */
-private const val CACHE_VERSION = 4
+private const val CACHE_VERSION = 5
 
 object TranscriptInfoStore : InfoStore<TranscriptInfo>(CACHE_VERSION, ::write, ::read) {
     const val VERSION = CACHE_VERSION

@@ -263,7 +263,7 @@ Checked against the cached platforms:
     are unchanged.
   - The default budget is 32 million original-plus-folded characters. Search visits cached candidates first to avoid eviction thrashing while preserving result tie order.
 
-- [ ] **3.4 Parse only the appended part of a changed transcript.**
+- [x] **3.4 Parse only the appended part of a changed transcript.**
   `cache/FileBackedParseCache.kt:63` (`get`) re-reads a changed transcript from the start (35 to
   65 ms for a 20 MB file, on every scan while an agent writes), and `persist` (`:79`) rewrites the
   whole cache file each scan (the Codex cache is 481 KB).
@@ -272,6 +272,7 @@ Checked against the cached platforms:
     changed. Persist on a timer and at shutdown. Metadata only, as now.
   - Test: parse, append lines, parse again: same info as a full parse; truncation triggers a
     full parse.
+  - Claude and Codex resume from validated byte checkpoints; truncation, replacement and unterminated final records fall back safely. Pi retains full parsing because its branch structure needs the complete transcript; its metadata cache still gains deferred persistence.
 
 ## 4. Features
 

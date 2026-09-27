@@ -29,7 +29,14 @@ open class InfoStore<T>(
     private val write: (T, JsonObject) -> Unit,
     private val read: (JsonObject) -> T,
 ) {
-    data class Entry<T>(val size: Long, val mtimeMillis: Long, val info: T)
+    data class Entry<T>(
+        val size: Long,
+        val mtimeMillis: Long,
+        val info: T,
+        val parsedOffset: Long? = null,
+        val firstLineHash: String? = null,
+        val fileIdentity: String? = null,
+    )
 
     fun load(file: Path): Map<Path, Entry<T>> {
         if (!Files.isRegularFile(file)) return emptyMap()
@@ -62,6 +69,9 @@ open class InfoStore<T>(
             o.addProperty("path", path.toString())
             o.addProperty("size", e.size)
             o.addProperty("mtime", e.mtimeMillis)
+            e.parsedOffset?.let { o.addProperty("offset", it) }
+            e.firstLineHash?.let { o.addProperty("firstLineHash", it) }
+            e.fileIdentity?.let { o.addProperty("fileIdentity", it) }
             write(e.info, o)
             array.add(o)
         }
@@ -79,7 +89,7 @@ open class InfoStore<T>(
             val path = o.string("path")?.let { runCatching { Paths.get(it) }.getOrNull() } ?: continue
             val size = o.long("size") ?: continue
             val mtime = o.long("mtime") ?: continue
-            result[path] = Entry(size, mtime, read(o))
+            result[path] = Entry(size, mtime, read(o), o.long("offset"), o.string("firstLineHash"), o.string("fileIdentity"))
         }
         return result
     }

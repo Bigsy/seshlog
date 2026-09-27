@@ -36,6 +36,7 @@ class CodexSessionProvider(
     override val detectsLiveSessions: Boolean = false
 
     private val cache = FileBackedParseCache(CodexTranscriptInfoStore, cacheFile, CodexTranscriptParser::parse,
+        incrementalParse = CodexTranscriptParser::parseIncremental,
         onReadFailure = { path, error -> scanProblem = "Cannot read $path: ${error.message}" },
     )
 
@@ -113,7 +114,6 @@ class CodexSessionProvider(
                 activitySince = info.activityAt,
             )
         }
-        cache.persist()
         return result
     }
 
@@ -176,4 +176,7 @@ class CodexSessionProvider(
         internal fun idFromFileName(path: Path): String? =
             UUID_AT_END.find(path.fileName.toString())?.groupValues?.get(1)
     }
+
+
+    override fun flush() = cache.persist()
 }

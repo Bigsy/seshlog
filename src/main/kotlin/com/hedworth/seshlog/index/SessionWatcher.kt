@@ -30,8 +30,12 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
     @Volatile
     private var roots: List<Path> = emptyList()
 
-    @Volatile
-    private var watchRequests: Set<LocalFileSystem.WatchRequest> = emptySet()
+    private val rootsLock = Any()
+    private var latestRootsSequence = 0L
+    private val watchRegistration = WatchRootRegistration<LocalFileSystem.WatchRequest>(
+        replace = { old, paths -> LocalFileSystem.getInstance().replaceWatchedRoots(old, paths, emptySet()) },
+        remove = { LocalFileSystem.getInstance().removeWatchedRoots(it) },
+    )
 
     init {
         ApplicationManager.getApplication().messageBus.connect(parent)
@@ -51,13 +55,18 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
     }
 
     fun start(newRoots: List<Path>): Future<*> {
-        roots = newRoots
+        val paths = newRoots.map { it.toAbsolutePath().toString() }.toSet()
+        val request = watchRegistration.request(paths)
+        synchronized(rootsLock) {
+            if (request.sequence > latestRootsSequence) {
+                latestRootsSequence = request.sequence
+                roots = newRoots
+            }
+        }
         // Watch registration and the initial VFS refresh touch the filesystem — keep off the EDT.
         return AppExecutorUtil.getAppExecutorService().submit {
             val lfs = LocalFileSystem.getInstance()
-            val old = watchRequests
-            val paths = newRoots.map { it.toAbsolutePath().toString() }.toSet()
-            watchRequests = lfs.replaceWatchedRoots(old, paths, emptySet())
+            if (!watchRegistration.install(request)) return@submit
             // The VFS reports changes only inside directories it has listed; a refresh alone lists
             // nothing. Seshlog reads with java.nio, so list the trees here or no event ever arrives.
             for (root in newRoots) {
@@ -107,9 +116,7 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
     }
 
     override fun dispose() {
-        val lfs = LocalFileSystem.getInstance()
-        lfs.removeWatchedRoots(watchRequests)
-        watchRequests = emptySet()
+        watchRegistration.dispose()
     }
 
     companion object {

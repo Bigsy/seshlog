@@ -1,8 +1,12 @@
 package com.hedworth.seshlog.index
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class SessionWatcherTest {
     private val roots = listOf("/home/u/.claude/projects", "/home/u/.local/share/opencode/opencode.db")
@@ -63,5 +67,34 @@ class SessionWatcherTest {
         assertTrue(policy.consumeIfDue())
         now = 10_000
         assertFalse(policy.consumeIfDue())
+    }
+
+    @Test
+    fun `concurrent starts leave only the latest watch roots installed`() {
+        val installed = mutableSetOf<String>()
+        val registration = WatchRootRegistration<Int>(
+            replace = { _, paths ->
+                synchronized(installed) {
+                    installed.clear()
+                    installed += paths
+                }
+                setOf(paths.hashCode())
+            },
+            remove = {},
+        )
+        val first = registration.request(setOf("first"))
+        val last = registration.request(setOf("last"))
+        val gate = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val firstDone = executor.submit<Boolean> { gate.await(); registration.install(first) }
+            val lastDone = executor.submit<Boolean> { gate.await(); registration.install(last) }
+            gate.countDown()
+            assertFalse(firstDone.get(5, TimeUnit.SECONDS))
+            assertTrue(lastDone.get(5, TimeUnit.SECONDS))
+            assertEquals(setOf("last"), synchronized(installed) { installed.toSet() })
+        } finally {
+            executor.shutdownNow()
+        }
     }
 }

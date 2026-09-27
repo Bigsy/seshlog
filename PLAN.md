@@ -221,7 +221,7 @@ Checked against the cached platforms:
   `seshlog.xml` stops growing.
   - Test: `getState` during `viewed` does not throw; a scan without the session prunes it.
 
-- [ ] **2.7 Concurrent `SessionWatcher.start` calls can leak watch roots.** `index/SessionWatcher.kt:51`
+- [x] **2.7 Concurrent `SessionWatcher.start` calls can leak watch roots.** `index/SessionWatcher.kt:51`
   reads and replaces `watchRequests` without a lock.
   - Test: two concurrent starts leave exactly the last set of roots watched.
 

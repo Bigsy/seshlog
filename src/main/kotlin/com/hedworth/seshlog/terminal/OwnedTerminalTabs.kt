@@ -66,7 +66,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     fun lastSessionFor(content: Content): String? = sessionFor(content) ?: endedSessions[content]
 
     /** Includes temporarily detached tabs; disposal is the only definitive end of ownership. */
-    internal fun knownContents(): List<Content> = registry.sessionIds.mapNotNull(::undisposedContent).distinct()
+    internal fun knownContents(): List<Content> =
+        registry.sessionIds.mapNotNull(::undisposedContent).distinct()
 
     /** Repair a missed adoption before an action, without waiting for transcript activity. EDT only. */
     fun resolveSession(content: Content): String? {
@@ -125,6 +126,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         failure = { LOG.debug("Terminal process inspection failed", it) },
     )
     private var disposed = false
+    private var pollingState = ProcessPollingPolicy.State()
+    private val batchInspector = ProcessBatchInspector()
     private val processClock = javax.swing.Timer(2_000) { refreshRunning() }
 
     /** Cached process evidence; collecting it must never block the EDT. */
@@ -136,7 +139,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val snapshot = SessionIndex.getInstance().sessions
         // Shell startup and pane changes do not necessarily produce an index update. Retry
         // adoption and reattach observers even when every transcript is idle.
-        sync(snapshot)
+        retitleOwned(snapshot)
+        tabObserver.refresh()
         val sessions = snapshot.associateBy { it.id }
         val candidates = registry.sessionIds.mapNotNull { id ->
             val session = sessions[id] ?: return@mapNotNull null
@@ -148,13 +152,17 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val executables = executables()
         val watched = agents.snapshot()
         processInspection.run(inspect = {
-            val found = candidates.mapNotNull { (id, shell, session) ->
-                SessionProcess.runningProcess(shell, session)?.let { id to it }
+            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables)
+            val found = candidates.mapNotNull { (id, shell, _) ->
+                val discovery = batch.discoveries[shell]?.discovery ?: return@mapNotNull null
+                val handle = discovery.processes[id]?.let(batch.handles::get)
+                    ?: watched[id]?.takeIf { discovery.unknown && it.isAlive }
+                handle?.let { id to it }
             }.toMap()
             val inspections = inspected.mapNotNull { (content, shell) ->
-                val discovery = SessionProcess.inspect(requireNotNull(shell), snapshot, executables)
+                val discovery = batch.discoveries[shell]?.discovery ?: return@mapNotNull null
                 val id = discovery.sessionIds.singleOrNull() ?: return@mapNotNull null
-                Triple(content, id, discovery.processes[id]?.let { ProcessHandle.of(it).orElse(null) })
+                Triple(content, id, discovery.processes[id]?.let(batch.handles::get))
             }
             val discoveries = inspections.groupBy({ it.second }, { it.first })
             val handles = inspections.mapNotNull { (_, id, handle) -> handle?.let { id to it } }.toMap()
@@ -162,7 +170,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             ProcessObservations(found, discoveries, handles, exited)
         }, apply = { result ->
             val (found, discoveries, handles, exited) = result
-            if (!disposed && !project.isDisposed) {
+            val ownershipBefore = registry.sessionIds.associateWith(registry::tabFor)
+                if (!disposed && !project.isDisposed) {
                     // Ignore results for tabs replaced or closed while the check ran.
                     val valid = found.keys.filterTo(HashSet()) { id ->
                         val shell = candidates.first { it.first == id }.second
@@ -193,6 +202,11 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                     }
                     agents.retainOnly(registry.sessionIds)
                     tabObserver.refresh()
+                    val changed = running != valid || ownershipBefore != registry.sessionIds.associateWith(registry::tabFor)
+                    val active = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow != null
+                    val cadence = ProcessPollingPolicy.next(pollingState, active, changed)
+                    pollingState = cadence.state
+                    processClock.delay = cadence.delayMillis.toInt()
                     if (running != valid) {
                         running = valid
                         project.messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningSessionIds())
@@ -214,8 +228,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             LOG.debug("No tab content for session ${session.id}; not tracking")
             return
         }
-        agents.forget(session.id)
         registry.register(session.id, content)
+        agents.forget(session.id)
         tabObserver.refresh()
         refreshRunning()
     }
@@ -234,7 +248,6 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** Subscribe to index updates; idempotent. */
     fun start() {
         if (!started.compareAndSet(false, true)) return
-        processClock.start()
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
             override fun sessionsUpdated(sessions: List<Session>) = sync(sessions)
         })
@@ -246,20 +259,25 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         )
         // ProjectActivity starts on a background thread; terminal APIs require the EDT.
         ApplicationManager.getApplication().invokeLater {
-            if (!disposed && !project.isDisposed) sync(SessionIndex.getInstance().sessions)
+            if (!disposed && !project.isDisposed) { processClock.start(); sync(SessionIndex.getInstance().sessions) }
         }
     }
 
-    /** Adopt tabs by process ancestry and retitle owned tabs. Runs on the EDT (index updates arrive there). */
+    /** Retitle immediately; process ancestry and discovery are collected only on workers. */
     fun sync(sessions: List<Session>) {
-        if (project.isDisposed) return
-        val openTabs = TerminalTabs.tabsWithShellPids(project)
-        val retitles = registry.sync(sessions, openTabs, ProcessTree.System, sessionTitle = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()::title) { it.displayName }
-        for ((content, title) in retitles) {
-            LOG.debug("Retitling terminal tab '${content.displayName}' -> '$title'")
-            TerminalTabs.terminalOf(project, content)?.rename(title)
-        }
+        if (project.isDisposed || disposed) return
+        retitleOwned(sessions)
         tabObserver.refresh()
+        refreshRunning()
+    }
+
+    private fun retitleOwned(sessions: List<Session>) {
+        val organisation = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
+        for (session in sessions) {
+            val content = undisposedContent(session.id) ?: continue
+            val title = organisation.title(session)
+            if (content.displayName != title) TerminalTabs.terminalOf(project, content)?.rename(title)
+        }
     }
 
     private fun updateActiveSession(content: Content?) {

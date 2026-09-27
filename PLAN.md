@@ -227,7 +227,7 @@ Checked against the cached platforms:
 
 ## 3. Performance
 
-- [ ] **3.1 Batch and back off process polling.**
+- [x] **3.1 Batch and back off process polling.**
   `terminal/OwnedTerminalTabs.kt:124` (`processClock`, 2 s) runs per project even with the IDE in
   the background. Each tick walks the full process table once per owned session and again per
   tab, spawns one `lsof` per Codex tab (`terminal/ProcessTranscripts.kt:28`), and walks process

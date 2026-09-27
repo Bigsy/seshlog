@@ -120,7 +120,7 @@ Checked against the cached platforms:
     root instance and preview load count are unchanged; a changed session rebuilds once.
   - Manual: scroll position and an open context menu survive a background rescan.
 
-- [ ] **1.5 Continuous file changes postpone rescans indefinitely.**
+- [x] **1.5 Continuous file changes postpone rescans indefinitely.**
   `index/SessionWatcher.kt:80` (`schedule`) cancels and re-arms a 1.5 s alarm on every VFS event
   with no maximum wait. With several agents writing, or opencode streaming into `opencode.db-wal`,
   no rescan runs, so activity badges, unread markers, waiting notifications and new-session

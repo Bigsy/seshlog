@@ -24,6 +24,8 @@ import java.util.concurrent.Future
 class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Disposable {
     private val LOG = logger<SessionWatcher>()
     private val alarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, this)
+    private val debouncePolicy = SessionWatcherDebouncePolicy()
+    private val scheduleLock = Any()
 
     @Volatile
     private var roots: List<Path> = emptyList()
@@ -37,10 +39,10 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
                 override fun after(events: List<VFileEvent>) {
                     val currentRoots = roots
                     if (currentRoots.isEmpty()) return
-                    if (events.none { e -> isUnderRoots(e.path, currentRoots) }) return
+                    if (events.none { e -> isRelevantPath(e.path, currentRoots) }) return
                     // A new directory (Codex's per-day folder, a new Claude project) starts unlisted,
                     // so writes inside it would go unreported. List it off the EDT, then rescan.
-                    val created = events.filter { it is VFileCreateEvent && it.isDirectory && isUnderRoots(it.path, currentRoots) }
+                    val created = events.filter { it is VFileCreateEvent && it.isDirectory && isRelevantPath(it.path, currentRoots) }
                         .mapNotNull { it.file }
                     if (created.isEmpty()) schedule()
                     else AppExecutorUtil.getAppExecutorService().execute { created.forEach(::list); schedule() }
@@ -77,10 +79,31 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
     private fun isUnderRoots(path: String, roots: List<Path>): Boolean =
         isUnderRoots(path, roots.map { it.toAbsolutePath().toString().replace('\\', '/') })
 
+    private fun isRelevantPath(path: String, roots: List<Path>): Boolean =
+        isRelevantPath(path, roots.map { it.toAbsolutePath().toString().replace('\\', '/') })
+
     private fun schedule() {
-        if (alarm.isDisposed) return
-        alarm.cancelAllRequests()
-        alarm.addRequest({ onChange() }, DEBOUNCE_MS)
+        synchronized(scheduleLock) {
+            if (alarm.isDisposed) return
+            alarm.cancelAllRequests()
+            val delay = debouncePolicy.event().coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            alarm.addRequest({ fireWhenDue() }, delay)
+        }
+    }
+
+    private fun fireWhenDue() {
+        val fire = synchronized(scheduleLock) {
+            if (alarm.isDisposed) return
+            if (debouncePolicy.consumeIfDue()) true
+            else {
+                val delay = debouncePolicy.delayUntilDue() ?: return
+                alarm.addRequest({ fireWhenDue() }, delay.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                false
+            }
+        }
+        if (fire) {
+            onChange()
+        }
     }
 
     override fun dispose() {
@@ -100,5 +123,17 @@ class SessionWatcher(parent: Disposable, private val onChange: () -> Unit) : Dis
          */
         internal fun isUnderRoots(path: String, roots: List<String>): Boolean =
             roots.any { root -> path == root || path.startsWith("$root/") }
+
+        internal fun isRelevantPath(path: String, roots: List<String>): Boolean = roots.any { root ->
+            when {
+                path == root -> true
+                !path.startsWith("$root/") -> false
+                else -> !isIgnoredSubpath(path.removePrefix("$root/"))
+            }
+        }
+
+        /** These trees are deliberately excluded from provider scans and cannot change sessions. */
+        internal fun isIgnoredSubpath(path: String): Boolean =
+            path.replace('\\', '/').split('/').any { it == "subagents" || it == "tool-results" || it == "memory" }
     }
 }

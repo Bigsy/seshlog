@@ -23,4 +23,45 @@ class SessionWatcherTest {
         assertFalse(SessionWatcher.isUnderRoots("/home/u/.claude/projects-backup/abc.jsonl", roots))
         assertFalse(SessionWatcher.isUnderRoots("/home/u/.codex/sessions/abc.jsonl", roots))
     }
+
+    @Test
+    fun `ignored provider subpaths do not trigger a watch`() {
+        val root = "/home/u/.claude/projects"
+        assertTrue(SessionWatcher.isRelevantPath("$root/work/session/subagents/child.jsonl", listOf(root)).not())
+        assertTrue(SessionWatcher.isRelevantPath("$root/memory/foo.jsonl", listOf(root)).not())
+        assertTrue(SessionWatcher.isRelevantPath("$root/work/tool-results/result.json", listOf(root)).not())
+        assertTrue(SessionWatcher.isRelevantPath("$root/work/session.jsonl", listOf(root)))
+    }
+
+    @Test
+    fun `ignored names in a root parent do not suppress events below that root`() {
+        val root = "/home/u/memory/projects"
+        assertTrue(SessionWatcher.isRelevantPath("$root/session.jsonl", listOf(root)))
+    }
+
+    @Test
+    fun `continuous events reach the maximum wait and fire repeatedly`() {
+        var now = 0L
+        val policy = SessionWatcherDebouncePolicy(clock = { now })
+        var fires = 0
+        for (tick in 0..22) {
+            now = tick * 500L
+            if (policy.consumeIfDue()) fires++
+            policy.event()
+        }
+        assertTrue("events every 500 ms must not postpone forever", fires >= 2)
+    }
+
+    @Test
+    fun `a quiet burst fires once after the debounce`() {
+        var now = 0L
+        val policy = SessionWatcherDebouncePolicy(clock = { now })
+        policy.event()
+        now = 1_499
+        assertFalse(policy.consumeIfDue())
+        now = 1_500
+        assertTrue(policy.consumeIfDue())
+        now = 10_000
+        assertFalse(policy.consumeIfDue())
+    }
 }

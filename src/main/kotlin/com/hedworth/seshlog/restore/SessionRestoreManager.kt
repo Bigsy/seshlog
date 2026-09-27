@@ -3,6 +3,7 @@ package com.hedworth.seshlog.restore
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.RestoreMode
+import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.hedworth.seshlog.terminal.TerminalTabs
@@ -32,8 +33,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class SessionRestoreManager(private val project: Project) : Disposable {
     private val LOG = logger<SessionRestoreManager>()
 
-    private val organisation get() = com.hedworth.seshlog.settings.SessionOrganisation.getInstance()
     private val settings get() = SeshlogSettings.getInstance()
+    private val organisation get() = SessionOrganisation.getInstance()
     private val state get() = RestoreState.getInstance(project)
     private val index get() = SessionIndex.getInstance()
 
@@ -184,7 +185,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         val available = sessions.mapTo(HashSet()) { it.id }
         val resolved = ids.filter { it in available }
         if (resolved.isEmpty()) return // keep them for a later scan instead of losing them
-        val plan = RestoreCandidates.plan(resolved, sessions, ProcessTree.System) { index.providerFor(it).detectsLiveSessions }
+        val plan = captureOrphans(RestoreCandidates.plan(resolved, sessions, ProcessTree.System) { index.providerFor(it).detectsLiveSessions })
         LOG.debug("Restore plan for ${project.name}: restore=${plan.restore.map { it.id }} orphans=${plan.orphans.map { it.id }} running=${plan.running.map { it.id }}")
         // Keep unresolved, offered and queued sessions durable until launch or dismissal.
         val restorableIds = plan.restore.map { it.id }
@@ -194,8 +195,9 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         when (settings.restoreMode) {
             RestoreMode.NEVER -> dismissRestore(restorableIds)
             RestoreMode.ALWAYS -> whenTerminalReady {
-                restore(plan)
-                notification("Restoring ${describe(plan.restore)}", NotificationType.INFORMATION).notify(project)
+                if (restoreCurrent(restorableIds, plan.orphanHandles)) {
+                    notification("Restoring ${describe(plan.restore)}", NotificationType.INFORMATION).notify(project)
+                }
             }
             RestoreMode.ASK -> {
                 val n = notification("Restore ${describe(plan.restore)}?", NotificationType.INFORMATION)
@@ -203,16 +205,82 @@ class SessionRestoreManager(private val project: Project) : Disposable {
                 if (plan.orphans.isNotEmpty()) {
                     n.setContent("${plan.orphans.size} left-over claude process${if (plan.orphans.size == 1) "" else "es"} from closed tabs will be stopped first.")
                 }
-                n.addAction(NotificationAction.createSimpleExpiring("Restore") { whenTerminalReady { restore(plan) } })
+                n.addAction(NotificationAction.createSimpleExpiring("Restore") {
+                    whenTerminalReady { restoreCurrent(restorableIds, plan.orphanHandles) }
+                })
                 n.addAction(NotificationAction.createSimpleExpiring("Not now") { dismissRestore(restorableIds) })
                 n.addAction(NotificationAction.createSimpleExpiring("Always") {
                     settings.restoreMode = RestoreMode.ALWAYS
-                    whenTerminalReady { restore(plan) }
+                    whenTerminalReady { restoreCurrent(restorableIds, plan.orphanHandles) }
                 })
                 n.notify(project)
             }
         }
     }
+
+    /**
+     * The notification can remain in the Notifications tool window after the index changes.
+     * Resolve the remembered ids again at action time so a session started by the user while the
+     * notification was waiting is classified as running and is left alone.
+     */
+    private fun restoreCurrent(ids: List<String>, orphanHandles: Map<String, ProcessTree.Handle>): Boolean {
+        // A launch is recorded before the provider's next scan. Treat an owned tab or a launch
+        // still awaiting its first live marker as active even while the index still says dead.
+        val owned = currentlyOwnedIds()
+        val blocked = ids.filter { it in owned }
+        if (blocked.isNotEmpty()) dismissRestore(blocked)
+        val eligible = ids.filterNot { it in owned }
+        if (eligible.isEmpty()) return false
+        val fresh = RestoreCandidates.replan(eligible, index.sessions, ProcessTree.System, orphanHandles) {
+            index.providerFor(it).detectsLiveSessions
+        }
+        // Running sessions were started after the notification was offered. Consume just those
+        // pending ids; other sessions in the same notification can still be restored.
+        if (fresh.running.isNotEmpty()) dismissRestore(fresh.running.map { it.id })
+
+        // If the original orphan handle was lost, resuming would duplicate a still-live agent.
+        // Leave it pending and allow a later scan to offer it again once it is definitely dead.
+        val unsafeOrphans = fresh.orphans.filter { it.id !in fresh.orphanHandles }.map { it.id }.toSet()
+        offered.removeAll(unsafeOrphans)
+        val safeRestore = fresh.restore.filterNot { it.id in unsafeOrphans }
+        if (safeRestore.isEmpty()) return false
+        val safeOrphans = fresh.orphans.filterNot { it.id in unsafeOrphans }
+        restore(fresh.copy(restore = safeRestore, orphans = safeOrphans))
+        return true
+    }
+
+    private fun currentlyOwnedIds(): Set<String> {
+        val owned = OwnedTerminalTabs.getInstance(project)
+        return launched.toSet() + awaitingLive.toSet() + owned.sessionIds
+    }
+
+    /** Re-check the index and ownership after terminal readiness may have waited for several seconds. */
+    private fun restoreCandidateAtLaunch(id: String, offeredPlan: RestorePlan): RestorePlan? {
+        if (id in currentlyOwnedIds()) {
+            dismissRestore(listOf(id))
+            return null
+        }
+        val current = index.sessionById(id) ?: return null
+        val fresh = RestoreCandidates.replan(listOf(id), listOf(current), ProcessTree.System, offeredPlan.orphanHandles) {
+            index.providerFor(it).detectsLiveSessions
+        }
+        if (fresh.running.isNotEmpty()) {
+            dismissRestore(listOf(id))
+            return null
+        }
+        val unsafe = fresh.orphans.any { it.id !in fresh.orphanHandles }
+        if (unsafe) {
+            offered.remove(id)
+            return null
+        }
+        return fresh.takeIf { it.restore.isNotEmpty() }
+    }
+
+    private fun captureOrphans(plan: RestorePlan): RestorePlan = plan.copy(
+        orphanHandles = plan.orphans.mapNotNull { session ->
+            session.livePid?.let { pid -> ProcessTree.System.handle(pid)?.let { session.id to it } }
+        }.toMap(),
+    )
 
     /**
      * Initialize tool windows before scheduling restoration. Each session separately waits for
@@ -230,17 +298,29 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     /** Must run on the EDT. */
     fun restore(plan: RestorePlan) {
         for (session in plan.orphans) {
-            val pid = session.livePid ?: continue
-            LOG.info("Stopping orphaned claude process $pid before resuming session ${session.id}")
-            ProcessTree.System.terminate(pid)
+            val process = plan.orphanHandles[session.id]
+            if (process == null) {
+                LOG.debug("No captured process identity for orphaned session ${session.id}; leaving it alive")
+                continue
+            }
+            if (!process.isAlive()) {
+                LOG.debug("Captured process ${process.pid} for orphaned session ${session.id} is no longer alive")
+                continue
+            }
+            LOG.info("Stopping orphaned claude process ${process.pid} before resuming session ${session.id}")
+            ProcessTree.System.terminate(process)
         }
         for (session in plan.restore) {
             com.hedworth.seshlog.terminal.WorkingDirectoryRecovery.run(project, session) { target ->
                 readiness.await(
                     ready = { TerminalTabs.prepareRestore(project, organisation.title(target), target.title) },
                     launch = {
+                        val latest = restoreCandidateAtLaunch(session.id, plan) ?: return@await
+                        // Preserve a replacement working directory selected before waiting while
+                        // taking the latest session metadata and liveness decision.
+                        val launchSession = latest.restore.single().copy(cwd = target.cwd)
                         try {
-                            resumeRestored(target)
+                            resumeRestored(launchSession)
                         } catch (t: Throwable) {
                             LOG.warn("Could not restore session ${session.id}", t)
                             notification("Could not restore '${organisation.title(session)}': ${t.message}", NotificationType.ERROR).notify(project)

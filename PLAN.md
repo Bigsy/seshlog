@@ -172,7 +172,7 @@ Checked against the cached platforms:
 
 ## 2. Tracking and restore hardening
 
-- [ ] **2.1 "Restore" acts on a stale plan.**
+- [x] **2.1 "Restore" acts on a stale plan.**
   `restore/SessionRestoreManager.kt:180` (`offerRestore`) captures `plan` when the notification
   appears. Clicking Restore later (the notification stays in the Notifications tool window)
   resumes sessions started manually in the meantime, and `restore` (`:230`) terminates orphans by

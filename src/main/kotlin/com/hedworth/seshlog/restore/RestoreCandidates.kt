@@ -10,6 +10,8 @@ data class RestorePlan(
     val orphans: List<Session>,
     /** Still running in a terminal that is alive (this IDE or another one): leave alone. */
     val running: List<Session>,
+    /** Process identities captured while planning. Never resolve these again by numeric pid. */
+    val orphanHandles: Map<String, ProcessTree.Handle> = emptyMap(),
 )
 
 /** Pure logic for "which sessions should come back after a restart", kept free of IntelliJ types. */
@@ -59,5 +61,23 @@ object RestoreCandidates {
             }
         }
         return RestorePlan(restore, orphans, running)
+    }
+
+    /**
+     * Re-evaluate a notification's ids against the current index while retaining only the
+     * process identities captured by the original offer. A changed pid never inherits an old
+     * handle, even when the session id is unchanged.
+     */
+    fun replan(
+        pendingIds: List<String>,
+        sessions: List<Session>,
+        tree: ProcessTree,
+        capturedOrphans: Map<String, ProcessTree.Handle>,
+        restorable: (Session) -> Boolean = { true },
+    ): RestorePlan {
+        val fresh = plan(pendingIds, sessions, tree, restorable)
+        return fresh.copy(orphanHandles = fresh.orphans.mapNotNull { session ->
+            capturedOrphans[session.id]?.takeIf { it.pid == session.livePid }?.let { session.id to it }
+        }.toMap())
     }
 }

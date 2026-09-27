@@ -18,6 +18,20 @@ class RestoreCandidatesTest {
         override fun parentPid(pid: Long) = parents[pid]
     }
 
+    private class FakeHandle(
+        override val pid: Long,
+        var alive: Boolean = true,
+    ) : ProcessTree.Handle {
+        var destroys = 0
+        override fun isAlive() = alive
+        override fun destroy(): Boolean {
+            if (!alive) return false
+            destroys++
+            alive = false
+            return true
+        }
+    }
+
     private fun session(id: String, pid: Long?) = Session(
         kind = AgentKind.CLAUDE_CODE, id = id, title = "T$id", cwd = root, gitBranch = null,
         startedAt = null, lastActivityAt = Instant.EPOCH, transcriptPath = root.resolve("$id.jsonl"),
@@ -83,5 +97,36 @@ class RestoreCandidatesTest {
         assertEquals(listOf("codex"), plan.restore.map { it.id })
         assertTrue(plan.orphans.isEmpty())
         assertTrue(plan.running.isEmpty())
+    }
+
+    @Test
+    fun `replan drops a session started while restore notification was waiting`() {
+        val remembered = session("codex", 300)
+        val handle = FakeHandle(300)
+        val offered = RestorePlan(
+            restore = listOf(remembered), orphans = listOf(remembered), running = emptyList(),
+            orphanHandles = mapOf(remembered.id to handle),
+        )
+        val nowRunning = remembered.copy(isLive = true, livePid = 211L)
+        val fresh = RestoreCandidates.replan(
+            listOf(remembered.id), listOf(nowRunning), tree,
+            offered.orphanHandles,
+        )
+        assertTrue("The manually started session must not be resumed", fresh.restore.isEmpty())
+        assertEquals(listOf("codex"), fresh.running.map { it.id })
+        assertTrue(fresh.orphanHandles.isEmpty())
+    }
+
+    @Test
+    fun `a captured orphan handle that has exited is never destroyed`() {
+        val orphan = session("orphan", 300)
+        val handle = FakeHandle(300).also { it.alive = false }
+        val plan = RestorePlan(
+            restore = listOf(orphan), orphans = listOf(orphan), running = emptyList(),
+            orphanHandles = mapOf(orphan.id to handle),
+        )
+        val captured = plan.orphanHandles.getValue(orphan.id)
+        assertFalse(ProcessTree.System.terminate(captured))
+        assertEquals(0, handle.destroys)
     }
 }

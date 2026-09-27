@@ -5,6 +5,16 @@ package com.hedworth.seshlog.restore
  * The default implementation uses [ProcessHandle] (fine on macOS/Linux; no `ps` needed).
  */
 interface ProcessTree {
+    /** A process identity captured from the OS, rather than a reusable numeric pid. */
+    interface Handle {
+        val pid: Long
+        fun isAlive(): Boolean
+        fun destroy(): Boolean
+    }
+
+    /** Stop only the exact process identity that was captured earlier. */
+    fun terminate(handle: Handle): Boolean = if (handle.isAlive()) handle.destroy() else false
+
     fun isAlive(pid: Long): Boolean
     /** Parent pid, or null when the process is gone. */
     fun parentPid(pid: Long): Long?
@@ -55,7 +65,16 @@ interface ProcessTree {
         override fun parentPid(pid: Long): Long? =
             try { ProcessHandle.of(pid).flatMap { it.parent() }.map { it.pid() }.orElse(null) } catch (_: Exception) { null }
 
-        fun terminate(pid: Long): Boolean =
-            try { ProcessHandle.of(pid).map { it.destroy() }.orElse(false) } catch (_: Exception) { false }
+        /** Capture the current process identity. A later lookup by pid is deliberately avoided. */
+        fun handle(pid: Long): Handle? = try {
+            ProcessHandle.of(pid).orElse(null)?.let { process ->
+                object : Handle {
+                    override val pid = process.pid()
+                    override fun isAlive() = process.isAlive
+                    override fun destroy() = process.destroy()
+                }
+            }
+        } catch (_: Exception) { null }
+
     }
 }

@@ -35,6 +35,7 @@ object ConversationLimits {
         val out = Collector()
         Files.newBufferedReader(path).use { reader ->
             val line = StringBuilder()
+            val buffer = CharArray(16 * 1024)
             var source = 0
             var lineNumber = 0
             var oversized = false
@@ -45,13 +46,24 @@ object ConversationLimits {
                 oversized = false
                 lineNumber++
             }
-            while (true) {
-                val ch = reader.read()
-                if (ch == -1) { if (line.isNotEmpty() || oversized) flush(); break }
-                if (++source > SOURCE_CHARS || out.full) { out.limited = true; break }
-                if (ch == 10) flush()
-                else if (line.length < RECORD_CHARS) line.append(ch.toChar())
-                else oversized = true
+            var done = false
+            while (!done) {
+                val count = reader.read(buffer)
+                if (count < 0) {
+                    if (line.isNotEmpty() || oversized) flush()
+                    break
+                }
+                for (index in 0 until count) {
+                    val ch = buffer[index]
+                    if (++source > SOURCE_CHARS || out.full) {
+                        out.limited = true
+                        done = true
+                        break
+                    }
+                    if (ch == '\n') flush()
+                    else if (line.length < RECORD_CHARS) line.append(ch)
+                    else oversized = true
+                }
             }
         }
         return out.finish()

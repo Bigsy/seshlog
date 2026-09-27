@@ -124,6 +124,17 @@ class ConversationEntriesTest {
         assertEquals(listOf(EntryKind.COVERAGE), scanned.map { it.kind })
     }
 
+    @Test fun bufferedReadPreservesRecordsAcrossChunkBoundaries() {
+        val file = tmp.newFile("chunk-boundary.jsonl").toPath()
+        Files.writeString(file,
+            toolResult("codex", "first " + "x".repeat(16_000)) + "\n" +
+                toolResult("codex", "second") + "\n")
+
+        val entries = ConversationLimits.read(file, CodexConversationEntries::parse)
+
+        assertEquals(listOf("first " + "x".repeat(16_000), "second"), entries.map { it.text })
+    }
+
     private fun toolResult(name: String, output: String): String = when (name) {
         "claude" -> """{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"c","content":"$output"}]}}"""
         "codex" -> """{"type":"response_item","payload":{"type":"function_call_output","call_id":"c","output":"$output"}}"""

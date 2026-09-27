@@ -1,7 +1,10 @@
 package com.hedworth.seshlog.index
 
 import com.hedworth.seshlog.model.Session
-import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedHashMap
+import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.Role
 
 /** One session that matched a content search. */
 data class SearchHit(
@@ -27,26 +30,41 @@ data class SearchHit(
  *
  * @param extractor    reads one session into its list of message texts (may throw: skipped and retried on the next search)
  * @param contentStamp cheap change token for a session; null means "unknown", which disables caching for it
+ * @param characterBudget maximum source plus folded characters retained across all sessions
  */
 class ContentSearchIndex(
     private val extractor: (Session) -> List<String>,
     private val contentStamp: (Session) -> Any?,
     private val localTitle: (Session) -> String = { "" },
-    private val entryExtractor: ((Session) -> List<com.hedworth.seshlog.model.ConversationEntry>)? = null,
+    private val entryExtractor: ((Session) -> List<ConversationEntry>)? = null,
+    private val characterBudget: Long = DEFAULT_CHARACTER_BUDGET,
 ) {
 
-    private class Entry(val stamp: Any?, val content: List<com.hedworth.seshlog.model.ConversationEntry>) {
+    private data class RankedHit(val originalPosition: Int, val hit: SearchHit)
+
+    init {
+        require(characterBudget >= 0) { "characterBudget must not be negative" }
+    }
+
+    private class Entry(val stamp: Any?, val content: List<ConversationEntry>) {
         val searchable = content.filter { it.searchable }
         val texts = searchable.map { it.text }
         /** Folded one-to-one with [texts], so indices can be used against the original text. */
         val foldedTexts = texts.map(::foldCase)
+        /** Charge both retained source text and the folded searchable copy to the global budget. */
+        val characterCount = content.sumOf { it.text.length.toLong() } + foldedTexts.sumOf { it.length.toLong() }
         val partial = content.any { it.truncated || !it.searchable }
     }
 
-    private val entries = ConcurrentHashMap<String, Entry>()
+    private val entriesLock = Any()
+    private val entries = LinkedHashMap<String, Entry>(16, 0.75f, true)
+    private var retainedCharacterCount = 0L
 
     /** Number of sessions currently indexed (for tests and diagnostics). */
-    val size: Int get() = entries.size
+    val size: Int get() = synchronized(entriesLock) { entries.size }
+
+    /** Number of source and folded characters currently retained in the index. */
+    val retainedCharacters: Long get() = synchronized(entriesLock) { retainedCharacterCount }
 
     /**
      * Search [sessions] for [query]. [isCancelled] is polled between sessions so a superseded
@@ -56,8 +74,13 @@ class ContentSearchIndex(
     fun search(query: String, sessions: List<Session>, isCancelled: () -> Boolean = { false }): List<SearchHit> {
         val parsed = TextQuery.parse(query)
         if (parsed.terms.isEmpty()) return emptyList()
-        val hits = ArrayList<SearchHit>()
-        for (session in sessions) {
+        // Consume retained entries before misses. With a budget smaller than the candidate set,
+        // processing the original order would evict a still-unvisited hot entry and make every
+        // repeated query re-extract the whole set. The position is retained for stable ranking.
+        val order = sessions.indices.sortedWith(compareByDescending<Int> { isCached(sessions[it]) }.thenBy { it })
+        val hits = ArrayList<RankedHit>()
+        for (position in order) {
+            val session = sessions[position]
             if (isCancelled()) break
             val entry = entryFor(session)
             val titles = listOf(session.title, localTitle(session))
@@ -72,7 +95,7 @@ class ContentSearchIndex(
             val titleTerms = parsed.terms.indices.count { index -> foldedTitles.any(parsed.terms[index]::matchesFolded) }
             var count = 0
             var snippet: String? = null
-            var matchedEntry: com.hedworth.seshlog.model.ConversationEntry? = null
+            var matchedEntry: ConversationEntry? = null
             for ((i, text) in texts.withIndex()) {
                 val foldedText = entry!!.foldedTexts[i]
                 val seenRanges = HashSet<Long>()
@@ -102,39 +125,87 @@ class ContentSearchIndex(
             }
             if (termMatched.any { !it }) continue
             val phraseBonus = parsed.terms.indices.count { phraseMatched[it] } * 20
-            hits += SearchHit(session, titleTerms * TITLE_BONUS + phraseBonus + count,
-                titleTerms > 0, snippet, matchedEntry?.sourceId, matchedEntry?.isTool == true, entry?.partial == true)
+            hits += RankedHit(position, SearchHit(session, titleTerms * TITLE_BONUS + phraseBonus + count,
+                titleTerms > 0, snippet, matchedEntry?.sourceId, matchedEntry?.isTool == true, entry?.partial == true))
         }
-        hits.sortWith(compareByDescending<SearchHit> { it.score }.thenByDescending { it.session.lastActivityAt })
-        return hits
+        hits.sortWith(compareByDescending<RankedHit> { it.hit.score }
+            .thenByDescending { it.hit.session.lastActivityAt }
+            .thenBy { it.originalPosition })
+        return hits.map { it.hit }
     }
 
     /** Drop entries for sessions whose ids are no longer in [live]. */
     fun retainOnly(live: Collection<String>) {
-        entries.keys.retainAll(live.toSet())
+        val keep = live.toSet()
+        synchronized(entriesLock) {
+            val iterator = entries.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (entry.key !in keep) {
+                    retainedCharacterCount -= entry.value.characterCount
+                    iterator.remove()
+                }
+            }
+        }
     }
 
     private fun entryFor(session: Session): Entry? {
         val stamp = contentStamp(session)
-        if (stamp != null) entries[session.id]?.let { if (it.stamp == stamp) return it }
+        if (stamp != null) synchronized(entriesLock) {
+            entries[session.id]?.let { if (it.stamp == stamp) return it }
+        }
         val texts = try {
             entryExtractor?.invoke(session) ?: extractor(session).mapIndexed { i, text ->
-                com.hedworth.seshlog.model.ConversationEntry(
-                    com.hedworth.seshlog.model.ConversationMessage(com.hedworth.seshlog.model.Role.ASSISTANT, text, null), "message:$i")
+                ConversationEntry(
+                    ConversationMessage(Role.ASSISTANT, text, null), "message:$i")
             }
         } catch (_: Exception) {
-            entries.remove(session.id)
+            remove(session.id)
             return null
         }
         val entry = Entry(stamp, texts)
         // No stamp means we cannot tell when the content changes: use the extraction once, never cache it.
-        if (stamp == null) entries.remove(session.id) else entries[session.id] = entry
+        if (stamp == null) {
+            remove(session.id)
+        } else {
+            synchronized(entriesLock) {
+                removeLocked(session.id)
+                if (entry.characterCount <= characterBudget) {
+                    entries[session.id] = entry
+                    retainedCharacterCount += entry.characterCount
+                    evictToBudgetLocked()
+                }
+            }
+        }
         return entry
+    }
+
+    private fun isCached(session: Session): Boolean {
+        val stamp = contentStamp(session) ?: return false
+        synchronized(entriesLock) {
+            val entry = entries[session.id] ?: return false
+            return entry.stamp == stamp
+        }
+    }
+
+    private fun remove(id: String) = synchronized(entriesLock) { removeLocked(id) }
+
+    private fun removeLocked(id: String) {
+        entries.remove(id)?.let { retainedCharacterCount -= it.characterCount }
+    }
+
+    private fun evictToBudgetLocked() {
+        while (retainedCharacterCount > characterBudget && entries.isNotEmpty()) {
+            val eldest = entries.entries.iterator().next()
+            retainedCharacterCount -= eldest.value.characterCount
+            entries.remove(eldest.key)
+        }
     }
 
     companion object {
         /** A title match outranks a handful of incidental content matches. */
         const val TITLE_BONUS = 100
+        const val DEFAULT_CHARACTER_BUDGET = 32_000_000L
         private const val SNIPPET_CONTEXT = 60
 
         internal fun countOccurrences(haystack: String, needle: String): Int {

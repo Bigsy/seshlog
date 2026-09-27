@@ -1,7 +1,11 @@
 package com.hedworth.seshlog.index
 
 import com.hedworth.seshlog.cache.FileStamp
+import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.model.ConversationMessage
+import com.hedworth.seshlog.model.EntryKind
 import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -191,6 +195,7 @@ class ContentSearchIndexTest {
 
         index.retainOnly(listOf("other"))
         assertEquals(0, index.size)
+        assertEquals(0, index.retainedCharacters)
     }
 
     @Test
@@ -200,6 +205,106 @@ class ContentSearchIndexTest {
         var calls = 0
         val hits = index.search("hit", listOf(a, b)) { calls++ >= 1 }
         assertEquals(1, hits.size)
+    }
+
+    @Test
+    fun `global budget evicts the least recently used session and reextracts it`() {
+        val calls = HashMap<String, Int>()
+        val sessions = listOf(
+            session("a", "A", emptyList()),
+            session("b", "B", emptyList()),
+            session("c", "C", emptyList()),
+        )
+        val lru = ContentSearchIndex(
+            extractor = { current -> calls[current.id] = (calls[current.id] ?: 0) + 1; listOf(current.id) },
+            contentStamp = { 1 },
+            characterBudget = 4,
+        )
+
+        val byId = sessions.associateBy { it.id }
+        lru.search("a", listOf(byId.getValue("a")))
+        lru.search("b", listOf(byId.getValue("b")))
+        lru.search("a", listOf(byId.getValue("a")))
+        lru.search("c", listOf(byId.getValue("c")))
+        assertEquals(2, lru.size)
+        assertEquals(4, lru.retainedCharacters)
+        lru.search("b", listOf(byId.getValue("b")))
+
+        assertEquals(2, calls.getValue("b"))
+    }
+
+    @Test
+    fun `budget includes unsearchable entry text and folded searchable text`() {
+        val s = session("tool-budget", "Title", emptyList())
+        val entries = listOf(
+            ConversationEntry(
+                ConversationMessage(Role.ASSISTANT, "tool output", null),
+                "tool-result", EntryKind.TOOL_RESULT,
+            ),
+            ConversationEntry(
+                ConversationMessage(Role.ASSISTANT, "coverage text", null),
+                "coverage", EntryKind.COVERAGE,
+            ),
+        )
+        val expectedCharacters = "tool output".length * 2L + "coverage text".length
+        val indexed = ContentSearchIndex(
+            extractor = { error("structured entries are required") },
+            contentStamp = { 1 },
+            entryExtractor = { entries },
+            characterBudget = expectedCharacters,
+        )
+
+        val hit = indexed.search("TOOL OUTPUT", listOf(s)).single()
+
+        assertTrue(hit.toolMatch)
+        assertTrue(hit.partial)
+        assertEquals(expectedCharacters, indexed.retainedCharacters)
+    }
+
+    @Test
+    fun `an entry larger than the global budget is searched transiently`() {
+        var calls = 0
+        val s = session("oversize", "Title", emptyList())
+        val indexed = ContentSearchIndex(
+            extractor = { calls++; listOf("oversized") },
+            contentStamp = { 1 },
+            characterBudget = 1,
+        )
+
+        assertEquals(1, indexed.search("oversized", listOf(s)).size)
+        assertEquals(1, indexed.search("oversized", listOf(s)).size)
+
+        assertEquals(2, calls)
+        assertEquals(0, indexed.size)
+        assertEquals(0, indexed.retainedCharacters)
+    }
+
+    @Test
+    fun `repeated oversized candidate scan reextracts only the evicted entry`() {
+        val calls = HashMap<String, Int>()
+        val sessions = listOf(
+            session("first", "First", emptyList()),
+            session("second", "Second", emptyList()),
+            session("third", "Third", emptyList()),
+        )
+        val indexed = ContentSearchIndex(
+            extractor = { current ->
+                calls[current.id] = (calls[current.id] ?: 0) + 1
+                listOf("hit")
+            },
+            contentStamp = { 1 },
+            characterBudget = 12,
+        )
+
+        val first = indexed.search("hit", sessions)
+        val second = indexed.search("hit", sessions)
+
+        assertEquals(sessions.map { it.id }, first.map { it.session.id })
+        assertEquals(sessions.map { it.id }, second.map { it.session.id })
+        assertEquals(4, calls.values.sum())
+        assertEquals(2, calls.getValue("first"))
+        assertEquals(1, calls.getValue("second"))
+        assertEquals(1, calls.getValue("third"))
     }
 
     @Test

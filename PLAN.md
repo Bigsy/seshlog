@@ -252,7 +252,7 @@ Checked against the cached platforms:
   - Manual: still owed — open a project without opening Terminal; no restored shells start.
     The headless fixture checks that no content factory runs and the existing manager is unchanged.
 
-- [ ] **3.3 Cap the content search index.**
+- [x] **3.3 Cap the content search index.**
   Only per-session caps exist (`model/ConversationLimits.kt`). The first query extracts every
   candidate and the index lives for the IDE session: 212 MB of heap for local Codex data, with
   354 of 803 sessions at the 500K-character per-session cap. `ConversationLimits.read` (`:49`)
@@ -261,6 +261,7 @@ Checked against the cached platforms:
     read in buffered chunks.
   - Test: with a small budget, older entries are evicted and re-extracted on demand, and results
     are unchanged.
+  - The default budget is 32 million original-plus-folded characters. Search visits cached candidates first to avoid eviction thrashing while preserving result tie order.
 
 - [ ] **3.4 Parse only the appended part of a changed transcript.**
   `cache/FileBackedParseCache.kt:63` (`get`) re-reads a changed transcript from the start (35 to

@@ -33,6 +33,11 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.6.5</b>
+    <ul>
+        <li>Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.</li>
+        <li>Make session rows easier to scan with titles above agent, time and branch details. Keep activity and unread badges aligned on the right, truncate long text to fit, and show full details in tooltips.</li>
+    </ul>
     <b>0.6.4</b>
     <ul>
         <li>Pick up new and updated sessions as agents write them. The agent data directories, and folders created later such as Codex's daily folder, are now covered by the IDE's file watcher, so fresh Claude Code and Codex sessions appear, show activity and attach to their terminal without a manual refresh.</li>
@@ -60,13 +65,6 @@
         <li>Read fresh content in the background, preserve the invocation's source session and discard superseded requests. Missing, unreadable or oversized content leaves the clipboard unchanged with brief feedback.</li>
         <li>Resolve terminal shortcuts from the invoking terminal view, including the reworked terminal, without falling back to an unrelated selected session.</li>
         <li>Keep session associations while terminals are dragged between split panes. Temporary detachment no longer loses copying, active highlighting, Show Tab or restore tracking; closing a tab still clears its association.</li>
-    </ul>
-    <b>0.5.9</b>
-    <ul>
-        <li>Show what a running session is doing: working, waiting for your input with how long, or interrupted. Claude Code reports this itself; Codex, opencode and Pi states come from the transcript or database and appear while a Seshlog-owned tab still runs the agent.</li>
-        <li>Refresh terminal activity badges every two seconds using matching session processes, so exiting an agent or running an unrelated command clears its badge. Reusing a terminal tab replaces its previous session association, and waiting labels resize as elapsed time grows.</li>
-        <li>Notify when a running session stops working and waits for input, unless its terminal tab is on screen. Tools &rarr; Seshlog &rarr; Notifications turns it off.</li>
-        <li>Add an Additional arguments field per agent under Tools &rarr; Seshlog. It is appended as typed to resume and fork commands, including Copy Resume Command and restore after restart, so a default model or permission mode can follow every resumed session.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

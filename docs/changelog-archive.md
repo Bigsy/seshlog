@@ -3,6 +3,13 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.5.9
+
+- Show what a running session is doing: working, waiting for your input with how long, or interrupted. Claude Code reports this itself; Codex, opencode and Pi states come from the transcript or database and appear while a Seshlog-owned tab still runs the agent.
+- Refresh terminal activity badges every two seconds using matching session processes, so exiting an agent or running an unrelated command clears its badge. Reusing a terminal tab replaces its previous session association, and waiting labels resize as elapsed time grows.
+- Notify when a running session stops working and waits for input, unless its terminal tab is on screen. Tools → Seshlog → Notifications turns it off.
+- Add an Additional arguments field per agent under Tools → Seshlog. It is appended as typed to resume and fork commands, including Copy Resume Command and restore after restart, so a default model or permission mode can follow every resumed session.
+
 ## 0.5.8
 
 - Select a search result to view its full loaded conversation in the bottom pane, with matching terms and phrases highlighted. Search respects the current date, agent and project filters.

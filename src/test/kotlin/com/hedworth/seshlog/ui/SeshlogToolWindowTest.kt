@@ -11,6 +11,54 @@ import java.time.Instant
 
 class SeshlogToolWindowTest : BasePlatformTestCase() {
 
+    fun `test session rows reserve space for activity and reset reused details`() {
+        val renderer = SessionCellRenderer()
+        val tree = com.intellij.ui.treeStructure.Tree()
+        val item = session("layout", Paths.get("/project"), Instant.EPOCH).copy(
+            title = "A long session title ".repeat(10), gitBranch = "feature/" + "long-branch-".repeat(20),
+            isLive = true, activity = com.hedworth.seshlog.model.Activity.WAITING,
+            continuationId = "next-session",
+        )
+        renderer.hits = mapOf(item.id to SearchHit(item, 1, false, "A long matching snippet ".repeat(20), partial = true))
+        renderer.unread = setOf(item.id)
+        fun render(value: Any) = renderer.getTreeCellRendererComponent(tree,
+            javax.swing.tree.DefaultMutableTreeNode(value), false, false, true, 1, false)
+        render(item)
+        for (width in listOf(280, 480, 800)) {
+            renderer.setSize(width, renderer.preferredSize.height)
+            val image = java.awt.image.BufferedImage(width, renderer.height, java.awt.image.BufferedImage.TYPE_INT_RGB)
+            val graphics = image.createGraphics()
+            try {
+                javax.swing.CellRendererPane().paintComponent(graphics, renderer, tree, 0, 0, width, renderer.height, true)
+            } finally {
+                graphics.dispose()
+            }
+            val title = renderer.titleLabel
+            val activity = renderer.activityLabel
+            assertTrue("Title must remain visible at $width px", title.width > 0)
+            assertTrue(title.x + title.width < activity.x)
+            assertTrue(activity.x + activity.width <= activity.parent.width)
+            assertEquals(activity.preferredSize.width, activity.width)
+            assertTrue(renderer.detailsLabel.width <= width)
+            assertTrue(renderer.matchLabel.width <= width)
+        }
+        assertTrue(renderer.activityLabel.text.contains("waiting"))
+        assertTrue(renderer.activityLabel.text.contains("● unread"))
+        assertTrue(renderer.detailsLabel.text.contains("continued"))
+        assertTrue(renderer.detailsLabel.text.contains(item.gitBranch!!))
+        assertTrue(renderer.matchLabel.text.contains("partial coverage"))
+        assertTrue(renderer.toolTipText.contains(item.title))
+        assertTrue(renderer.toolTipText.contains(item.gitBranch))
+        render(ProjectGroup(item.cwd, listOf(item)))
+        assertEquals("project", renderer.titleLabel.text)
+        assertFalse(renderer.detailsLabel.parent.isVisible)
+        assertFalse(renderer.matchLabel.isVisible)
+        assertFalse(renderer.toString().contains("waiting"))
+        render(item.copy(id = "other", isLive = false))
+        assertFalse(renderer.activityLabel.isVisible)
+        assertFalse(renderer.matchLabel.isVisible)
+    }
+
     fun `test running badges clear without a session scan and invalidate row widths`() {
         val disposable = Disposer.newDisposable()
         try {
@@ -82,19 +130,19 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             val publisher = project.messageBus.syncPublisher(
                 com.hedworth.seshlog.terminal.OwnedTerminalTabs.ACTIVE_SESSION_TOPIC)
             val renderer = panel.tree.cellRenderer as SessionCellRenderer
-            fun render(s: Session, selected: Boolean = false): com.intellij.ui.SimpleTextAttributes {
+            fun render(s: Session, selected: Boolean = false): Pair<java.awt.Font, java.awt.Color> {
                 renderer.getTreeCellRendererComponent(panel.tree,
                     javax.swing.tree.DefaultMutableTreeNode(s), selected, false, true, 1, false)
                 assertFalse(renderer.toString().contains("active terminal"))
-                return renderer.iterator().let { it.next(); it.textAttributes }
+                return renderer.titleLabel.font to renderer.titleLabel.foreground
             }
             val ordinary = render(a)
-            assertEquals(com.intellij.ui.SimpleTextAttributes.STYLE_PLAIN, ordinary.style)
+            assertFalse(ordinary.first.isBold)
             publisher.activeSessionChanged(a.id)
             val active = render(a)
-            assertTrue(active.style and com.intellij.ui.SimpleTextAttributes.STYLE_BOLD != 0)
-            assertNotNull(active.fgColor)
-            assertFalse(ordinary.fgColor == active.fgColor)
+            assertTrue(active.first.isBold)
+            assertNotNull(active.second)
+            assertFalse(ordinary.second == active.second)
             assertTrue(renderer.toolTipText.contains("Active terminal"))
             assertEquals(ordinary, render(b))
             assertEquals(b.id, panel.selectedSession()?.id)
@@ -106,12 +154,12 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             assertEquals(ordinary, render(a))
             assertEquals(active, render(b))
             val selected = render(b, selected = true)
-            assertTrue(selected.style and com.intellij.ui.SimpleTextAttributes.STYLE_BOLD != 0)
-            assertTrue(selected.style and com.intellij.ui.SimpleTextAttributes.STYLE_UNDERLINE != 0)
-            assertFalse(active.fgColor == selected.fgColor)
+            assertTrue(selected.first.isBold)
+            assertEquals(java.awt.font.TextAttribute.UNDERLINE_ON, selected.first.attributes[java.awt.font.TextAttribute.UNDERLINE])
+            assertFalse(active.second == selected.second)
             publisher.activeSessionChanged(null)
             assertEquals(ordinary, render(b))
-            assertEquals(com.intellij.ui.SimpleTextAttributes.STYLE_PLAIN, render(b, selected = true).style)
+            assertFalse(render(b, selected = true).first.isBold)
             assertEquals(b.id, panel.selectedSession()?.id)
             assertEquals(b.id, panel.preview.session?.id)
         } finally {

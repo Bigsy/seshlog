@@ -36,6 +36,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.actionSystem.toolbarLayout.ToolbarLayoutStrategy
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAwareAction
@@ -57,10 +58,10 @@ import com.intellij.ui.TreeSpeedSearch
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.Alarm
+import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.StatusText
 import com.intellij.util.ui.tree.TreeUtil
 import java.awt.BorderLayout
-import java.awt.FlowLayout
 import java.awt.GridLayout
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
@@ -150,7 +151,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private var rememberedSelection: String? = null
 
     private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
-    val tree: Tree = Tree(treeModel)
+    val tree: Tree = object : Tree(treeModel) {
+        override fun getScrollableTracksViewportWidth() = true
+    }
     private val renderer = SessionCellRenderer()
     /** Refreshes the "waiting N min" badges; nothing else in the tree depends on wall-clock time. */
     private val badgeClock = Timer(60_000) { refreshBadges(renderer.runningOwned) }
@@ -177,6 +180,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         tree.isRootVisible = false
         tree.showsRootHandles = true
+        tree.rowHeight = 0 // Session rows include metadata; project headings stay compact.
         tree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
         tree.cellRenderer = renderer
         renderer.activeSessionId = OwnedTerminalTabs.getInstance(project).activeSessionId
@@ -246,11 +250,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         dateButton.addActionListener { chooseDateFilter() }
         clearDate.addActionListener { setDateFilter(SessionDateFilter()) }
         val header = JPanel(BorderLayout()).apply {
-            add(createToolbar().component, BorderLayout.WEST)
-            add(searchField, BorderLayout.CENTER)
-            add(JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply {
-                add(createFiltersToolbar())
-            }, BorderLayout.SOUTH)
+            add(createToolbar().component, BorderLayout.NORTH)
+            add(JPanel(BorderLayout()).apply {
+                border = JBUI.Borders.empty(0, 4, 4, 4)
+                add(searchField, BorderLayout.CENTER)
+            }, BorderLayout.CENTER)
         }
         add(header, BorderLayout.NORTH)
         splitter.firstComponent = ScrollPaneFactory.createScrollPane(tree)
@@ -351,6 +355,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(ActionManager.getInstance().getAction("Seshlog.NewSession"))
             add(ActionManager.getInstance().getAction("Seshlog.NextAttention"))
             add(ToggleAllProjectsAction())
+            add(createFilterActions().apply { templatePresentation.icon = AllIcons.General.Filter })
             add(TogglePreviewAction())
             add(ActionManager.getInstance().getAction("Seshlog.OpenConversation"))
             add(ActionManager.getInstance().getAction("Seshlog.OpenContinuation"))
@@ -361,7 +366,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             })
         }
         val toolbar = ActionManager.getInstance().createActionToolbar("SeshlogToolbar", group, true)
+        // Keep one row and put excess actions in the overflow menu on narrow tool windows.
+        // A wrapping toolbar beside search can grow vertically during preferred-size calculation.
+        toolbar.layoutStrategy = ToolbarLayoutStrategy.AUTOLAYOUT_STRATEGY
         toolbar.targetComponent = this
+        filtersAnchor = toolbar.component
         return toolbar
     }
 
@@ -414,14 +423,6 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 }
             })
         }
-    }
-
-    private fun createFiltersToolbar(): JComponent {
-        val group = createFilterActions()
-        val toolbar = ActionManager.getInstance().createActionToolbar("SeshlogFilters", group, false)
-        toolbar.targetComponent = this
-        filtersAnchor = toolbar.component
-        return toolbar.component
     }
 
     /** Filter actions shared by the toolbar and focused UI tests. */

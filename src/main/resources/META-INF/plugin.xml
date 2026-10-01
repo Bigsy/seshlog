@@ -33,6 +33,10 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.6.7</b>
+    <ul>
+        <li>Maintenance release with the latest fixes and improvements.</li>
+    </ul>
     <b>0.6.6</b>
     <ul>
         <li>Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.</li>

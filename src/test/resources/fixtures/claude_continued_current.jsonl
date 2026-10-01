@@ -1,0 +1,3 @@
+{"type":"user","sessionId":"current-session","cwd":"/project","gitBranch":"feature/old","timestamp":"2026-09-24T10:00:00Z","message":{"role":"user","content":"Review the rendering proposal"}}
+{"type":"ai-title","sessionId":"current-session","aiTitle":"Rendering proposal"}
+{"type":"user","sessionId":"current-session","cwd":"/project/worktree","gitBranch":"main","timestamp":"2026-10-01T09:36:00Z","message":{"role":"user","content":"Continue the review"}}

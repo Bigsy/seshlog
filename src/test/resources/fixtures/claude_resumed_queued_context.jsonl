@@ -1,0 +1,4 @@
+{"type":"user","sessionId":"queued-resume","cwd":"/project","gitBranch":"old","message":{"role":"user","content":"Start a review"}}
+{"type":"attachment","sessionId":"queued-resume","cwd":"/project/worktree","gitBranch":"main","attachment":{"type":"queued_command","commandMode":"prompt","origin":{"kind":"human"},"prompt":"Continue here"}}
+{"type":"user","sessionId":"queued-resume","cwd":"/other","gitBranch":"sidechain","isSidechain":true,"message":{"role":"user","content":"Internal subagent request"}}
+{"type":"user","sessionId":"queued-resume","message":{"role":"user","content":"A prompt without context fields"}}

@@ -11,6 +11,21 @@ import java.time.Instant
 
 class SessionListViewModelTest {
     @Test
+    fun `continued sessions show only current entry in list and attention surfaces`() {
+        val original = Session(AgentKind.CLAUDE_CODE, "original", "Same title", Paths.get("/project"), "old",
+            null, Instant.EPOCH, null, false, null, null, 2, true, continuationId = "current")
+        val current = original.copy(id = "current", gitBranch = "main", continuationId = null)
+        val fork = current.copy(id = "fork", forkedFromId = original.id)
+        val all = listOf(original, current, fork)
+        val filters = SessionListFilters(true, false, false, 1, AgentFilterMode.All)
+        val result = SessionListViewModel.build(all, emptyList(), ResolvedPaths.EMPTY, filters)
+        assertEquals(listOf(current, fork), result.visible)
+        assertEquals(result.visible, result.scoped)
+        assertEquals(result.visible, AttentionProjectFilter.apply(all, emptyList(), true, false,
+            AgentFilterMode.All, emptySet(), minPrompts = 1, canonical = { it }, repository = { null }))
+    }
+
+    @Test
     fun `pure list model applies hidden project agent and date filters`() {
         val session = Session(AgentKind.CLAUDE_CODE, "visible", "Visible", Paths.get("/project/app"), null,
             null, Instant.parse("2026-09-20T00:00:00Z"), null, false, null, null, 2, true)

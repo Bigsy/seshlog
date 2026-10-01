@@ -4,6 +4,7 @@ import com.hedworth.seshlog.index.DatePeriod
 import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SessionDateFilter
 import com.hedworth.seshlog.index.SessionFilter
+import com.hedworth.seshlog.index.SessionContinuations
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentSessionFilter
@@ -49,7 +50,7 @@ object SessionListViewModel {
         filters: SessionListFilters,
         hiddenIds: Set<String> = emptySet(),
     ): List<Session> {
-        val scoped = sessions.asSequence()
+        val scoped = SessionContinuations(sessions).current().asSequence()
             .filter { filters.showHidden || it.id !in hiddenIds }
             .filter { SessionFilter.isWorthShowing(it, filters.minPrompts) }
             .filter {

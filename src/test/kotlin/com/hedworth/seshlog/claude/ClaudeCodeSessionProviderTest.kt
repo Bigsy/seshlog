@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.claude
 
 import com.hedworth.seshlog.model.EntryKind
+import com.hedworth.seshlog.index.SessionContinuations
 
 import java.time.Instant
 import com.hedworth.seshlog.model.Activity
@@ -15,6 +16,31 @@ import java.nio.file.Paths
 class ClaudeCodeSessionProviderTest {
     @get:Rule
     val tmp = TemporaryFolder()
+
+    @Test
+    fun `continued transcripts stay indexed but list uses latest metadata after cache reload`() {
+        val root = tmp.root.toPath()
+        val project = Files.createDirectories(root.resolve("projects/example"))
+        val fixtures = Paths.get(javaClass.getResource("/fixtures")!!.toURI())
+        Files.copy(fixtures.resolve("claude_continued_original.jsonl"), project.resolve("original-session.jsonl"))
+        val cacheFile = root.resolve("system/index.json")
+        val provider = ClaudeCodeSessionProvider({ root }, { "claude" }, cacheFile)
+        val original = provider.scan(emptyMap()).single()
+        assertEquals("current-session", original.continuationId)
+        assertEquals(listOf(original), SessionContinuations(listOf(original)).current())
+        Files.copy(fixtures.resolve("claude_continued_current.jsonl"), project.resolve("current-session.jsonl"))
+        val all = provider.scan(mapOf(original.id to original))
+        provider.flush()
+        val reloaded = ClaudeCodeSessionProvider({ root }, { "claude" }, cacheFile).scan(emptyMap())
+        assertEquals(all.toSet(), reloaded.toSet())
+        assertEquals(2, reloaded.size)
+        val current = SessionContinuations(reloaded).current().single()
+        assertEquals("current-session", current.id)
+        assertEquals("main", current.gitBranch)
+        assertEquals(Paths.get("/project/worktree"), current.cwd)
+        assertEquals("claude --resume current-session", provider.resumeCommand(current))
+        assertEquals(listOf(original), SessionContinuations(reloaded).history(current))
+    }
 
     @Test
     fun `scans project dirs, skips subagent dirs and memory, tolerates missing sessions dir`() {

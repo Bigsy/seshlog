@@ -28,7 +28,8 @@ Click a screenshot to view it full size.
 - Marks newly finished turns as unread, shows working/unread counts on project rows, and jumps
   to the next unread session from the toolbar or a configurable shortcut.
 - Opens conversations in read-only editor tabs and renders Markdown in the recent-message preview.
-- Includes Claude subagent activity in search and offers an action to open a recorded continuation.
+- Includes Claude subagent activity in search. Linked continuations share one current session row;
+  **Earlier Sessions** opens the preceding transcripts without changing them.
 - Lists recognized file changes with Open and Compare with Current actions.
 - Copies the latest assistant reply, or the latest explicit Claude Code or Codex plan, without
   selecting terminal output.

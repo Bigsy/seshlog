@@ -6,6 +6,7 @@ import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SearchHit
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SessionAttention
+import com.hedworth.seshlog.index.SessionContinuations
 import com.hedworth.seshlog.index.SessionDateFilter
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.index.TextQuery
@@ -362,6 +363,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(TogglePreviewAction())
             add(ActionManager.getInstance().getAction("Seshlog.OpenConversation"))
             add(ActionManager.getInstance().getAction("Seshlog.OpenContinuation"))
+            add(ActionManager.getInstance().getAction("Seshlog.EarlierSessions"))
             addSeparator()
             add(object : DumbAwareAction("Settings", "Open Seshlog settings", AllIcons.General.Settings) {
                 override fun actionPerformed(e: AnActionEvent) =
@@ -649,7 +651,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 val group = node.userObject as ProjectGroup
                 if (group.cwd !in collapsedGroups) tree.expandPath(TreePath(node.path))
             }
-            selection?.let(::reselect)
+            selection?.let { id ->
+                val previous = latestSessions.firstOrNull { it.id == id }
+                val current = previous?.let { SessionContinuations(latestSessions).latest(it) }
+                reselect(current?.id ?: id)
+            }
         } finally {
             rebuildingTree = false
         }

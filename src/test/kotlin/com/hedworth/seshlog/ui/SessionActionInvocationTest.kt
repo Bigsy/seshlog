@@ -53,6 +53,22 @@ class SessionActionInvocationTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test selected resumed session moves to its continuation and keeps one row`() {
+        withPanel { panel ->
+            val original = session("original", Paths.get(project.basePath!!))
+            panel.render(listOf(original))
+            select(panel, original)
+            val current = original.copy(id = "current", gitBranch = "updated-branch")
+            panel.render(listOf(original.copy(continuationId = current.id), current))
+            assertEquals(listOf(current), panel.visibleSessions)
+            assertEquals(current.id, panel.selectedSession()?.id)
+            val probe = ProbeAction()
+            panel.invoke(probe)
+            assertEquals(current, probe.performedWith)
+            assertNotNull(com.intellij.openapi.actionSystem.ActionManager.getInstance().getAction("Seshlog.EarlierSessions"))
+        }
+    }
+
     fun `test the action does not run when nothing is selected`() {
         withPanel { panel ->
             panel.render(listOf(session("s", Paths.get(project.basePath!!))))

@@ -15,7 +15,7 @@ the symbol, re-find the line.
 
 ## Implementation validation — 2026-09-27
 
-All implementation items are complete; manual IDE checks called out below remain outstanding.
+All original implementation items are complete; manual IDE checks called out below remain outstanding.
 
 - `make check`: 365 passed, one opt-in real-data benchmark skipped.
 - `make release`: tests, plugin build and ZIP integrity check passed.
@@ -24,6 +24,19 @@ All implementation items are complete; manual IDE checks called out below remain
 - Warm search benchmark for the matching change: Codex 1,019 → 139 ms, Claude 97 → 19 ms,
   Pi 3 → 1 ms, with unchanged hit counts. These isolate matching, before the later memory cap.
 - Deliberate adjustments are recorded under 0.3, 3.4, 4.2, 4.7 and 4.8.
+
+## Follow-up — resumed Claude sessions (2026-10-01)
+
+- [x] Read Claude's `continuedInSessionId`, refresh resumed branch/cwd metadata, and invalidate
+  the old metadata cache. Show the last available continuation in lists/search/attention surfaces
+  while retaining all transcripts in the index and an Earlier Sessions history menu. Follow the
+  continuation when restoring tree selection; preserve forks, live predecessors and broken links.
+  Regression: synthetic original/current transcripts, incremental parsing, cache reload, chain/cycle
+  handling and selected-row replacement. Three regression tests failed before the fix.
+  Verified: full `make check` test task via `./gradlew clean test --offline`: 377 passed,
+  one opt-in benchmark skipped. Old v5 metadata caches are discarded and rebuilt.
+  Manual: still owed — resume an old Claude session in `make run`, verify one current row and the
+  Earlier Sessions submenu, and confirm the existing terminal is focused when resuming that row.
 
 ## 0. Platform baseline
 

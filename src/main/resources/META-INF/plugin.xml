@@ -108,6 +108,7 @@
             <separator/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
             <action id="Seshlog.OpenContinuation" class="com.hedworth.seshlog.ui.actions.OpenContinuationAction" text="Open Continuation"/>
+            <group id="Seshlog.EarlierSessions" class="com.hedworth.seshlog.ui.actions.EarlierSessionsAction" text="Earlier Sessions" popup="true"/>
             <action id="Seshlog.InspectChangedFiles" class="com.hedworth.seshlog.ui.InspectChangedFilesAction" text="Files Changed…"/>
             <action id="Seshlog.Pin" class="com.hedworth.seshlog.ui.actions.PinSessionAction" text="Pin / Unpin"/>
             <action id="Seshlog.Rename" class="com.hedworth.seshlog.ui.actions.RenameSessionAction" text="Rename Locally…"/>

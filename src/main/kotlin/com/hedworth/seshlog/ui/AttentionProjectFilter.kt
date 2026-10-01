@@ -3,6 +3,7 @@ package com.hedworth.seshlog.ui
 import com.hedworth.seshlog.index.DateBounds
 import com.hedworth.seshlog.index.GitRepository
 import com.hedworth.seshlog.index.SessionFilter
+import com.hedworth.seshlog.index.SessionContinuations
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentSessionFilter
@@ -30,7 +31,7 @@ internal object AttentionProjectFilter {
         val repositories = if (includeWorktrees && !showAllProjects) {
             roots.mapNotNull(repository).toSet()
         } else emptySet()
-        val scoped = sessions.asSequence()
+        val scoped = SessionContinuations(sessions).current().asSequence()
             .filter { showHidden || it.id !in hiddenIds }
             .filter { SessionFilter.isWorthShowing(it, minPrompts) }
             .filter { session ->

@@ -44,6 +44,10 @@ class TranscriptInfoStoreTest {
     @Test
     fun `other versions and bad entries are ignored`() {
         assertTrue(TranscriptInfoStore.fromJson("""{"version": 99, "entries": []}""").isEmpty())
+        // v5 missed Claude continuation links and retained the initial branch/cwd.
+        assertTrue(TranscriptInfoStore.fromJson(
+            """{"version": 5, "entries": [{"path": "/a/1.jsonl", "size": 1, "mtime": 2, "gitBranch": "old"}]}""",
+        ).isEmpty())
         // v1 stored the raw first prompt; those caches must be dropped rather than migrated.
         assertTrue(
             TranscriptInfoStore.fromJson(

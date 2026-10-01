@@ -118,7 +118,8 @@ object TranscriptParser {
                 "user" -> offerUser(line)
                 "attachment" -> offerQueuedPrompt(line)
                 "continued-in" -> parseObject(line)?.let { obj ->
-                    continuationId = obj.string("continuedIn") ?: obj.string("continued_in")
+                    (obj.string("continuedInSessionId") ?: obj.string("continuedIn") ?: obj.string("continued_in"))
+                        ?.takeIf { it.isNotBlank() }?.let { continuationId = it }
                 }
                 else -> Unit
             }
@@ -128,9 +129,7 @@ object TranscriptParser {
             val obj = parseObject(line) ?: return
             val text = obj.queuedPrompt() ?: return
             if (sessionId == null) sessionId = obj.string("sessionId")
-            if (cwd == null) cwd = obj.string("cwd")
-            if (gitBranch == null) gitBranch = obj.string("gitBranch")
-            if (version == null) version = obj.string("version")
+            offerContext(obj)
             promptCount++
             if (promptTitle == null) promptTitle = promptToTitle(text)
             if (startedAt == null) startedAt = obj.string("timestamp")?.let { runCatching { Instant.parse(it) }.getOrNull() }
@@ -142,14 +141,19 @@ object TranscriptParser {
             val obj = parseObject(line) ?: return
             if (obj.string("type") != "user") return
             if (sessionId == null) sessionId = obj.string("sessionId")
-            if (cwd == null) cwd = obj.string("cwd")
-            if (gitBranch == null) gitBranch = obj.string("gitBranch")
-            if (version == null) version = obj.string("version")
+            if (!obj.bool("isSidechain")) offerContext(obj)
             if (obj.bool("isSidechain") || obj.bool("isMeta")) return
             val text = promptText(obj.getAsJsonObjectOrNull("message")?.get("content")) ?: return
             if (!isRealPrompt(text)) return
             promptCount++
             if (promptTitle == null) promptTitle = promptToTitle(text)
+        }
+
+        /** Resuming can change context; absent fields must not erase the last known values. */
+        private fun offerContext(obj: JsonObject) {
+            obj.string("cwd")?.takeIf { it.isNotBlank() }?.let { cwd = it }
+            obj.string("gitBranch")?.let { gitBranch = it }
+            obj.string("version")?.let { version = it }
         }
 
         fun build() = TranscriptInfo(

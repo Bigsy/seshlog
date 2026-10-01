@@ -121,6 +121,39 @@ class TranscriptParserTest {
     }
 
     @Test
+    fun `reads Claude continuation field and latest resumed context`() {
+        val original = TranscriptParser.parse(fixture("claude_continued_original.jsonl"))
+        assertEquals("current-session", original.continuationId)
+        val current = TranscriptParser.parse(fixture("claude_continued_current.jsonl"))
+        assertEquals("main", current.gitBranch)
+        assertEquals("/project/worktree", current.cwd)
+        assertEquals(Instant.parse("2026-09-24T10:00:00Z"), current.startedAt)
+        assertEquals("Review the rendering proposal", current.promptTitle)
+        assertEquals(2, current.promptCount)
+    }
+
+    @Test
+    fun `queued prompts update context without missing fields or sidechains overwriting it`() {
+        val info = TranscriptParser.parse(fixture("claude_resumed_queued_context.jsonl"))
+        assertEquals("main", info.gitBranch)
+        assertEquals("/project/worktree", info.cwd)
+        assertEquals(3, info.promptCount)
+    }
+
+    @Test
+    fun `appended resume metadata matches full parsing`() {
+        val lines = Files.readAllLines(fixture("claude_continued_current.jsonl"))
+        val path = tmp.newFile("resumed.jsonl").toPath()
+        Files.writeString(path, lines.take(2).joinToString("\n", postfix = "\n"))
+        val initial = TranscriptParser.parseIncremental(path, null, 0)
+        Files.writeString(path, lines.last() + "\n", java.nio.file.StandardOpenOption.APPEND)
+        val resumed = TranscriptParser.parseIncremental(path, initial.info, initial.completedOffset).info
+        assertEquals("main", resumed.gitBranch)
+        assertEquals("/project/worktree", resumed.cwd)
+        assertEquals(TranscriptParser.parse(path), resumed)
+    }
+
+    @Test
     fun `incremental parsing retries an unterminated record after append`() {
         val path = tmp.newFile("claude.jsonl").toPath()
         val first = """{"type":"user","sessionId":"s","cwd":"/p","message":{"role":"user","content":"first"}}""" + "\n"

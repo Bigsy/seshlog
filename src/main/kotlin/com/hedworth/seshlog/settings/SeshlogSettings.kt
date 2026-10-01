@@ -44,6 +44,8 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         var previewMessageCount: Int = 2
         /** Whether the preview pane is shown below the session list. */
         var showPreview: Boolean = true
+        /** Whether the preview pane is folded down to its header row. */
+        var previewCollapsed: Boolean = false
         var restoreMode: String = RestoreMode.ASK.name
         /** Balloon when a running session's agent finishes a turn and waits for input. */
         var notifyWhenWaiting: Boolean = true
@@ -137,6 +139,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var showPreview: Boolean
         get() = state.showPreview
         set(value) { state.showPreview = value }
+
+    var previewCollapsed: Boolean
+        get() = state.previewCollapsed
+        set(value) { state.previewCollapsed = value }
 
     var restoreMode: RestoreMode
         get() = runCatching { RestoreMode.valueOf(state.restoreMode) }.getOrDefault(RestoreMode.ASK)

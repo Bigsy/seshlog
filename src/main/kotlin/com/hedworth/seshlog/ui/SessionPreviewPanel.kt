@@ -9,10 +9,12 @@ import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.SessionAttentionState
 import com.hedworth.seshlog.settings.SessionOrganisation
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.util.Disposer
+import com.intellij.ui.ClickListener
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.JBColor
 import com.intellij.ui.ScrollPaneFactory
@@ -25,7 +27,9 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.Cursor
 import java.awt.FlowLayout
+import java.awt.event.MouseEvent
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicLong
@@ -55,13 +59,19 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     private val tailControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
     internal var searchQuery = ""
         private set
-    private val header = JBLabel().apply { border = JBUI.Borders.empty(4, 6) }
+    private val header = JBLabel().apply {
+        border = JBUI.Borders.empty(4, 6)
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+    }
+    private val top = JPanel(BorderLayout())
     private val countSpinner = JSpinner(SpinnerNumberModel(settings.previewMessageCount, 1, MAX_MESSAGES, 1))
 
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog preview", 1)
     private val generation = AtomicLong()
     private var hasShownSession = false
+    /** A read was requested while collapsed; it runs when the pane is expanded. */
+    private var loadDeferred = false
     /** Number of background preview reads requested; exposed for focused UI regression tests. */
     internal var loadRequestCount = 0
         private set
@@ -87,6 +97,20 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     /** Rendered header, exposed for focused UI regression tests. */
     internal val headerText: String get() = header.text
 
+    /** Called after the header toggles [collapsed], so the owner can re-lay out the pane. */
+    internal var onCollapsedChanged: () -> Unit = {}
+
+    /** Folded down to its header row; stored in settings so it survives restarts. */
+    var collapsed: Boolean
+        get() = settings.previewCollapsed
+        set(value) {
+            if (value == settings.previewCollapsed) return
+            settings.previewCollapsed = value
+            applyCollapsed()
+            if (!value && loadDeferred) scheduleLoad(delayMs = 0)
+            onCollapsedChanged()
+        }
+
     init {
         Disposer.register(parent, this)
         countSpinner.toolTipText = "How many of the most recent messages to show"
@@ -94,7 +118,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
             settings.previewMessageCount = countSpinner.value as Int
             scheduleLoad()
         }
-        val top = JPanel(BorderLayout()).apply {
+        top.apply {
             add(header, BorderLayout.CENTER)
             add(tailControls.apply {
                 isOpaque = false
@@ -102,13 +126,32 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
                 add(countSpinner)
                 add(JBLabel("messages"))
             }, BorderLayout.EAST)
-            border = JBUI.Borders.customLineBottom(JBColor.border())
         }
+        object : ClickListener() {
+            override fun onClick(event: MouseEvent, clickCount: Int): Boolean {
+                collapsed = !collapsed
+                return true
+            }
+        }.installOn(header)
         add(top, BorderLayout.NORTH)
         body.add(ScrollPaneFactory.createScrollPane(editor, true), "tail")
         body.add(conversation, "search")
         add(body, BorderLayout.CENTER)
+        applyCollapsed()
         showSession(null)
+    }
+
+    private fun applyCollapsed() {
+        val folded = collapsed
+        body.isVisible = !folded
+        tailControls.isVisible = !folded && searchQuery.isEmpty()
+        header.icon = if (folded) AllIcons.General.ChevronRight else AllIcons.General.ChevronDown
+        header.toolTipText = if (folded) "Expand preview" else "Collapse preview"
+        // Folded, the header sits directly under the list with no splitter divider above it.
+        top.border = if (folded) JBUI.Borders.customLineTop(JBColor.border())
+        else JBUI.Borders.customLineBottom(JBColor.border())
+        revalidate()
+        repaint()
     }
 
     /** Called on the EDT whenever the tree selection changes. */
@@ -120,7 +163,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         session = nextSession
         searchQuery = normalizedQuery
         hasShownSession = true
-        tailControls.isVisible = searchQuery.isEmpty()
+        tailControls.isVisible = !collapsed && searchQuery.isEmpty()
         cards.show(body, if (searchQuery.isEmpty()) "tail" else "search")
         header.text = nextSession?.let { "<html><b>${esc(organisation.title(it))}</b></html>" } ?: ""
         if (sameContent) return
@@ -131,18 +174,22 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         if (nextSession == null) {
             generation.incrementAndGet()
             alarm.cancelAllRequests()
+            loadDeferred = false
             render(emptyList(), "Select a session to preview its last messages.")
             return
         }
         scheduleLoad()
     }
 
-    private fun scheduleLoad() {
-        loadRequestCount++
+    private fun scheduleLoad(delayMs: Int = DEBOUNCE_MS) {
         completionReceipt = null
         generation.incrementAndGet()
         alarm.cancelAllRequests()
-        alarm.addRequest({ load() }, DEBOUNCE_MS)
+        // Nothing reads a transcript for a folded pane; expanding it runs the latest request.
+        loadDeferred = collapsed
+        if (loadDeferred) return
+        loadRequestCount++
+        alarm.addRequest({ load() }, delayMs)
     }
 
     /** Re-read the selected transcript after a preview setting changed. */

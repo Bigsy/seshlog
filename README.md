@@ -62,6 +62,8 @@ Search matches words in any order. Use `"quoted phrases"` for exact phrases. Sel
 choose **Open Conversation** to read it in a read-only editor tab, then use **F3 / Shift+F3** to jump
 between matches. The editor also supports normal Find; Markdown rendering is available when its
 IDE plugin is enabled. Clear the search to return to the recent-message preview.
+Click the preview header to collapse it to a single row under the list, and again to expand it;
+the choice is remembered across restarts.
 
 Use **New Session** in the toolbar or a project row to start an agent with its configured executable
 and arguments. Right-click a session to resume, fork, pin, rename, hide or copy from it. **Kill Session** stops its

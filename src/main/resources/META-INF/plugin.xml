@@ -37,6 +37,7 @@
     <ul>
         <li>Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.</li>
         <li>Make session rows easier to scan with titles above agent, time and branch details. Keep activity and unread badges aligned on the right, truncate long text to fit, and show full details in tooltips.</li>
+        <li>Collapse the message preview to its header row by clicking the header. Collapsed or expanded is remembered across restarts, and a collapsed preview does not read transcripts.</li>
     </ul>
     <b>0.6.4</b>
     <ul>

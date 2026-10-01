@@ -161,6 +161,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     /** Bottom pane showing the selected session's last messages. */
     val preview = SessionPreviewPanel(this)
     private val splitter = OnePixelSplitter(true, "Seshlog.PreviewSplitter", 0.6f)
+    /** Holds the splitter, plus the preview header below it while the preview is collapsed. */
+    private val content = JPanel(BorderLayout())
 
     /** Content search: the field, its debounce alarm, and the last delivered hits (by session id). */
     val searchField = SearchTextField(true)
@@ -258,8 +260,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
         add(header, BorderLayout.NORTH)
         splitter.firstComponent = ScrollPaneFactory.createScrollPane(tree)
-        splitter.secondComponent = preview
-        add(splitter, BorderLayout.CENTER)
+        content.add(splitter, BorderLayout.CENTER)
+        add(content, BorderLayout.CENTER)
+        preview.onCollapsedChanged = ::applyPreviewVisibility
         add(JPanel(BorderLayout()).apply {
             add(statusLabel, BorderLayout.CENTER)
             add(retryButton, BorderLayout.EAST)
@@ -472,11 +475,14 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     private fun applyPreviewVisibility() {
         val show = settings.showPreview
+        val folded = show && preview.collapsed
         preview.isVisible = show
-        splitter.secondComponent = if (show) preview else null
+        // A collapsed preview keeps only its header row, docked under the list rather than splitting it.
+        splitter.secondComponent = if (show && !folded) preview else null
+        if (folded) content.add(preview, BorderLayout.SOUTH) else content.remove(preview)
         if (show) showPreviewIfChanged()
-        splitter.revalidate()
-        splitter.repaint()
+        content.revalidate()
+        content.repaint()
     }
 
     /** Re-apply whatever is active: the search query or the plain list. */
@@ -755,8 +761,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         tree.selectionPath = path
         tree.scrollPathToVisible(path)
         if (!OwnedTerminalTabs.getInstance(project).focus(target.id)) {
-            // Explicit navigation should expose the latest reply even with preview hidden or a search active.
-            if (!settings.showPreview || activeQuery.isNotEmpty())
+            // Explicit navigation should expose the latest reply even with preview hidden, collapsed or a search active.
+            if (!settings.showPreview || preview.collapsed || activeQuery.isNotEmpty())
                 ConversationEditorTabs.open(project, target, "", startAtLatest = true)
             else preview.showSession(target)
         }

@@ -271,6 +271,41 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test collapsed preview keeps its header, defers reads and is remembered`() {
+        val disposable = Disposer.newDisposable()
+        val settings = SeshlogSettings.getInstance()
+        val oldShow = settings.showPreview
+        val oldCollapsed = settings.previewCollapsed
+        try {
+            settings.showPreview = true
+            settings.previewCollapsed = true
+            val preview = SessionTreePanel(project, disposable).preview
+            assertTrue(preview.collapsed)
+            assertTrue(preview.isVisible)
+            assertFalse(preview.parent is com.intellij.ui.OnePixelSplitter)
+
+            val s = session("folded", Paths.get(project.basePath!!), Instant.EPOCH)
+            val loads = preview.loadRequestCount
+            preview.showSession(s)
+            assertTrue(preview.headerText.contains(s.title))
+            assertEquals(loads, preview.loadRequestCount)
+
+            preview.collapsed = false
+            assertFalse(settings.previewCollapsed)
+            assertTrue(preview.parent is com.intellij.ui.OnePixelSplitter)
+            assertEquals(loads + 1, preview.loadRequestCount)
+
+            preview.collapsed = true
+            assertTrue(settings.previewCollapsed)
+            assertFalse(preview.parent is com.intellij.ui.OnePixelSplitter)
+            assertTrue(SessionTreePanel(project, disposable).preview.collapsed)
+        } finally {
+            settings.showPreview = oldShow
+            settings.previewCollapsed = oldCollapsed
+            Disposer.dispose(disposable)
+        }
+    }
+
     fun `test preview loads the tail of the selected session`() {
         val disposable = Disposer.newDisposable()
         try {

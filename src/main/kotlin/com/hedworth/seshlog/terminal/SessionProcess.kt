@@ -71,6 +71,7 @@ internal object SessionProcess {
         processes: List<Evidence>, sessions: List<Session>, executables: Map<AgentKind, String>,
         evidence: ProcessTranscripts.Result,
         isCliTranscript: (Path) -> Boolean = CodexTranscriptParser::isCliTranscript,
+        daemonThreads: Map<Long, String> = emptyMap(),
     ): Discovery {
         val writableFiles = evidence.files
         val codex = executables[AgentKind.CODEX]
@@ -94,22 +95,17 @@ internal object SessionProcess {
         }.toMap()
         val identified = processes.flatMap { process -> identify(process, sessions, executables).map { it to process.pid } }.toMap()
         val codexIds = sessions.filter { it.kind == AgentKind.CODEX }.mapTo(HashSet()) { it.id }
-        val owners = if (paths.isEmpty() && !unknown) identified else identified.filterKeys { it !in codexIds } + written
+        // A TUI on the app-server daemon holds no rollout. A one-to-one daemon match stands in for
+        // one, and only such a positive match overrides its resume argument.
+        val matched = codexProcesses.mapNotNull { process -> daemonThreads[process.pid]?.let { it to process.pid } }.toMap()
+        val owners = if (paths.isEmpty() && !unknown && matched.isEmpty()) identified
+            else identified.filterKeys { it !in codexIds } + written + matched.filterKeys { it in codexIds }
         return Discovery(owners.keys, processes.any { p -> executables.values.any { isAgent(p, it) } } || owners.isNotEmpty(), owners, unknown && paths.isEmpty(), codexIds)
     }
 
-    /** Discover fresh or resumed agents once per shell, entirely off the EDT. */
-    fun inspect(shell: Long, sessions: List<Session>, executables: Map<AgentKind, String>): Discovery = try {
-        val root = ProcessHandle.of(shell).orElse(null)
-        val processes = if (root == null) emptyList() else root.descendants().use { descendants ->
-            (sequenceOf(root) + descendants.iterator().asSequence()).filter { it.isAlive }.map { process ->
-                val info = process.info()
-                Evidence(process.pid(), info.command().orElse(null), info.arguments().orElse(emptyArray()).toList())
-            }.toList()
-        }
-        val codex = executables[AgentKind.CODEX]
-        val pids = processes.filter { codex != null && isAgent(it, codex) }.mapTo(HashSet()) { it.pid }
-        identifyTree(processes, sessions, executables, ProcessTranscripts.writableFiles(pids))
+    /** Discover fresh or resumed agents under one shell, entirely off the EDT, as polling does. */
+    fun inspect(shell: Long, sessions: List<Session>, executables: Map<AgentKind, String>, codexHome: Path? = null): Discovery = try {
+        ProcessBatchInspector().inspect(setOf(shell), sessions, executables, codexHome).discoveries.getValue(shell).discovery
     } catch (_: Exception) {
         Discovery(emptySet(), true, unknown = true) // Preserve association when evidence is unavailable.
     }

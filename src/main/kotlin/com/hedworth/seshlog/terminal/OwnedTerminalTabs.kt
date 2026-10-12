@@ -107,10 +107,11 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val last = lastSessionFor(content)
         val shell = TerminalTabs.terminalOf(project, content)?.shellPid()
         val executables = executables()
+        val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         return {
             val index = SessionIndex.getInstance()
             val id = if (shell == null) last else SessionProcess.copySession(last, index.sessions,
-                inspect = { SessionProcess.inspect(shell, it, executables) }, rescan = { index.scanNow() })
+                inspect = { SessionProcess.inspect(shell, it, executables, codexHome) }, rescan = { index.scanNow() })
             // Copying from an agent that already exited must not re-attach it to the tab.
             if (id != null && shell != null && (id == previous || id != last)) ApplicationManager.getApplication().invokeLater {
                 if (!disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
@@ -169,9 +170,10 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val previousOwners = inspected.keys.associateWith(registry::sessionFor)
         val previousGenerations = registry.generations(inspected.keys)
         val executables = executables()
+        val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val watched = agents.snapshot()
         processInspection.run(inspect = {
-            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables)
+            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables, codexHome)
             val found = candidates.mapNotNull { (id, shell, _) ->
                 val discovery = batch.discoveries[shell]?.discovery ?: return@mapNotNull null
                 val handle = discovery.processes[id]?.let(batch.handles::get)

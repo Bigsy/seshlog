@@ -1,0 +1,170 @@
+package com.hedworth.seshlog.terminal
+
+import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.Session
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Instant
+
+class CodexDaemonTest {
+    @get:Rule val temporary = TemporaryFolder()
+
+    private val daemon = 900L
+    private val app = Path.of("/synthetic/app")
+    private val other = Path.of("/synthetic/other")
+    private val guardian = """{"subagent":{"other":"guardian"}}"""
+
+    /** A synthetic rollout whose `session_meta` places thread [id] in [cwd]. */
+    private fun rollout(id: String, cwd: Path = app, originator: String = "codex-tui", source: String = "\"vscode\""): Path {
+        val file = temporary.root.toPath().resolve("rollout-2026-10-12T10-00-00-$id.jsonl")
+        Files.writeString(file, """{"type":"session_meta","payload":{"id":"$id","cwd":"$cwd","originator":"$originator","source":$source}}""" + "\n")
+        return file
+    }
+
+    private fun evidence(held: List<Path>, cwds: Map<Long, Path>, own: Map<Long, Set<Path>> = emptyMap(), unknown: Set<Long> = emptySet()) =
+        ProcessTranscripts.Result(own + (daemon to held.toSet()), unknown, cwds)
+
+    private fun instance(vararg pids: Long, resume: String? = null) = CodexDaemon.Instance(pids.toSet(), resume)
+
+    @Test fun `fresh TUI adopts the only daemon-held terminal thread in its directory`() {
+        val held = listOf(rollout("fresh"), rollout("review", source = guardian), rollout("editor", originator = "codex_vscode"))
+        assertEquals(mapOf(11L to "fresh", 12L to "fresh"),
+            CodexDaemon.match(listOf(instance(11, 12)), daemon, evidence(held, mapOf(11L to app, 12L to app))))
+    }
+
+    @Test fun `a TUI outside IntelliJ in the same directory leaves both unmatched`() {
+        val tab = instance(11)
+        val outside = instance(21)
+        val cwds = mapOf(11L to app, 21L to app)
+        // The tab's thread is not open yet: the outside TUI's thread must not be taken for it.
+        assertTrue(CodexDaemon.match(listOf(tab, outside), daemon, evidence(listOf(rollout("outside")), cwds)).isEmpty())
+        assertTrue(CodexDaemon.match(listOf(tab, outside), daemon, evidence(listOf(rollout("outside"), rollout("tab")), cwds)).isEmpty())
+        // In another directory it is irrelevant.
+        val apart = CodexDaemon.match(listOf(tab, outside), daemon,
+            evidence(listOf(rollout("tab"), rollout("outside", other)), mapOf(11L to app, 21L to other)))
+        assertEquals("tab", apart[11L])
+    }
+
+    @Test fun `startup race before the daemon opens the thread matches nothing`() {
+        assertTrue(CodexDaemon.match(listOf(instance(11)), daemon, evidence(emptyList(), mapOf(11L to app))).isEmpty())
+        assertTrue(CodexDaemon.match(listOf(instance(11, resume = "old")), daemon, evidence(emptyList(), mapOf(11L to app))).isEmpty())
+    }
+
+    @Test fun `a stale thread the daemon still holds makes the directory ambiguous`() {
+        val held = listOf(rollout("old"), rollout("new"))
+        assertTrue(CodexDaemon.match(listOf(instance(11, resume = "old")), daemon, evidence(held, mapOf(11L to app))).isEmpty())
+    }
+
+    @Test fun `a released resume target is replaced by the one held thread`() {
+        assertEquals(mapOf(11L to "new"),
+            CodexDaemon.match(listOf(instance(11, resume = "old")), daemon, evidence(listOf(rollout("new")), mapOf(11L to app))))
+    }
+
+    @Test fun `exact pairs leave one fresh TUI matchable in a shared directory`() {
+        val resumed = instance(11, resume = "resumed")
+        val ownWriter = instance(31)
+        val fresh = instance(21)
+        val cwds = mapOf(11L to app, 21L to app, 31L to app)
+        val own = mapOf(31L to setOf(rollout("own", source = "\"cli\"", originator = "codex_cli_rs")))
+        val result = CodexDaemon.match(listOf(resumed, ownWriter, fresh), daemon,
+            evidence(listOf(rollout("resumed"), rollout("fresh")), cwds, own))
+        assertEquals(mapOf(21L to "fresh"), result)
+    }
+
+    @Test fun `any gap in the evidence matches nothing`() {
+        val held = listOf(rollout("fresh"))
+        val cwds = mapOf(11L to app)
+        val tui = listOf(instance(11))
+        assertEquals(1, CodexDaemon.match(tui, daemon, evidence(held, cwds)).size)
+        assertTrue(CodexDaemon.match(tui, daemon, evidence(held, cwds, unknown = setOf(daemon))).isEmpty())
+        assertTrue(CodexDaemon.match(tui, daemon, ProcessTranscripts.Result(emptyMap(), cwds = cwds)).isEmpty())
+        assertTrue(CodexDaemon.match(tui, daemon, evidence(held, cwds, unknown = setOf(11L))).isEmpty())
+        assertTrue(CodexDaemon.match(tui, daemon, evidence(held, emptyMap())).isEmpty())
+        val unreadable = temporary.root.toPath().resolve("rollout-unreadable.jsonl").also { Files.writeString(it, "{not json\n") }
+        assertTrue(CodexDaemon.match(tui, daemon, evidence(held + listOf(unreadable), cwds)).isEmpty())
+    }
+
+    private fun row(pid: Long, parent: Long?, command: String, vararg args: String, started: Instant? = null) =
+        ProcessRecord(pid, parent, command, args.toList(), ProcessHandle.current(), started)
+
+    @Test fun `daemon pid is trusted only while the recorded process start still matches`() {
+        val home = temporary.newFolder("codex-home").toPath()
+        val table = ProcessTableSnapshot.of(listOf(row(daemon, 1, "/x/codex", "app-server", started = Instant.ofEpochSecond(1_791_463_103))))
+        assertNull("No marker means no daemon", CodexDaemon.pid(home, table))
+        val marker = home.resolve("app-server-daemon/daemon.pid").also { Files.createDirectories(it.parent) }
+        fun write(pid: Long, start: Long) = Files.writeString(marker,
+            """{"pid":$pid,"processStartTime":"TEST","processIdentity":{"bootId":"TEST","uniqueId":1,"startSeconds":$start,"startMicroseconds":5}}""")
+        write(daemon, 1_791_463_103)
+        assertEquals(daemon, CodexDaemon.pid(home, table))
+        write(daemon, 1_791_000_000)
+        assertNull("A reused pid started later", CodexDaemon.pid(home, table))
+        write(901, 1_791_463_103)
+        assertNull("The recorded process is gone", CodexDaemon.pid(home, table))
+        Files.writeString(marker, "{not json")
+        assertNull(CodexDaemon.pid(home, table))
+    }
+
+    @Test fun `instances group launch wrappers and exclude the daemon, its children and non-TUI commands`() {
+        val table = ProcessTableSnapshot.of(listOf(
+            row(daemon, 1, "/x/codex", "app-server", "--managed-daemon"),
+            row(901, daemon, "/x/codex", "exec", "tool"),
+            row(10, 1, "/bin/zsh"),
+            row(11, 10, "/bin/node", "/opt/homebrew/bin/codex", "resume", "s1"),
+            row(12, 11, "/x/codex", "resume", "s1"),
+            row(29, 1, "/editor/helper"),
+            row(30, 29, "/editor/codex", "app-server"),
+            row(40, 1, "/bin/zsh"),
+            row(41, 40, "/x/codex", "resume", "--last"),
+            row(42, 40, "/x/codex", "exec", "summarise"),
+            row(43, 40, "/x/codex", "mcp-server"),
+            row(50, 10, "/bin/cat"),
+        ))
+        assertEquals(setOf(CodexDaemon.Instance(setOf(11L, 12L), "s1"), CodexDaemon.Instance(setOf(41L), null)),
+            CodexDaemon.instances(table, "codex", daemon).toSet())
+    }
+
+    private fun session(id: String) = Session(AgentKind.CODEX, id, id, app, null, null, Instant.EPOCH,
+        temporary.root.toPath().resolve("rollout-2026-10-12T10-00-00-$id.jsonl"), false, null, null, 1, true)
+
+    @Test fun `polling and copy adopt a daemon-held thread and override a resume argument only on a match`() {
+        val table = ProcessTableSnapshot.of(listOf(
+            row(daemon, 1, "/x/codex", "app-server"),
+            row(10, 1, "/bin/zsh"), row(11, 10, "/x/codex", "resume", "old"),
+            row(40, 1, "/bin/zsh"), row(41, 40, "/x/codex"),
+        ))
+        val outside = rollout("outside", other)
+        var held = emptyList<Path>()
+        val queried = ArrayList<Set<Long>>()
+        val inspector = ProcessBatchInspector(
+            snapshot = { table },
+            writableFiles = { pids -> queried += pids; evidence(held + listOf(outside), mapOf(11L to app, 41L to other)) },
+            codexDaemon = { _, _ -> daemon },
+        )
+        val sessions = listOf(session("old"), session("new"), session("outside"))
+        val executables = mapOf(AgentKind.CODEX to "codex")
+        fun discovery(sessions: List<Session>, home: Path? = temporary.root.toPath()) =
+            inspector.inspect(setOf(10L), sessions, executables, home).discoveries.getValue(10L).discovery
+
+        // Startup: the resumed thread is not open yet, so its argument stands.
+        assertEquals(setOf("old"), discovery(sessions).sessionIds)
+        assertEquals(setOf(11L, 41L, daemon), queried.last())
+
+        // After an in-Codex /new the daemon holds only the new thread.
+        held = listOf(rollout("new"))
+        assertEquals(mapOf("new" to 11L), discovery(sessions).processes)
+        assertEquals(setOf("old"), discovery(sessions, home = null).sessionIds)
+        assertEquals(setOf(11L), queried.last())
+
+        // Not indexed yet: never fall back to the stale argument, so copy rescans instead.
+        val unindexed = discovery(sessions - session("new"))
+        assertTrue(unindexed.sessionIds.isEmpty())
+        assertNull(unindexed.copySession("old"))
+        assertEquals("new", SessionProcess.copySession("old", sessions - session("new"), inspect = { discovery(it) }, rescan = { sessions }))
+    }
+}

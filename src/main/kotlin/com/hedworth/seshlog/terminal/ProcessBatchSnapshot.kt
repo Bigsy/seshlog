@@ -3,6 +3,8 @@ package com.hedworth.seshlog.terminal
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.ProcessTree
+import java.nio.file.Path
+import java.time.Instant
 
 /** A process-table row captured once, retaining the exact handle seen for that pid. */
 internal data class ProcessRecord(
@@ -11,6 +13,7 @@ internal data class ProcessRecord(
     val command: String?,
     val arguments: List<String>,
     val handle: ProcessHandle,
+    val startedAt: Instant? = null,
 ) {
     fun evidence() = SessionProcess.Evidence(pid, command, arguments)
 }
@@ -28,6 +31,8 @@ internal class ProcessTableSnapshot private constructor(
     override fun parentPid(pid: Long): Long? = rows[pid]?.parentPid
 
     fun row(pid: Long): ProcessRecord? = rows[pid]
+
+    fun rows(): Collection<ProcessRecord> = rows.values
 
     /** Include the shell itself because an agent may have replaced it with exec. */
     fun under(shellPid: Long): List<ProcessRecord> = rows.values.filter {
@@ -59,6 +64,7 @@ internal class ProcessTableSnapshot private constructor(
                 command = info.command().orElse(null),
                 arguments = info.arguments().map { it.toList() }.orElse(emptyList()),
                 handle = handle,
+                startedAt = info.startInstant().orElse(null),
             )
         } catch (_: Exception) {
             null
@@ -86,11 +92,14 @@ internal data class ProcessBatchResult(
 internal class ProcessBatchInspector(
     private val snapshot: () -> ProcessTableSnapshot = ProcessTableSnapshot::capture,
     private val writableFiles: (Set<Long>) -> ProcessTranscripts.Result = ProcessTranscripts::writableFiles,
+    private val codexDaemon: (Path, ProcessTableSnapshot) -> Long? = CodexDaemon::pid,
 ) {
+    /** [codexHome] locates the Codex app-server daemon; without it daemon-held threads are not matched. */
     fun inspect(
         shellPids: Set<Long>,
         sessions: List<Session>,
         executables: Map<AgentKind, String>,
+        codexHome: Path? = null,
     ): ProcessBatchResult {
         if (shellPids.isEmpty()) return ProcessBatchResult(ProcessTableSnapshot.of(emptyList()), emptyMap(), emptyMap())
         val table = snapshot()
@@ -99,12 +108,17 @@ internal class ProcessBatchInspector(
         val codexPids = evidenceByShell.values.asSequence().flatten()
             .filter { codexExecutable != null && SessionProcess.isAgent(it, codexExecutable) }
             .mapTo(LinkedHashSet()) { it.pid }
-        // One descriptor query covers every Codex process under every inspected shell.
-        val descriptors = writableFiles(codexPids)
+        val daemon = if (codexPids.isEmpty() || codexHome == null || !table.complete) null else codexDaemon(codexHome, table)
+        val instances = if (daemon == null || codexExecutable == null) emptyList()
+            else CodexDaemon.instances(table, codexExecutable, daemon)
+        // One descriptor query covers every Codex process under every inspected shell, plus the
+        // daemon and every other Codex TUI when daemon-held threads have to be matched.
+        val descriptors = writableFiles(codexPids + instances.flatMap { it.pids } + listOfNotNull(daemon))
+        val daemonThreads = daemon?.let { CodexDaemon.match(instances, it, descriptors) }.orEmpty()
         val discoveries = evidenceByShell.mapValues { (shell, processes) ->
             ShellProcessDiscovery(
                 shell,
-                if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors)
+                if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors, daemonThreads = daemonThreads)
                 else SessionProcess.Discovery(emptySet(), hasAgent = true, unknown = true),
             )
         }

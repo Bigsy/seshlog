@@ -38,12 +38,11 @@ data class CodexTranscriptInfo(
 object CodexTranscriptParser {
     private val LOG = logger<CodexTranscriptParser>()
 
-    /**
-     * A CLI process also writes subagent/approval rollouts; those are not its terminal conversation.
-     * From 0.158 the TUI runs on the app server, which records `source: vscode`, so the TUI
-     * originator identifies a terminal conversation as well as the older `source: cli`.
-     */
-    internal fun isCliTranscript(path: Path): Boolean = try {
+    /** A rollout's `session_meta`: [terminal] when it is a TUI conversation, see [isCliTranscript]. */
+    internal data class RolloutHeader(val id: String?, val cwd: String?, val terminal: Boolean)
+
+    /** Null when the first record is unreadable, oversize or not `session_meta`: unknown, not absent. */
+    internal fun rolloutHeader(path: Path): RolloutHeader? = try {
         Files.newBufferedReader(path).use { reader ->
             val header = StringBuilder()
             while (header.length < 64 * 1024) {
@@ -52,10 +51,19 @@ object CodexTranscriptParser {
                 header.append(next.toChar())
             }
             val payload = parseObject(header.toString())?.takeIf { it.string("type") == "session_meta" }?.objectValue("payload")
-            payload != null && !payload.isInternalSubagent() &&
-                (payload.string("source") == "cli" || payload.string("originator") == TUI_ORIGINATOR)
+            payload?.let {
+                RolloutHeader(it.string("id"), it.string("cwd"), !it.isInternalSubagent() &&
+                    (it.string("source") == "cli" || it.string("originator") == TUI_ORIGINATOR))
+            }
         }
-    } catch (_: Exception) { false }
+    } catch (_: Exception) { null }
+
+    /**
+     * A CLI process also writes subagent/approval rollouts; those are not its terminal conversation.
+     * From 0.158 the TUI runs on the app server, which records `source: vscode`, so the TUI
+     * originator identifies a terminal conversation as well as the older `source: cli`.
+     */
+    internal fun isCliTranscript(path: Path): Boolean = rolloutHeader(path)?.terminal == true
 
     private const val TUI_ORIGINATOR = "codex-tui"
 

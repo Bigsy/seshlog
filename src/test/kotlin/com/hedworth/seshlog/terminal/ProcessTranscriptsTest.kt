@@ -19,8 +19,16 @@ class ProcessTranscriptsTest {
             "f4\u0000ar\u0000n/read-only.jsonl\u0000\nf5\u0000n/unknown-mode.jsonl\u0000\n" +
             "p200\u0000\nf6\u0000au\u0000n/second.jsonl\u0000\n"
         assertEquals(mapOf(100L to setOf(Path.of("/a b/rollout-one.jsonl")),
-            200L to setOf(Path.of("/second.jsonl"))), ProcessTranscripts.parseLsof(data))
-        assertTrue(ProcessTranscripts.parseLsof("pbad\u0000f3\u0000aw\u0000n/file\u0000").isEmpty())
+            200L to setOf(Path.of("/second.jsonl"))), ProcessTranscripts.parseLsof(data).files)
+        assertTrue(ProcessTranscripts.parseLsof("pbad\u0000f3\u0000aw\u0000n/file\u0000").files.isEmpty())
+    }
+
+    @Test fun `lsof working directories are kept per process and never count as written files`() {
+        val data = "p100\u0000\nfcwd\u0000a \u0000n/work/app\u0000\nf3\u0000aw\u0000n/rollout-one.jsonl\u0000\n" +
+            "p200\u0000\nfcwd\u0000a \u0000nrelative\u0000\nf4\u0000ar\u0000n/read-only\u0000\n"
+        val result = ProcessTranscripts.resultFromLsof(setOf(100L, 200L), 0, data)
+        assertEquals(mapOf(100L to Path.of("/work/app")), result.cwds)
+        assertEquals(mapOf(100L to setOf(Path.of("/rollout-one.jsonl")), 200L to emptySet<Path>()), result.files)
     }
 
     @Test fun `exit one retains valid files and marks only missing pids unknown`() {

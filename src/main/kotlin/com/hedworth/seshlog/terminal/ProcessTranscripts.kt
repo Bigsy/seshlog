@@ -9,19 +9,24 @@ import java.util.concurrent.TimeUnit
 internal object ProcessTranscripts {
     private val log = logger<ProcessTranscripts>()
 
-    /** A missing/failed observation is distinct from a successful empty descriptor list. */
-    data class Result(val files: Map<Long, Set<Path>>, val unknown: Set<Long> = emptySet())
+    /**
+     * A missing/failed observation is distinct from a successful empty descriptor list. [cwds] is
+     * each process's working directory, read in the same pass.
+     */
+    data class Result(val files: Map<Long, Set<Path>>, val unknown: Set<Long> = emptySet(), val cwds: Map<Long, Path> = emptyMap())
 
     fun writableFiles(pids: Set<Long>): Result {
         if (pids.isEmpty()) return Result(emptyMap())
         if (!Files.isDirectory(Path.of("/proc/self/fd"))) return lsofFiles(pids)
         val files = linkedMapOf<Long, Set<Path>>()
         val unknown = mutableSetOf<Long>()
+        val cwds = linkedMapOf<Long, Path>()
         for (pid in pids) {
             val found = procFiles(pid)
             if (found == null) unknown += pid else files[pid] = found
+            procCwd(pid)?.let { cwds[pid] = it }
         }
-        return Result(files, unknown)
+        return Result(files, unknown, cwds)
     }
 
     private fun procFiles(pid: Long): Set<Path>? = try {
@@ -34,6 +39,9 @@ internal object ProcessTranscripts {
             }.toSet()
         }
     } catch (e: Exception) { log.debug("Cannot inspect writable process descriptors", e); null }
+
+    private fun procCwd(pid: Long): Path? = try { Files.readSymbolicLink(Path.of("/proc/$pid/cwd")) }
+    catch (e: Exception) { log.debug("Cannot read process working directory", e); null }
 
     private fun lsofFiles(pids: Set<Long>): Result {
         val unknown = Result(emptyMap(), pids)
@@ -64,28 +72,33 @@ internal object ProcessTranscripts {
             log.debug("lsof failed with exit $exit")
             return Result(emptyMap(), pids)
         }
-        val files = parseLsof(output).filterKeys { it in pids }
+        val parsed = parseLsof(output)
+        val files = parsed.files.filterKeys { it in pids }
         // Exit 1 is normal when any requested PID disappeared; retain the other processes' data.
-        return Result(files, if (exit == 1) pids - files.keys else emptySet())
+        return Result(files, if (exit == 1) pids - files.keys else emptySet(), parsed.cwds.filterKeys { it in pids })
     }
 
-    internal fun parseLsof(output: String): Map<Long, Set<Path>> {
+    internal fun parseLsof(output: String): Result {
         val files = linkedMapOf<Long, MutableSet<Path>>()
+        val cwds = linkedMapOf<Long, Path>()
         var pid: Long? = null
+        var descriptor: String? = null
         var writable = false
         for (field in output.split('\u0000')) {
             val value = field.trimStart('\n')
             when (value.firstOrNull()) {
-                'p' -> { pid = value.drop(1).toLongOrNull(); pid?.let { files.getOrPut(it) { linkedSetOf() } }; writable = false }
-                'f' -> writable = false
+                'p' -> { pid = value.drop(1).toLongOrNull(); pid?.let { files.getOrPut(it) { linkedSetOf() } }; descriptor = null; writable = false }
+                'f' -> { descriptor = value.drop(1); writable = false }
                 'a' -> writable = value.drop(1) in setOf("w", "u")
-                'n' -> if (writable) {
+                'n' -> {
                     val owner = pid ?: continue
+                    if (descriptor != "cwd" && !writable) continue
                     val path = runCatching { Path.of(value.drop(1)) }.getOrNull() ?: continue
-                    if (path.isAbsolute) files.getOrPut(owner) { linkedSetOf() }.add(path)
+                    if (!path.isAbsolute) continue
+                    if (descriptor == "cwd") cwds[owner] = path else files.getOrPut(owner) { linkedSetOf() }.add(path)
                 }
             }
         }
-        return files
+        return Result(files, cwds = cwds)
     }
 }

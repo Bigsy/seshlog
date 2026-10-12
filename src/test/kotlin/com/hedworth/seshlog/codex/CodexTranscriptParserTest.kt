@@ -138,6 +138,19 @@ class CodexTranscriptParserTest {
     }
 
     @Test
+    fun `rollout header gives id, cwd and terminal kind, and is unknown when unreadable`() {
+        fun fixture(name: String) = Paths.get(javaClass.getResource("/fixtures/$name")!!.toURI())
+        assertEquals(CodexTranscriptParser.RolloutHeader("terminal", "/project", true),
+            CodexTranscriptParser.rolloutHeader(fixture("codex_app_server/terminal.jsonl")))
+        assertEquals(CodexTranscriptParser.RolloutHeader("guardian", "/project", false),
+            CodexTranscriptParser.rolloutHeader(fixture("codex_app_server/guardian.jsonl")))
+        val notMeta = tmp.newFile("rollout-not-meta.jsonl").toPath()
+        Files.writeString(notMeta, """{"type":"response_item","payload":{}}""" + "\n")
+        assertNull(CodexTranscriptParser.rolloutHeader(notMeta))
+        assertNull(CodexTranscriptParser.rolloutHeader(tmp.root.toPath().resolve("rollout-missing.jsonl")))
+    }
+
+    @Test
     fun `incremental parsing retains activity and counts across an append`() {
         val path = tmp.newFile("rollout.jsonl").toPath()
         val first = """

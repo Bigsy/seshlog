@@ -56,7 +56,7 @@ the rollout header, `state_5` threads and `logs_2` rows were checked (keys and c
   arguments are discarded. Regression: `codex_app_server` fixtures in `CodexTranscriptParserTest`,
   and "app-server terminal rollout identifies its process over stale resume arguments" in
   `ProcessTranscriptsTest`; both failed before the change. 380 passed, one benchmark skipped.
-- [ ] **D.2 Match TUIs to daemon-held threads.** Read the daemon pid from
+- [x] **D.2 Match TUIs to daemon-held threads.** Read the daemon pid from
   `$CODEX_HOME/app-server-daemon/daemon.pid`, rejecting a reused pid by `processIdentity.startSeconds`.
   In the existing lsof batch, also collect the daemon's writable rollouts and the cwd of every Codex
   TUI on the machine, not only those under IntelliJ tabs. Per directory, adopt only when the open
@@ -66,6 +66,19 @@ the rollout header, `state_5` threads and `logs_2` rows were checked (keys and c
   Missing or unreadable evidence leaves the tab unknown. Copy resolves through the same batch.
   Regression: a TUI outside IntelliJ in the same directory, the startup race before the daemon
   opens the rollout, a stale thread the daemon still holds, and a reused daemon pid.
+  Done in `CodexDaemon` (pid marker, machine-wide instances, matching), wired through
+  `ProcessBatchInspector.inspect(codexHome)`; `SessionProcess.inspect` (copy) now uses the batch
+  inspector. `app-server`, `exec` and `mcp-server` processes are not counted as TUIs; leaving out a
+  real TUI would be unsafe, so nothing else is excluded. Regression: `CodexDaemonTest` plus
+  `rolloutHeader` and lsof cwd tests. The end-to-end test shows the pre-change result (the stale
+  `resume` id) when no Codex home is passed. 392 passed, one benchmark skipped; run with
+  `--no-build-cache` once, because the internal `ProcessRecord` constructor change left stale test
+  classes. A local probe against the live daemon identified a plain `codex` IntelliJ tab's thread
+  in about 365 ms per inspection (mostly the existing lsof call); without the daemon match it was
+  unidentified and copy returned nothing.
+  Manual: still owed in `make run`: a new Codex session from Seshlog adopts within seconds;
+  relaunching Codex in a tracked tab re-adopts; copy works in a plain `codex` tab; and how soon an
+  in-Codex `/new` switches a resumed tab (depends on when the daemon closes the old rollout).
 
 ## 0. Platform baseline
 

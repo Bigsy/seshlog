@@ -3,6 +3,22 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.6.1
+
+- Improve terminal session tracking across split panes and tab moves by remembering the exact reworked terminal view on the IntelliJ IDEA 2026.2 terminal platform.
+- Retry session discovery every two seconds as terminals become ready. Preserve known associations when process information is temporarily unavailable, and recognise agents that replace their shell process.
+- Discover manually resumed agents from their executable and explicit session arguments, including codex resume with a session ID. Follow session changes in reused terminals without letting stale background results overwrite newer associations.
+- Resolve copy actions from the invoking terminal and the innermost split pane, and retry missed Claude Code session adoption before copying.
+
+## 0.6.0
+
+- Add Seshlog: Copy Last Assistant Message for Claude Code, Codex, opencode and Pi. Copy the latest persisted assistant reply with its Markdown, code blocks and line breaks, skipping prompts, tools and thinking.
+- Add Seshlog: Copy Latest Plan for explicit Claude Code plan records and Codex Plan Mode blocks. Recorded plan text takes precedence over a linked file in the same record; file-only references copy the file's current contents. opencode and Pi plan copying are not yet supported.
+- Use both actions from an associated terminal tab, a historical session in the list or the conversation viewer. Both appear in the session context menu. Shortcuts are unassigned by default; Tools → Seshlog explains how to configure them in Settings → Keymap.
+- Read fresh content in the background, preserve the invocation's source session and discard superseded requests. Missing, unreadable or oversized content leaves the clipboard unchanged with brief feedback.
+- Resolve terminal shortcuts from the invoking terminal view, including the reworked terminal, without falling back to an unrelated selected session.
+- Keep session associations while terminals are dragged between split panes. Temporary detachment no longer loses copying, active highlighting, Show Tab or restore tracking; closing a tab still clears its association.
+
 ## 0.5.9
 
 - Show what a running session is doing: working, waiting for your input with how long, or interrupted. Claude Code reports this itself; Codex, opencode and Pi states come from the transcript or database and appear while a Seshlog-owned tab still runs the agent.

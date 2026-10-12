@@ -33,19 +33,24 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Track Codex terminals again from codex-cli 0.158, which runs sessions through a shared background server rather than the terminal's own process. Seshlog matches each Codex terminal to the session that server has open for the same directory, so new Codex sessions attach to their tab, relaunching Codex in a tab attaches it again, and copying a reply or plan works in tabs started with a plain codex command.</li>
+        <li>Attach only when that match is unambiguous across every Codex terminal on the machine, including those outside the IDE. Two Codex sessions started by hand in the same directory at the same time stay unattached rather than risk copying from the wrong one. A resumed Codex tab follows a new session started inside Codex once Codex has closed the previous one.</li>
+        <li>Recognise Codex terminal transcripts written by the new server, including sessions run with --no-daemon.</li>
+    </ul>
     <b>0.6.8</b>
     <ul>
-        <li>Maintenance release with the latest fixes and improvements.</li>
+        <li>Show a resumed Claude Code session as one row for its latest continuation in the session list, search and attention views. Earlier transcripts stay searchable and open from Earlier Sessions in the context menu. Branch and working directory follow the resumed session, and forks and still-running earlier sessions keep their own rows.</li>
     </ul>
     <b>0.6.7</b>
     <ul>
-        <li>Maintenance release with the latest fixes and improvements.</li>
+        <li>Collapse the message preview to its header row by clicking the header. Collapsed or expanded is remembered across restarts, and a collapsed preview does not read transcripts.</li>
     </ul>
     <b>0.6.6</b>
     <ul>
         <li>Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.</li>
         <li>Make session rows easier to scan with titles above agent, time and branch details. Keep activity and unread badges aligned on the right, truncate long text to fit, and show full details in tooltips.</li>
-        <li>Collapse the message preview to its header row by clicking the header. Collapsed or expanded is remembered across restarts, and a collapsed preview does not read transcripts.</li>
     </ul>
     <b>0.6.4</b>
     <ul>
@@ -58,22 +63,6 @@
         <li>Keep terminal tracking when switching from Claude Code to a fresh Codex session in the same tab. On macOS and Linux, identify the session from the transcript held open for writing by the Codex process.</li>
         <li>Recheck the invoking terminal's current agent in the background before copying a reply or plan, so a shortcut does not use the previous agent's session while the new session is still unidentified.</li>
         <li>Exclude Codex subagent and approval transcripts from terminal discovery. Follow the current CLI transcript when resume arguments refer to an older session, and leave ambiguous matches unresolved.</li>
-    </ul>
-    <b>0.6.1</b>
-    <ul>
-        <li>Improve terminal session tracking across split panes and tab moves by remembering the exact reworked terminal view on the IntelliJ IDEA 2026.2 terminal platform.</li>
-        <li>Retry session discovery every two seconds as terminals become ready. Preserve known associations when process information is temporarily unavailable, and recognise agents that replace their shell process.</li>
-        <li>Discover manually resumed agents from their executable and explicit session arguments, including codex resume with a session ID. Follow session changes in reused terminals without letting stale background results overwrite newer associations.</li>
-        <li>Resolve copy actions from the invoking terminal and the innermost split pane, and retry missed Claude Code session adoption before copying.</li>
-    </ul>
-    <b>0.6.0</b>
-    <ul>
-        <li>Add Seshlog: Copy Last Assistant Message for Claude Code, Codex, opencode and Pi. Copy the latest persisted assistant reply with its Markdown, code blocks and line breaks, skipping prompts, tools and thinking.</li>
-        <li>Add Seshlog: Copy Latest Plan for explicit Claude Code plan records and Codex Plan Mode blocks. Recorded plan text takes precedence over a linked file in the same record; file-only references copy the file's current contents. opencode and Pi plan copying are not yet supported.</li>
-        <li>Use both actions from an associated terminal tab, a historical session in the list or the conversation viewer. Both appear in the session context menu. Shortcuts are unassigned by default; Tools &rarr; Seshlog explains how to configure them in Settings &rarr; Keymap.</li>
-        <li>Read fresh content in the background, preserve the invocation's source session and discard superseded requests. Missing, unreadable or oversized content leaves the clipboard unchanged with brief feedback.</li>
-        <li>Resolve terminal shortcuts from the invoking terminal view, including the reworked terminal, without falling back to an unrelated selected session.</li>
-        <li>Keep session associations while terminals are dragged between split panes. Temporary detachment no longer loses copying, active highlighting, Show Tab or restore tracking; closing a tab still clears its association.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

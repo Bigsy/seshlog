@@ -4,6 +4,7 @@ import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.claude.TranscriptTailReader
 import com.hedworth.seshlog.claude.TranscriptTextExtractor
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -124,6 +125,16 @@ class CodexTranscriptParserTest {
 
         val directReview = """{"type":"session_meta","payload":{"id":"direct-review","cwd":"/p","source":"review"}}"""
         assertTrue(CodexTranscriptParser.parseLines(sequenceOf(directReview)).isSubagentRollout)
+    }
+
+    @Test
+    fun `app-server terminal rollouts are CLI conversations while subagents and editors are not`() {
+        fun fixture(name: String) = Paths.get(javaClass.getResource("/fixtures/$name")!!.toURI())
+        assertTrue(CodexTranscriptParser.isCliTranscript(fixture("codex_app_server/terminal.jsonl")))
+        assertFalse(CodexTranscriptParser.isCliTranscript(fixture("codex_app_server/guardian.jsonl")))
+        assertFalse(CodexTranscriptParser.isCliTranscript(fixture("codex_app_server/editor.jsonl")))
+        assertTrue(CodexTranscriptParser.isCliTranscript(fixture("codex_subagents/parent.jsonl")))
+        assertFalse(CodexTranscriptParser.isCliTranscript(fixture("codex_subagents/thread_spawn.jsonl")))
     }
 
     @Test

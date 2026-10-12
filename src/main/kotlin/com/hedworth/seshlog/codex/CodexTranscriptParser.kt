@@ -38,7 +38,11 @@ data class CodexTranscriptInfo(
 object CodexTranscriptParser {
     private val LOG = logger<CodexTranscriptParser>()
 
-    /** A CLI process also writes subagent/approval rollouts; those are not its terminal conversation. */
+    /**
+     * A CLI process also writes subagent/approval rollouts; those are not its terminal conversation.
+     * From 0.158 the TUI runs on the app server, which records `source: vscode`, so the TUI
+     * originator identifies a terminal conversation as well as the older `source: cli`.
+     */
     internal fun isCliTranscript(path: Path): Boolean = try {
         Files.newBufferedReader(path).use { reader ->
             val header = StringBuilder()
@@ -47,10 +51,13 @@ object CodexTranscriptParser {
                 if (next == -1 || next == '\n'.code) break
                 header.append(next.toChar())
             }
-            val record = parseObject(header.toString())
-            record?.string("type") == "session_meta" && record.objectValue("payload")?.string("source") == "cli"
+            val payload = parseObject(header.toString())?.takeIf { it.string("type") == "session_meta" }?.objectValue("payload")
+            payload != null && !payload.isInternalSubagent() &&
+                (payload.string("source") == "cli" || payload.string("originator") == TUI_ORIGINATOR)
         }
     } catch (_: Exception) { false }
+
+    private const val TUI_ORIGINATOR = "codex-tui"
 
     fun parse(path: Path): CodexTranscriptInfo =
         Files.newInputStream(path).use { input ->

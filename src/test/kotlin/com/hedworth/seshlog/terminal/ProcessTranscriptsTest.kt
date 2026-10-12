@@ -54,9 +54,9 @@ class ProcessTranscriptsTest {
         assertEquals("large", discovery.copySession("large"))
     }
 
-    private fun session(id: String, source: String = "\"cli\""): Session {
+    private fun session(id: String, source: String = "\"cli\"", originator: String = "codex_cli_rs"): Session {
         val file = temporary.newFile("rollout-$id.jsonl").toPath()
-        Files.writeString(file, """{"type":"session_meta","payload":{"id":"$id","source":$source}}""" + "\n")
+        Files.writeString(file, """{"type":"session_meta","payload":{"id":"$id","originator":"$originator","source":$source}}""" + "\n")
         return Session(AgentKind.CODEX, id, id, file.parent, null, null, Instant.EPOCH,
             file, false, null, null, 0, false)
     }
@@ -75,6 +75,17 @@ class ProcessTranscriptsTest {
         assertTrue(registry.adoptDiscovered(discovery.sessionIds.single(), "tab", "old-claude"))
         assertEquals("main", registry.sessionFor("tab"))
         assertFalse(registry.owns("old-claude"))
+    }
+
+    @Test fun `app-server terminal rollout identifies its process over stale resume arguments`() {
+        val old = session("old")
+        val current = session("current", "\"vscode\"", "codex-tui")
+        val guardian = session("guardian", """{"subagent":{"other":"guardian"}}""", "codex-tui")
+        val process = SessionProcess.Evidence(123, "/bin/codex", listOf("resume", "old"))
+        val discovery = SessionProcess.identifyTree(listOf(process), listOf(old, current), mapOf(AgentKind.CODEX to "codex"),
+            mapOf(123L to setOf(current.transcriptPath!!, guardian.transcriptPath!!)))
+        assertEquals(setOf("current"), discovery.sessionIds)
+        assertEquals("current", discovery.copySession("old"))
     }
 
     @Test fun `writable rollout overrides old resume arguments on native process and node wrapper`() {

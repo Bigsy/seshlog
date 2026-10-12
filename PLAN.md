@@ -38,6 +38,35 @@ All original implementation items are complete; manual IDE checks called out bel
   Manual: still owed — resume an old Claude session in `make run`, verify one current row and the
   Earlier Sessions submenu, and confirm the existing terminal is focused when resuming that row.
 
+## Follow-up: Codex app-server daemon (2026-10-12)
+
+From codex-cli 0.158 the TUI runs on a shared app-server daemon (`codex app-server
+--managed-daemon`, parented to launchd). The daemon, not the TUI under the terminal's shell, holds
+the rollout open, and the rollout records `source: vscode` with `originator: codex-tui`. Locally,
+every TUI session from 0.154 to 0.156.1 recorded `cli` and every one from 0.158.0 records `vscode`.
+Writable-descriptor discovery therefore never fires and only `codex resume <id>` arguments remain:
+fresh sessions never adopt (the pending tab expires after 60 s), relaunching Codex in a tab leaves
+it unidentified so copy refuses, and an in-Codex `/new` keeps the stale resumed id. `--no-daemon`
+exists, but Seshlog cannot make users pass it. No on-disk record maps a TUI process to its thread:
+the rollout header, `state_5` threads and `logs_2` rows were checked (keys and counts only).
+
+- [x] **D.1 Accept app-server terminal rollouts.** `CodexTranscriptParser.isCliTranscript` also
+  accepts `originator: codex-tui`, still excluding internal subagents. Without it, a TUI that writes
+  its own app-server rollout (for example under `--no-daemon`) is treated as unknown and its resume
+  arguments are discarded. Regression: `codex_app_server` fixtures in `CodexTranscriptParserTest`,
+  and "app-server terminal rollout identifies its process over stale resume arguments" in
+  `ProcessTranscriptsTest`; both failed before the change. 380 passed, one benchmark skipped.
+- [ ] **D.2 Match TUIs to daemon-held threads.** Read the daemon pid from
+  `$CODEX_HOME/app-server-daemon/daemon.pid`, rejecting a reused pid by `processIdentity.startSeconds`.
+  In the existing lsof batch, also collect the daemon's writable rollouts and the cwd of every Codex
+  TUI on the machine, not only those under IntelliJ tabs. Per directory, adopt only when the open
+  terminal threads and the Codex TUI instances are equal in number and exactly one of each is left
+  after removing exact pairs (own writable rollout, or a resume argument naming an open thread).
+  Resume arguments are overridden only by such a positive match, never by the thread being absent.
+  Missing or unreadable evidence leaves the tab unknown. Copy resolves through the same batch.
+  Regression: a TUI outside IntelliJ in the same directory, the startup race before the daemon
+  opens the rollout, a stale thread the daemon still holds, and a reused daemon pid.
+
 ## 0. Platform baseline
 
 Target the IDE in daily use (IntelliJ IDEA 2026.2.3, reworked terminal) and drop older builds.

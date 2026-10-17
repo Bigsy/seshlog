@@ -83,4 +83,26 @@ class OwnedTerminalTabsTest : BasePlatformTestCase() {
         assertFalse(owned.owns("a"))
         assertTrue(owned.close("already-closed"))
     }
+
+    fun testForkedTabIsOwnedWhileItsNewSessionStarts() {
+        val owned = OwnedTerminalTabs.getInstance(project)
+        val content = ContentFactory.getInstance().createContent(JPanel(), "fork", false)
+        manager().addContent(content)
+        val source = Session(AgentKind.CODEX, "source", "Source", Path.of("/same/project"), null, null,
+            Instant.EPOCH, null, false, null, null, 0, false)
+        val launched = ArrayList<String>()
+        TerminalTabs.fork(project, source, "codex fork source", setOf("source")) { _, cwd, title, command, created ->
+            launched += listOf(cwd.toString(), title, command)
+            object : TerminalHandle {
+                override val content = content
+                override fun shellPid(): Long? = null
+                override fun state() = TerminalState.UNKNOWN
+                override fun execute(command: String) = Unit
+            }.also(created)
+        }
+        assertEquals(listOf("/same/project", "Source (fork)", "codex fork source"), launched)
+        // Pending until the fork's own id is found: a same-title Resume cannot borrow the tab.
+        assertTrue(owned.ownsTab(content))
+        assertNull(owned.sessionFor(content))
+    }
 }

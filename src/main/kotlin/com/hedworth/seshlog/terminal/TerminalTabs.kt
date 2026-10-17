@@ -15,6 +15,7 @@ import com.intellij.ui.content.ContentManager
 import com.jediterm.terminal.ProcessTtyConnector
 import java.awt.KeyboardFocusManager
 import java.awt.event.KeyEvent
+import java.nio.file.Path
 import javax.swing.SwingUtilities
 import org.jetbrains.plugins.terminal.ShellTerminalWidget
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
@@ -119,9 +120,9 @@ object TerminalTabs {
 
     /**
      * Resume [session] in the tab we already own for it (focus it when busy, run the command in it
-     * when idle), else reuse an idle tab with the session's title, else open a new tab via
-     * [TerminalLauncher]. Either way the tab is registered with [OwnedTerminalTabs]. Returns the
-     * terminal the session runs in.
+     * when idle), else reuse the idle tab its agent last exited in or one with the session's title,
+     * else open a new tab via [TerminalLauncher]. Either way the tab is registered with
+     * [OwnedTerminalTabs]. Returns the terminal the session runs in.
      */
     fun resume(project: Project, session: Session, command: String): TerminalHandle {
         val owned = OwnedTerminalTabs.getInstance(project)
@@ -135,6 +136,7 @@ object TerminalTabs {
             launch = { TerminalLauncher.launch(project, session.cwd, title, command) },
             track = { _, terminal -> owned.track(session, terminal) },
             focus = { owned.focus(session.id) },
+            ended = contents(project).firstOrNull { owned.lastSessionFor(it) == session.id }?.let { terminalOf(project, it) },
         )
     }
 
@@ -155,12 +157,32 @@ object TerminalTabs {
     }
 
     /**
-     * Fork [session]: always a fresh tab titled "<title> (fork)" in the session's cwd. The tab is
-     * deliberately *not* registered for [session] — the agent mints a new session id, and adoption
-     * by process ancestry in [OwnedTerminalTabs.sync] may pick the tab up on the next rescan.
+     * Fork [session]: always a fresh tab titled "<title> (fork)" in the session's cwd. The agent mints
+     * a new session id, so the tab is never registered for [session]; like a new session it is
+     * pending until exact evidence finds an id outside [existingIds] running in it.
      */
-    fun fork(project: Project, session: Session, command: String): TerminalHandle =
-        TerminalLauncher.launch(project, session.cwd, forkTitle(session), command)
+    internal fun fork(project: Project, session: Session, command: String, existingIds: Set<String>,
+                      launch: Launcher = TerminalLauncher::launch): TerminalHandle =
+        launchPending(project, session.cwd, forkTitle(session), command, existingIds, launch)
+
+    /**
+     * Open a tab for an agent that mints its own session id. [OwnedTerminalTabs] owns the tab from
+     * creation, before the command runs, and resolves it only from exact process evidence for it.
+     */
+    internal fun launchPending(project: Project, cwd: Path, title: String, command: String, existingIds: Set<String>,
+                               launch: Launcher = TerminalLauncher::launch): TerminalHandle {
+        val owned = OwnedTerminalTabs.getInstance(project)
+        var created: TerminalHandle? = null
+        return try {
+            launch(project, cwd, title, command) { terminal ->
+                created = terminal
+                owned.trackPending(terminal, existingIds)
+            }
+        } catch (t: Throwable) {
+            created?.let(owned::cancelPending)
+            throw t
+        }
+    }
 
     internal fun forkTitle(session: Session): String = forkTitle(SessionOrganisation.getInstance().title(session))
 

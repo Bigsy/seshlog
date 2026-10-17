@@ -144,6 +144,13 @@ class CodexTranscriptParserTest {
             CodexTranscriptParser.rolloutHeader(fixture("codex_app_server/terminal.jsonl")))
         assertEquals(CodexTranscriptParser.RolloutHeader("guardian", "/project", false),
             CodexTranscriptParser.rolloutHeader(fixture("codex_app_server/guardian.jsonl")))
+        // The thread's creation time, not when the record was written at the first prompt.
+        val created = tmp.newFile("rollout-created.jsonl").toPath()
+        Files.writeString(created, """{"timestamp":"2026-10-16T10:00:15.000Z","type":"session_meta","payload":""" +
+            """{"id":"created","timestamp":"2026-10-16T10:00:01.500Z","cwd":"/project","originator":"codex-tui","source":"vscode",""" +
+            """"forked_from_id":"source"}}""" + "\n")
+        assertEquals(CodexTranscriptParser.RolloutHeader("created", "/project", true, Instant.parse("2026-10-16T10:00:01.500Z"),
+            Instant.parse("2026-10-16T10:00:15.000Z"), "source"), CodexTranscriptParser.rolloutHeader(created))
         val notMeta = tmp.newFile("rollout-not-meta.jsonl").toPath()
         Files.writeString(notMeta, """{"type":"response_item","payload":{}}""" + "\n")
         assertNull(CodexTranscriptParser.rolloutHeader(notMeta))

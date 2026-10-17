@@ -16,6 +16,8 @@ make release  # test + buildPlugin + verify the zip
 - If Gradle cannot reach the network in this environment, add `--offline`.
 - `SESHLOG_BENCH=1 ./gradlew test --tests '*RealDataScanBenchmark*'` scans real Claude, Codex and Pi histories, printing only counts and timings.
   Skipped by default; never in CI.
+- `make codex-check` (opt-in `CodexLiveCheck`, `SESHLOG_CODEX_CHECK=1`) checks, after a Codex upgrade, that
+  the shared app-server still leaves the evidence `CodexDaemon` matches tabs on. Counts only; never in CI.
 
 ## Hard constraints
 

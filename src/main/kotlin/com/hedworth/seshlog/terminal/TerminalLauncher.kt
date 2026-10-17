@@ -5,6 +5,9 @@ import com.intellij.openapi.project.Project
 import java.nio.file.Path
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 
+/** [TerminalLauncher.launch]'s shape: project, working directory, tab title, command, on created. */
+internal typealias Launcher = (Project, Path, String, String, (TerminalHandle) -> Unit) -> TerminalHandle
+
 /**
  * Opens a new tab in the Terminal tool window and runs a command in it. All terminal-plugin API
  * usage lives here so version differences have a single place to be handled.

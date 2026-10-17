@@ -38,6 +38,28 @@ class ResumeTerminalTest {
         assertFalse(pending.contains(tab))
     }
 
+    @Test fun `the tab whose agent last ran the session is reused even after its title changed`() {
+        val registry = TabRegistry<Tab>()
+        val ended = Tab("Title before the agent renamed the session")
+        val focused = ArrayList<Tab>()
+        val resumed = ResumeTerminal.resume("s", null, emptyList(), ended = ended,
+            owns = { registry.sessionFor(it) != null }, idle = { true }, execute = { it.commands++ },
+            launch = { fail("opened a second tab"); Tab() }, track = registry::register, focus = { focused += it })
+        assertSame(ended, resumed)
+        assertEquals(1, ended.commands)
+        assertSame(ended, registry.tabFor("s"))
+        assertEquals("A reused tab is brought to the front", listOf(ended), focused)
+        // Busy with something else, or since taken by another session: never borrowed.
+        val busy = ResumeTerminal.resume("t", null, emptyList(), ended = Tab(),
+            owns = { false }, idle = { false }, execute = { fail("typed into a busy tab") },
+            launch = { Tab() }, track = registry::register, focus = {})
+        assertEquals(0, busy.commands)
+        val taken = Tab().also { registry.register("other", it) }
+        assertNotSame(taken, ResumeTerminal.resume("u", null, emptyList(), ended = taken,
+            owns = { registry.sessionFor(it) != null }, idle = { true }, execute = { fail("borrowed owned tab") },
+            launch = { Tab() }, track = registry::register, focus = {}))
+    }
+
     @Test fun `owned idle tab is never borrowed for another session`() {
         val registry = TabRegistry<Tab>()
         val first = Tab()

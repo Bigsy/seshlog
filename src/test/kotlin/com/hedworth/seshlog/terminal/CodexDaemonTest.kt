@@ -20,17 +20,27 @@ class CodexDaemonTest {
     private val other = Path.of("/synthetic/other")
     private val guardian = """{"subagent":{"other":"guardian"}}"""
 
-    /** A synthetic rollout whose `session_meta` places thread [id] in [cwd]. */
-    private fun rollout(id: String, cwd: Path = app, originator: String = "codex-tui", source: String = "\"vscode\""): Path {
+    private val t0 = Instant.parse("2026-10-16T10:00:00Z")
+
+    /**
+     * A synthetic rollout whose `session_meta` places thread [id] in [cwd], created at [created]. By
+     * default it was [written] at a first prompt well after creation, as a startup thread is.
+     */
+    private fun rollout(id: String, cwd: Path = app, originator: String = "codex-tui", source: String = "\"vscode\"",
+                        created: Instant? = null, written: Instant? = created?.plusSeconds(20), forkedFrom: String? = null): Path {
         val file = temporary.root.toPath().resolve("rollout-2026-10-12T10-00-00-$id.jsonl")
-        Files.writeString(file, """{"type":"session_meta","payload":{"id":"$id","cwd":"$cwd","originator":"$originator","source":$source}}""" + "\n")
+        val timestamp = created?.let { ""","timestamp":"$it"""" }.orEmpty()
+        val fork = forkedFrom?.let { ""","forked_from_id":"$it"""" }.orEmpty()
+        val record = written?.let { """"timestamp":"$it",""" }.orEmpty()
+        Files.writeString(file, """{$record"type":"session_meta","payload":{"id":"$id","cwd":"$cwd","originator":"$originator","source":$source$timestamp$fork}}""" + "\n")
         return file
     }
 
     private fun evidence(held: List<Path>, cwds: Map<Long, Path>, own: Map<Long, Set<Path>> = emptyMap(), unknown: Set<Long> = emptySet()) =
         ProcessTranscripts.Result(own + (daemon to held.toSet()), unknown, cwds)
 
-    private fun instance(vararg pids: Long, resume: String? = null) = CodexDaemon.Instance(pids.toSet(), resume)
+    private fun instance(vararg pids: Long, resume: String? = null, started: Instant? = null, fork: String? = null) =
+        CodexDaemon.Instance(pids.toSet(), resume, started, forkOf = fork)
 
     @Test fun `fresh TUI adopts the only daemon-held terminal thread in its directory`() {
         val held = listOf(rollout("fresh"), rollout("review", source = guardian), rollout("editor", originator = "codex_vscode"))
@@ -77,6 +87,67 @@ class CodexDaemonTest {
         assertEquals(mapOf(21L to "fresh"), result)
     }
 
+    @Test fun `fresh TUIs sharing a directory each take the thread they created as they started`() {
+        // Two plain `codex` tabs in one project: neither has a resume argument or its own rollout.
+        val first = instance(11, 12, started = t0)
+        val second = instance(21, 22, started = t0.plusSeconds(22))
+        val held = listOf(rollout("second", created = t0.plusSeconds(23)), rollout("first", created = t0.plusMillis(1_500)),
+            rollout("review", source = guardian, created = t0.plusSeconds(23)))
+        val cwds = mapOf(11L to app, 12L to app, 21L to app, 22L to app)
+        assertEquals(mapOf(11L to "first", 12L to "first", 21L to "second", 22L to "second"),
+            CodexDaemon.match(listOf(first, second), daemon, evidence(held, cwds)))
+    }
+
+    @Test fun `launches started within one window of a thread stay unknown`() {
+        val cwds = mapOf(11L to app, 21L to app)
+        val first = instance(11, started = t0)
+        val second = instance(21, started = t0.plusSeconds(2))
+        // Both were running before either thread was created, so either could own either.
+        val held = listOf(rollout("a", created = t0.plusSeconds(3)), rollout("b", created = t0.plusSeconds(4)))
+        assertTrue(CodexDaemon.match(listOf(first, second), daemon, evidence(held, cwds)).isEmpty())
+        // The same start time cannot tell two launches apart either.
+        val twin = instance(21, started = t0)
+        val apart = listOf(rollout("a", created = t0.plusSeconds(1)), rollout("b", created = t0.plusSeconds(30)))
+        assertTrue(CodexDaemon.match(listOf(first, twin), daemon, evidence(apart, cwds)).isEmpty())
+        // Without a process start time there is no window at all.
+        assertTrue(CodexDaemon.match(listOf(first, instance(21)), daemon, evidence(apart, cwds)).isEmpty())
+    }
+
+    @Test fun `a resumed TUI never takes a thread by startup time`() {
+        // The fresh TUI's thread came late, after the resumed TUI started; the resumed TUI's own
+        // thread came from an in-Codex /new much later. Neither may be paired by timing.
+        val fresh = instance(11, started = t0.minusSeconds(5))
+        val resumed = instance(21, resume = "gone", started = t0)
+        val held = listOf(rollout("fresh", created = t0.plusMillis(500)), rollout("new", created = t0.plusSeconds(300)))
+        assertTrue(CodexDaemon.match(listOf(fresh, resumed), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
+        val picker = instance(21, started = t0).copy(resumed = true)
+        assertTrue(CodexDaemon.match(listOf(fresh, picker), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
+    }
+
+    @Test fun `a thread written as soon as it was created says nothing about which launch started`() {
+        // How a Codex that creates threads at the first prompt would look: creation time is then
+        // prompt time, and another tab's first prompt can land in a fresh launch's window.
+        val first = instance(11, started = t0)
+        val second = instance(21, started = t0.plusSeconds(22))
+        val held = listOf(rollout("first", created = t0.plusSeconds(1), written = t0.plusMillis(1_045)),
+            rollout("second", created = t0.plusSeconds(23), written = t0.plusMillis(23_045)))
+        assertTrue(CodexDaemon.match(listOf(first, second), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
+    }
+
+    @Test fun `a fork takes the thread forked from its source`() {
+        // The fork writes its copied history at once, and a fresh launch started just after it.
+        val fork = instance(11, started = t0, fork = "source")
+        val fresh = instance(21, started = t0.plusMillis(500))
+        val held = listOf(rollout("forked", created = t0.plusSeconds(1), written = t0.plusMillis(1_045), forkedFrom = "source"),
+            rollout("fresh", created = t0.plusSeconds(2)))
+        val cwds = mapOf(11L to app, 21L to app, 31L to app)
+        assertEquals(mapOf(11L to "forked", 21L to "fresh"), CodexDaemon.match(listOf(fork, fresh), daemon, evidence(held, cwds)))
+        // Two forks of one source cannot be told apart by it.
+        val twin = instance(31, started = t0.plusSeconds(30), fork = "source")
+        val twins = held + listOf(rollout("twin", created = t0.plusSeconds(31), written = t0.plusMillis(31_045), forkedFrom = "source"))
+        assertEquals(mapOf(21L to "fresh"), CodexDaemon.match(listOf(fork, fresh, twin), daemon, evidence(twins, cwds)))
+    }
+
     @Test fun `any gap in the evidence matches nothing`() {
         val held = listOf(rollout("fresh"))
         val cwds = mapOf(11L to app)
@@ -115,17 +186,20 @@ class CodexDaemonTest {
             row(daemon, 1, "/x/codex", "app-server", "--managed-daemon"),
             row(901, daemon, "/x/codex", "exec", "tool"),
             row(10, 1, "/bin/zsh"),
-            row(11, 10, "/bin/node", "/opt/homebrew/bin/codex", "resume", "s1"),
-            row(12, 11, "/x/codex", "resume", "s1"),
+            row(11, 10, "/bin/node", "/opt/homebrew/bin/codex", "resume", "s1", started = t0),
+            row(12, 11, "/x/codex", "resume", "s1", started = t0.plusMillis(300)),
             row(29, 1, "/editor/helper"),
             row(30, 29, "/editor/codex", "app-server"),
             row(40, 1, "/bin/zsh"),
             row(41, 40, "/x/codex", "resume", "--last"),
             row(42, 40, "/x/codex", "exec", "summarise"),
             row(43, 40, "/x/codex", "mcp-server"),
+            row(60, 1, "/bin/zsh"),
+            row(61, 60, "/x/codex", "fork", "s2"),
             row(50, 10, "/bin/cat"),
         ))
-        assertEquals(setOf(CodexDaemon.Instance(setOf(11L, 12L), "s1"), CodexDaemon.Instance(setOf(41L), null)),
+        assertEquals(setOf(CodexDaemon.Instance(setOf(11L, 12L), "s1", t0), CodexDaemon.Instance(setOf(41L), null, resumed = true),
+            CodexDaemon.Instance(setOf(61L), null, forkOf = "s2")),
             CodexDaemon.instances(table, "codex", daemon).toSet())
     }
 

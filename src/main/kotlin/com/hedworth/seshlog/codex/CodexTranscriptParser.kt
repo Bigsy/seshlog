@@ -38,8 +38,15 @@ data class CodexTranscriptInfo(
 object CodexTranscriptParser {
     private val LOG = logger<CodexTranscriptParser>()
 
-    /** A rollout's `session_meta`: [terminal] when it is a TUI conversation, see [isCliTranscript]. */
-    internal data class RolloutHeader(val id: String?, val cwd: String?, val terminal: Boolean)
+    /**
+     * A rollout's `session_meta`: [terminal] when it is a TUI conversation, see [isCliTranscript].
+     * [createdAt] is when the thread was created and [writtenAt] when this record was written, which
+     * for a TUI's startup thread is its first prompt. [forkedFrom] is a fork's source thread.
+     */
+    internal data class RolloutHeader(
+        val id: String?, val cwd: String?, val terminal: Boolean,
+        val createdAt: Instant? = null, val writtenAt: Instant? = null, val forkedFrom: String? = null,
+    )
 
     /** Null when the first record is unreadable, oversize or not `session_meta`: unknown, not absent. */
     internal fun rolloutHeader(path: Path): RolloutHeader? = try {
@@ -50,10 +57,12 @@ object CodexTranscriptParser {
                 if (next == -1 || next == '\n'.code) break
                 header.append(next.toChar())
             }
-            val payload = parseObject(header.toString())?.takeIf { it.string("type") == "session_meta" }?.objectValue("payload")
-            payload?.let {
+            val record = parseObject(header.toString())?.takeIf { it.string("type") == "session_meta" }
+            record?.objectValue("payload")?.let {
                 RolloutHeader(it.string("id"), it.string("cwd"), !it.isInternalSubagent() &&
-                    (it.string("source") == "cli" || it.string("originator") == TUI_ORIGINATOR))
+                    (it.string("source") == "cli" || it.string("originator") == TUI_ORIGINATOR),
+                    instant(it.string("timestamp")), instant(record.string("timestamp")),
+                    it.string("forked_from_id")?.takeIf { id -> id.isNotBlank() })
             }
         }
     } catch (_: Exception) { null }

@@ -108,9 +108,10 @@ abstract class ForkSessionActionBase : DumbAwareAction("Fork Session", "Continue
         val project = e.project ?: return
         val session = sessionOf(e) ?: return
         WorkingDirectoryRecovery.run(project, session) { target ->
-            val command = SessionIndex.getInstance().forkCommand(target)
+            val index = SessionIndex.getInstance()
+            val command = index.forkCommand(target)
             try {
-                TerminalTabs.fork(project, target, command)
+                TerminalTabs.fork(project, target, command, index.sessions.mapTo(HashSet()) { it.id })
             } catch (t: Throwable) {
                 notify(project, "Could not open terminal: ${t.message}", NotificationType.ERROR)
             }

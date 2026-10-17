@@ -80,6 +80,67 @@ the rollout header, `state_5` threads and `logs_2` rows were checked (keys and c
   relaunching Codex in a tracked tab re-adopts; copy works in a plain `codex` tab; and how soon an
   in-Codex `/new` switches a resumed tab (depends on when the daemon closes the old rollout).
 
+## Follow-up: Codex tabs losing their session (2026-10-16)
+
+Reported with 0.6.9 installed (D.2 included): Codex tabs are often not linked, so double-clicking
+their session opens a second tab, and the tab's Fork action is missing. Checked against the live
+machine (codex-cli 0.163.0, daemon 0.160.0; process tables, lsof paths and rollout header keys only):
+two plain `codex` tabs in one project directory, each with its thread held by the daemon. D.2 pairs
+by elimination only, so with two fresh TUIs in one directory neither is ever matched. The TUI logs
+to `logs_2` with a `pid:` process id but never a thread id, and the daemon's rows never name a
+client pid, so no record maps a TUI to its thread. Timing does: a fresh TUI creates its thread as it
+starts (header `payload.timestamp` 0.5 to 3.5 s after the process start; the rollout file itself
+appears only at the first prompt).
+
+- [x] **T.1 Pair Codex TUIs that share a directory by startup time.** In `CodexDaemon.match`, after
+  exact and resume-argument pairs, a launch that did not resume (plain or `fork`) takes the one
+  terminal thread created between its process start (1 s slack) and the earlier of 15 s later or
+  the next Codex launch start in that directory, provided no other launch's window holds that
+  thread. The equal-count guard stays first, and elimination still runs on whatever is left.
+  Regression: two fresh TUIs in one directory; two launches inside one window stay unknown; a
+  resumed TUI never takes a thread by timing; a thread created before the launch is not paired.
+  Done: `RolloutHeader.createdAt` reads `payload.timestamp`, `Instance` carries the earliest process
+  start and whether it resumed (with an id or a picker), and `CodexDaemon.startupPairs` runs between
+  resume pairing and elimination. A launch or thread without a time disables timing for its
+  directory. The two-TUI test returned `{}` before the change; the three safety tests already held
+  and pin that the new rule adds no guess. A throwaway live probe (pids and thread ids only) matched
+  both `unifhir` tabs to their own threads in 10 ms, where D.2 matched neither.
+  Manual: still owed in `make run`: two plain `codex` tabs in one project both attach after their
+  first prompt; double-clicking either session focuses its tab.
+- [x] **T.2 Fork tabs are pending launches.** `TerminalTabs.fork` opened an untracked tab, so the
+  fork was adoptable only like a tab the user opened, could be borrowed by a same-title resume
+  while starting, and was never recorded for restore. Mark it pending with the current ids, as a
+  new session does. Regression: a forked tab is owned while pending.
+  Done: `TerminalTabs.launchPending` replaces `NewSessionTab` and serves both actions; `fork` takes
+  the current ids and an injectable `Launcher`. `testForkedTabIsOwnedWhileItsNewSessionStarts`
+  failed before the change. Manual: still owed: fork a Codex session from the tree and from its
+  tab, and check the fork's tab attaches to the new session, not the source.
+- [x] **T.3 Resume reuses the tab where the session last ran.** After its agent exits, a tab keeps
+  the session only in `endedSessions`, and Resume reused it only when its title still matched.
+  Prefer an idle, unowned tab whose ended session is the one being resumed. Regression: a retitled
+  ended tab is reused instead of launching a new one.
+  Done: `ResumeTerminal.resume` takes `ended` ahead of title candidates, and now focuses any reused
+  tab (it typed into a background tab without showing it; restore reuses tabs too, and launched
+  tabs already take focus). The test failed with "opened a second tab" before the change.
+  Full suite: 397 passed, one benchmark skipped.
+- [x] **T.4 Make startup matching fail safe.** T.1 assumes a TUI creates its thread as it starts. If
+  Codex ever creates threads at the first prompt (or `payload.timestamp` changes meaning), another
+  tab's first prompt could land in a new launch's window and two tabs would swap sessions. Headers
+  show the signature of a startup thread: created, then unwritten until the first prompt. Every
+  daemon-era terminal rollout here waited 2 to 313 s, and 0.149 to 0.156 CLI rollouts mostly did too;
+  subagent forks are written about 45 ms after creation. So a window now claims only threads whose
+  `session_meta` record was written at least 1 s after `payload.timestamp`; anything else fails safe.
+  Forks, written at once, pair instead by `fork <id>` against the thread's `forked_from_id`, created
+  after the launch started, unique both ways. Regression: threads written as created are never
+  paired by timing; a fork pairs by source beside a fresh launch whose window holds the fork's
+  thread; two forks of one source stay unknown. Both failed before the change. Not verified: that a
+  daemon-mode `codex fork` records `forked_from_id` (only subagent forks were available locally);
+  without it a fork tab falls back to elimination. 399 passed, one benchmark skipped.
+- [x] **T.5 Opt-in check after Codex upgrades.** `make codex-check` runs `CodexLiveCheck`
+  (`SESHLOG_CODEX_CHECK=1`): fails when the daemon marker, its open files or the held headers can no
+  longer be read, warns when no held thread has the startup shape, and prints counts only. First run:
+  3 plain launches, 3 held terminal threads all startup-shaped, 3 launches matched in 4 ms.
+
 ## 0. Platform baseline
 
 Target the IDE in daily use (IntelliJ IDEA 2026.2.3, reworked terminal) and drop older builds.

@@ -1,0 +1,861 @@
+{
+  "synthetic": true,
+  "sessions": [
+    {
+      "id": "payments",
+      "title": "Checkout retry handling",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "The gateway delivered the same payment twice after a timeout."
+        },
+        {
+          "text": "Store an idempotency key with the order transaction. Replaying a POST returns the original receipt without charging again. Use INSERT ON CONFLICT for concurrent retries."
+        },
+        {
+          "text": "Edited PaymentHandler.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "notifications",
+      "title": "Notification delivery",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Two browser tabs show the same toast after a websocket reconnect."
+        },
+        {
+          "text": "Deduplicate notification identifiers in the client subscription store. The payment endpoint is unrelated."
+        },
+        {
+          "text": "Edited NotificationStore.ts",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "refresh",
+      "title": "Search worker ordering",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Typing quickly sometimes brings back results for an earlier query."
+        },
+        {
+          "text": "Increment a generation counter on each request. Before applying the worker response on the EDT, compare its generation with the latest request and discard stale delivery."
+        },
+        {
+          "text": "Edited SearchRequestScope.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "cache",
+      "title": "Stale parse metadata",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "A growing transcript still displays the old prompt count."
+        },
+        {
+          "text": "Use modification time and file length in the content stamp. Invalidate the cached entry when either changes; reparse the changed transcript."
+        },
+        {
+          "text": "Edited FileStamp.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "deadlock",
+      "title": "Database transaction ordering",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Two workers each hold one row lock and wait for the other."
+        },
+        {
+          "text": "Acquire locks in deterministic account ID order. Retry transactions after SQLSTATE 40P01 with bounded jitter. This removes the circular wait."
+        },
+        {
+          "text": "Edited TransferRepository.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "pool",
+      "title": "Connection pool exhaustion",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Requests hang while waiting for a free database connection."
+        },
+        {
+          "text": "A transaction leaked its connection on an exception path. Put connection.close() in finally and bound the pool acquisition timeout."
+        },
+        {
+          "text": "Edited ConnectionPool.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "memory",
+      "title": "Retained UI listeners",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Heap usage rises every time a project window closes."
+        },
+        {
+          "text": "The application event bus retains a listener that captures the disposed project. Register the listener with a parent disposable and release it on close."
+        },
+        {
+          "text": "Edited ProjectListeners.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "budget",
+      "title": "Search index size limit",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Conversation text can consume too much heap across thousands of sessions."
+        },
+        {
+          "text": "Charge both original and case-folded strings to a global character budget. Evict least recently used entries when the budget is exceeded."
+        },
+        {
+          "text": "Edited ContentSearchIndex.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "worktree",
+      "title": "Opening a sibling checkout",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "The agent moved from the main directory to a linked Git worktree."
+        },
+        {
+          "text": "Resolve .git/commondir, retain the checkout root and open a separate IntelliJ project window. Focus the existing window if that checkout is already open."
+        },
+        {
+          "text": "Edited GitRepository.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "branch",
+      "title": "Detached revision label",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "The session row shows HEAD as if it were a branch name."
+        },
+        {
+          "text": "Hide the branch label for a detached HEAD. Keep the checkout path visible and show the commit hash in details."
+        },
+        {
+          "text": "Edited SessionCellRenderer.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "shell",
+      "title": "Safe terminal arguments",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "A checkout directory contains spaces and an apostrophe."
+        },
+        {
+          "text": "Quote every shell argument independently. Escape a single quote by closing the quote, adding an escaped apostrophe and reopening it. Never concatenate an unquoted cwd."
+        },
+        {
+          "text": "Edited ShellQuote.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "pid",
+      "title": "Process identity reuse",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "A closed agent appears active after another program receives its numeric process identifier."
+        },
+        {
+          "text": "Compare the process start time as well as PID. A different start instant invalidates the old association, even when the number is equal."
+        },
+        {
+          "text": "Edited ProcessIdentity.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "restore",
+      "title": "Reopening running sessions",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "After restarting the IDE I want to resume the agents that were open."
+        },
+        {
+          "text": "Persist only session identifiers at shutdown. Offer the saved candidates on project open, validate their transcripts and avoid opening duplicate terminal tabs."
+        },
+        {
+          "text": "Edited RestoreCandidates.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "permissions",
+      "title": "Read-only SQLite access",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Reading the history database creates sidecar files next to agent data."
+        },
+        {
+          "text": "Open SQLite in read-only mode and respect existing WAL state. Avoid pragmas that alter journal mode. Test on a directory without write access."
+        },
+        {
+          "text": "Edited OpenCodeDatabase.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "malformed",
+      "title": "Partial transcript records",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "The last JSONL record ends midway through a JSON string."
+        },
+        {
+          "text": "Ignore the incomplete final line, retain earlier valid messages and retry when the file grows. Unknown record types are skipped."
+        },
+        {
+          "text": "Edited TranscriptParser.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "unicode",
+      "title": "Case-insensitive navigation offsets",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Turkish and Greek characters break the highlighted match position."
+        },
+        {
+          "text": "Use one-to-one UTF-16 case folding so offsets refer to the original string. Whole-string lowercase can expand characters and shift indices."
+        },
+        {
+          "text": "Edited TextQuery.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "cancel",
+      "title": "Stopping content extraction",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Searching a large history keeps working after the user changes the query."
+        },
+        {
+          "text": "Poll the cancellation callback between sessions. Stop extraction early and reject stale callbacks on the event dispatch thread."
+        },
+        {
+          "text": "Edited ContentSearchService.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "migration",
+      "title": "Zero downtime schema update",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Old application instances still use the column during a rolling deployment."
+        },
+        {
+          "text": "Use expand and contract: add the replacement column, dual-write, backfill, switch reads, and remove the old column in a later release."
+        },
+        {
+          "text": "Edited V042__expand_orders.sql",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "timezone",
+      "title": "Daylight saving calendar boundary",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "The daily report is one hour off when the clocks change."
+        },
+        {
+          "text": "Use a named time zone and calculate calendar boundaries with ZonedDateTime. A fixed UTC offset cannot represent British Summer Time transitions."
+        },
+        {
+          "text": "Edited DailyReport.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "pagination",
+      "title": "Rows repeated across pages",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "New records arrive between loading page one and page two."
+        },
+        {
+          "text": "Replace OFFSET pagination with a cursor over the ordered pair created_at and id. Use a stable tie breaker when timestamps are equal."
+        },
+        {
+          "text": "Edited SessionPage.sql",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "retry",
+      "title": "Backoff for unavailable service",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "All workers reconnect at once after an upstream outage."
+        },
+        {
+          "text": "Use exponential backoff with full jitter and a maximum delay. Honor Retry-After for throttling. Bound the total retry deadline."
+        },
+        {
+          "text": "Edited RetryPolicy.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "redaction",
+      "title": "Diagnostics without message bodies",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Troubleshooting logs accidentally include user prompts and file paths."
+        },
+        {
+          "text": "Record counts and reason codes only. Hash session identifiers and normalized paths. Omit transcript text, environment variables and exception messages."
+        },
+        {
+          "text": "Edited SessionDiagnostics.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "accessibility",
+      "title": "Keyboard focus in tree",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "Screen reader users cannot discover the session state."
+        },
+        {
+          "text": "Provide accessible descriptions for activity and checkout availability. Keep selection stable during refresh and support keyboard navigation without mouse-only controls."
+        },
+        {
+          "text": "Edited SessionTreePanel.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "rank",
+      "title": "Search relevance ordering",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "A session title matches but a long transcript repeats the word many times."
+        },
+        {
+          "text": "Give title matches a fixed bonus and cap body occurrence contributions. Prefer recent activity only when relevance scores tie."
+        },
+        {
+          "text": "Edited SearchRanking.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "tls",
+      "title": "Local certificate trust",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "The client rejects a certificate signed by the development authority."
+        },
+        {
+          "text": "Install the development CA into the dedicated test trust store. Keep hostname verification enabled. Do not ship a trust-all X509TrustManager."
+        },
+        {
+          "text": "Edited TlsClient.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "serialization",
+      "title": "JSON date round trip",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "An event loses subsecond precision when serialized and read back."
+        },
+        {
+          "text": "Use ISO-8601 instants with fractional seconds and verify nanosecond equality in the round-trip test."
+        },
+        {
+          "text": "Edited InstantCodec.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "image",
+      "title": "Marketplace screenshots",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "We need promotional images of the session list."
+        },
+        {
+          "text": "Render synthetic in-memory sessions through real Swing components. Compose the output cards at 1920 by 1200 pixels. Never use real conversations as marketing fixtures."
+        },
+        {
+          "text": "Edited MarketplaceScreenshotTest.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "fork",
+      "title": "Continue in an isolated checkout",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "I want to explore a different implementation without changing the current conversation."
+        },
+        {
+          "text": "Fork the source agent session into a sibling worktree and launch the child in its own terminal. Track the new session identity separately from the parent."
+        },
+        {
+          "text": "Edited WorktreeFork.kt",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "literal-noise",
+      "title": "Retry and lock terminology",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "This glossary lists request, retry, transaction, lock, duplicate and timeout."
+        },
+        {
+          "text": "Definitions only. It does not implement payment processing, connection management or database transaction coordination."
+        },
+        {
+          "text": "Edited Glossary.md",
+          "tool": true
+        }
+      ]
+    },
+    {
+      "id": "search-noise",
+      "title": "Design discussion",
+      "cwd": "/synthetic/project",
+      "messages": [
+        {
+          "text": "We discussed search, callbacks, indexing, caching, queries and generation counters."
+        },
+        {
+          "text": "No implementation decision was made. A follow-up meeting will prioritize the backlog."
+        },
+        {
+          "text": "Edited MeetingNotes.md",
+          "tool": true
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "q01",
+      "category": "semantic",
+      "text": "stop duplicate requests from charging twice",
+      "relevant": [
+        "payments"
+      ]
+    },
+    {
+      "id": "q02",
+      "category": "semantic",
+      "text": "old results overwrite the new search",
+      "relevant": [
+        "refresh"
+      ]
+    },
+    {
+      "id": "q03",
+      "category": "semantic",
+      "text": "the conversation changes but cached counts do not",
+      "relevant": [
+        "cache"
+      ]
+    },
+    {
+      "id": "q04",
+      "category": "semantic",
+      "text": "two transactions waiting on each other forever",
+      "relevant": [
+        "deadlock"
+      ]
+    },
+    {
+      "id": "q05",
+      "category": "semantic",
+      "text": "database connections never returned after failure",
+      "relevant": [
+        "pool"
+      ]
+    },
+    {
+      "id": "q06",
+      "category": "semantic",
+      "text": "closed windows are still retained in memory",
+      "relevant": [
+        "memory"
+      ]
+    },
+    {
+      "id": "q07",
+      "category": "semantic",
+      "text": "limit RAM used by searchable conversations",
+      "relevant": [
+        "budget"
+      ]
+    },
+    {
+      "id": "q08",
+      "category": "semantic",
+      "text": "show a different checkout in another IDE window",
+      "relevant": [
+        "worktree"
+      ]
+    },
+    {
+      "id": "q09",
+      "category": "semantic",
+      "text": "directory names with apostrophes break the terminal command",
+      "relevant": [
+        "shell"
+      ]
+    },
+    {
+      "id": "q10",
+      "category": "semantic",
+      "text": "another program reuses an old agent process number",
+      "relevant": [
+        "pid"
+      ]
+    },
+    {
+      "id": "q11",
+      "category": "semantic",
+      "text": "bring back my agents when the IDE starts again",
+      "relevant": [
+        "restore"
+      ]
+    },
+    {
+      "id": "q12",
+      "category": "semantic",
+      "text": "inspect the database without creating files",
+      "relevant": [
+        "permissions"
+      ]
+    },
+    {
+      "id": "q13",
+      "category": "semantic",
+      "text": "recover messages from an interrupted JSON write",
+      "relevant": [
+        "malformed"
+      ]
+    },
+    {
+      "id": "q14",
+      "category": "semantic",
+      "text": "match highlighting is displaced for international characters",
+      "relevant": [
+        "unicode"
+      ]
+    },
+    {
+      "id": "q15",
+      "category": "semantic",
+      "text": "stop obsolete searches from wasting CPU",
+      "relevant": [
+        "cancel"
+      ]
+    },
+    {
+      "id": "q16",
+      "category": "semantic",
+      "text": "rename a database column while old servers are still running",
+      "relevant": [
+        "migration"
+      ]
+    },
+    {
+      "id": "q17",
+      "category": "semantic",
+      "text": "clock changes make the report start at the wrong hour",
+      "relevant": [
+        "timezone"
+      ]
+    },
+    {
+      "id": "q18",
+      "category": "semantic",
+      "text": "new inserts cause records to appear twice while scrolling",
+      "relevant": [
+        "pagination"
+      ]
+    },
+    {
+      "id": "q19",
+      "category": "semantic",
+      "text": "avoid a thundering herd when reconnecting",
+      "relevant": [
+        "retry"
+      ]
+    },
+    {
+      "id": "q20",
+      "category": "semantic",
+      "text": "debug session tracking without recording private conversations",
+      "relevant": [
+        "redaction"
+      ]
+    },
+    {
+      "id": "q21",
+      "category": "semantic",
+      "text": "make session status understandable to a screen reader",
+      "relevant": [
+        "accessibility"
+      ]
+    },
+    {
+      "id": "q22",
+      "category": "semantic",
+      "text": "short title match should beat repeated words in a long conversation",
+      "relevant": [
+        "rank"
+      ]
+    },
+    {
+      "id": "q23",
+      "category": "semantic",
+      "text": "take a new direction in a separate agent conversation",
+      "relevant": [
+        "fork"
+      ]
+    },
+    {
+      "id": "q24",
+      "category": "semantic",
+      "text": "create promotional screenshots without exposing user history",
+      "relevant": [
+        "image"
+      ]
+    },
+    {
+      "id": "q25",
+      "category": "literal",
+      "text": "PaymentHandler.kt",
+      "relevant": [
+        "payments"
+      ]
+    },
+    {
+      "id": "q26",
+      "category": "literal",
+      "text": "SQLSTATE 40P01",
+      "relevant": [
+        "deadlock"
+      ]
+    },
+    {
+      "id": "q27",
+      "category": "literal",
+      "text": "SearchRequestScope.kt",
+      "relevant": [
+        "refresh"
+      ]
+    },
+    {
+      "id": "q28",
+      "category": "literal",
+      "text": "TextQuery.kt",
+      "relevant": [
+        "unicode"
+      ]
+    },
+    {
+      "id": "q29",
+      "category": "literal",
+      "text": "ZonedDateTime",
+      "relevant": [
+        "timezone"
+      ]
+    },
+    {
+      "id": "q30",
+      "category": "literal",
+      "text": "X509TrustManager",
+      "relevant": [
+        "tls"
+      ]
+    },
+    {
+      "id": "q31",
+      "category": "literal",
+      "text": "V042__expand_orders.sql",
+      "relevant": [
+        "migration"
+      ]
+    },
+    {
+      "id": "q32",
+      "category": "literal",
+      "text": "RestoreCandidates.kt",
+      "relevant": [
+        "restore"
+      ]
+    },
+    {
+      "id": "q33",
+      "category": "literal",
+      "text": "ContentSearchIndex.kt",
+      "relevant": [
+        "budget"
+      ]
+    },
+    {
+      "id": "q34",
+      "category": "literal",
+      "text": "1920 1200",
+      "relevant": [
+        "image"
+      ]
+    },
+    {
+      "id": "q35",
+      "category": "literal",
+      "text": "nanosecond equality",
+      "relevant": [
+        "serialization"
+      ]
+    },
+    {
+      "id": "q36",
+      "category": "literal",
+      "text": "Retry-After",
+      "relevant": [
+        "retry"
+      ]
+    },
+    {
+      "id": "q37",
+      "category": "phrase",
+      "text": "\"detached HEAD\"",
+      "relevant": [
+        "branch"
+      ]
+    },
+    {
+      "id": "q38",
+      "category": "phrase",
+      "text": "\"INSERT ON CONFLICT\"",
+      "relevant": [
+        "payments"
+      ]
+    },
+    {
+      "id": "q39",
+      "category": "phrase",
+      "text": "\"read-only mode\"",
+      "relevant": [
+        "permissions"
+      ]
+    },
+    {
+      "id": "q40",
+      "category": "phrase",
+      "text": "\"generation counter\"",
+      "relevant": [
+        "refresh"
+      ]
+    },
+    {
+      "id": "q41",
+      "category": "absent",
+      "text": "sourdough hydration and rye flour",
+      "relevant": []
+    },
+    {
+      "id": "q42",
+      "category": "absent",
+      "text": "train tickets to Helsinki",
+      "relevant": []
+    },
+    {
+      "id": "q43",
+      "category": "absent",
+      "text": "\"QuantumFluxAbsent_7391\"",
+      "relevant": []
+    },
+    {
+      "id": "q44",
+      "category": "absent",
+      "text": "\"nonexistent exact phrase\"",
+      "relevant": []
+    }
+  ]
+}

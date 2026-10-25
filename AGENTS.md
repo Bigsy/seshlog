@@ -18,6 +18,10 @@ make release  # test + buildPlugin + verify the zip
   Skipped by default; never in CI.
 - `make codex-check` (opt-in `CodexLiveCheck`, `SESHLOG_CODEX_CHECK=1`) checks, after a Codex upgrade, that
   the shared app-server still leaves the evidence `CodexDaemon` matches tabs on. Counts only; never in CI.
+- `make semantic-bench` is an opt-in, test-only EmbeddingGemma search experiment. It requires a
+  local GGUF (`SESHLOG_EMBED_MODEL`), performs offline inference, and normally uses synthetic data.
+  `SESHLOG_SEMANTIC_REAL=1` adds bounded read-only history timings with aggregate output only.
+  See `docs/semantic-search-prototype.md`; no model download or inference runs in normal CI.
 - Marketplace media: follow `docs/marketplace/README.md`. The opt-in `MarketplaceScreenshotTest`
   renders real UI components from synthetic in-memory sessions; `gen.js` / `render.sh` compose
   the cards. Never substitute real conversation content. Updating the files does not upload them.
@@ -127,7 +131,10 @@ writer failure requiring it; it has a broader and potentially more sensitive sco
   bundles the Kotlin 2.4 stdlib. Check the API level before using anything newer than 2.3.
 - **Agent data is read-only.** Never write into `~/.claude`, `~/.codex`, `~/.pi/agent` or the opencode data dir.
   Seshlog-side state (settings, caches, any organisation metadata) lives in IDE storage only.
-- **No network.** No telemetry, no remote calls of any kind.
+- **Local session processing.** No telemetry or remote inference; never send session data to
+  external services. Development may use the network for documentation, dependencies and explicit
+  model downloads. Benchmarks use local model files and offline inference; the plugin must not
+  silently download models or require a remote service.
 - **No session content on disk.** The parse cache holds metadata only (title, cwd, branch,
   timestamps, prompt count). The content search index is in memory only. Keep it that way.
 - **Fixtures are synthetic.** Never commit a real transcript. New parsing behaviour needs a fixture

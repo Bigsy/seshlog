@@ -568,3 +568,17 @@ versions being implemented when needed:
 
 These references establish product behaviour, not guaranteed JSONL fields, database freshness,
 or a supported IntelliJ plugin API signature. Those must be verified in item 1 and pinned by tests.
+
+## Additional requested experiment: semantic search (2026-10-25)
+
+- [x] Prototype local EmbeddingGemma retrieval without changing production search. Compare the
+  actual literal index, a model-free BM25 baseline, semantic retrieval and rank fusion using
+  synthetic relevance labels. Measure bounded local-history indexing read-only; keep text/vectors
+  in memory and report only aggregate metrics. Document setup, resource use and limitations in
+  `docs/semantic-search-prototype.md`. Correctness tests cover chunking, normalization, session
+  aggregation, fusion, metrics and fixture validity. Full `make check` passed on 2026-10-25;
+  opt-in synthetic and bounded real-history benchmarks passed. On 40 labelled positive queries,
+  top-one results were literal 15, BM25 36, semantic 40, hybrid 39 (768 dimensions). The bounded
+  40-session/536-passage run took 43.69 s to embed, peaking at 1.35 GB native RSS. Absent-query
+  behavior and production runtime/index lifecycle remain follow-up work, not part of this prototype.
+  No `make run` check applies to this test-only experiment; UI integration is outside its scope.

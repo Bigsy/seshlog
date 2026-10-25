@@ -9,6 +9,7 @@
     <br><br>
     <ul>
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
+        <li>Recorded Claude Code and Codex worktree paths and observed Git branches, including detached HEAD; open eligible checkouts in a new window or focus an existing one. New project opening under protected agent data roots is disabled.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Full-text search across prompts and replies, not just titles</li>
         <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>

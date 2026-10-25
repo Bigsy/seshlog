@@ -20,6 +20,8 @@ Click a screenshot to view it full size.
 ## What it does
 
 - Groups sessions by project, with titles, branches and recent activity.
+- Shows recorded Claude Code and Codex worktrees and opens eligible checkouts in a new IDE window,
+  or focuses the window already using that checkout.
 - Starts, resumes or forks a session in an IDE terminal; focuses its tab if it is already running.
 - Searches titles, project paths and conversations, with highlighted matches and a message preview.
 - Filters by agent, project and date. Pin, rename or hide sessions to keep the list manageable.
@@ -90,6 +92,44 @@ sessions in tree order. It expands the target project and opens the associated t
 reply. The shortcut is unassigned by default and does not change your filters. The tool-window icon also
 shows unread attention, and the optional **Seshlog attention** status bar widget shows counts and
 opens the next session needing attention.
+
+### Agent worktrees
+
+Claude Code and Codex session rows show a **worktree** label when local Git metadata verifies a
+linked checkout. The label uses the branch currently observed in that checkout, or **detached
+HEAD** with a short commit. Hover for the full checkout path, the session's reported subdirectory,
+and the location evidence. Historical session branch names are kept separate from observed Git state.
+
+Right-click and choose **Open Worktree in IntelliJ** to open the checkout root in a new window.
+Your source project and its terminals stay open. If the checkout is already open in this IDE
+instance, the action becomes **Focus Worktree Window**, including for symlink aliases or the
+invoking project itself. IntelliJ's usual trust/import flow applies. Seshlog does not create
+worktrees, switch branches, move changes, or transfer the running agent or its terminal.
+
+**Sibling worktrees** includes sessions in related checkouts, both external siblings and nested
+checkouts such as a project's `.claude/worktrees/...`. Turning it off keeps sessions in the
+project's own checkouts and ordinary subdirectories. This applies to browsing and search.
+
+Location means **latest recorded**, including for stopped sessions. Claude tracking uses transcript
+cwd envelopes and explicit worktree-state records; tool-result envelopes can reveal a move without
+another prompt. Codex uses turn context ahead of its initial launch header. Database-only locations
+are considered, but a disagreement that cannot be ordered against later context is marked uncertain.
+Tool commands, tool-specific working directories, child agents, and prose are not evidence of a
+parent-session move. A handoff with no supported location record cannot be confirmed. A cleared
+Claude worktree state alone does not identify the restored directory.
+
+Unavailable or uncertain worktrees have disabled opening actions. Previously verified associations
+are retained in memory when a checkout disappears; no parent checkout is opened as a fallback.
+A checkout deleted before IDE startup may have only a recorded path, with no verifiable worktree
+association. Git metadata and availability refresh on scans, explicit **Refresh**, and every
+30 seconds plus scan time, even when transcripts are idle.
+
+**Opening a new project inside an agent data root is disabled**, including default or configured
+Codex/Claude storage. IntelliJ would write project/import files there, which conflicts with
+Seshlog's read-only-agent-storage rule. Tracking and focusing a project already open there remain
+available. A repository's nested `.claude/worktrees` directory is eligible when it is outside the
+configured agent data root. These limits apply to both supported agents; opencode and Pi retain
+their existing session behaviour.
 
 ### Limitations
 

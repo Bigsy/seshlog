@@ -1,6 +1,7 @@
 # Plan: agent worktree tracking and opening in IntelliJ
 
-Prepared 2026-10-24. This is an implementation handoff; implementation started 2026-10-25.
+Prepared 2026-10-24; implementation and automated validation recorded 2026-10-25.
+Interactive acceptance checks remain outstanding as detailed below.
 Read `AGENTS.md` first. Work through the numbered items in order, one commit per item, with no
 co-authorship or generated-by trailers. Tick an item only after its regression tests pass under
 `make check`; leave any outstanding `make run` checks explicitly recorded. References below use
@@ -56,7 +57,7 @@ several checkouts; that does not necessarily give its parent session one new cur
   the concrete conflict and obtain a narrowly scoped decision before relaxing it; do not silently
   change `AGENTS.md`. Discovery and tracking can still be implemented independently.
 
-## Current code and gaps
+## Pre-implementation code and gaps (2026-10-24)
 
 All Kotlin paths in this table are relative to `src/main/kotlin/com/hedworth/seshlog/`.
 
@@ -266,7 +267,8 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   - Validation: `make check` and `./gradlew verifyPlugin`. Manual project/focus/trust behaviour
     and source-terminal survival: **owed**.
 
-- [ ] **8. Complete acceptance checks and user-facing documentation.**
+- [x] **8. Complete acceptance checks and user-facing documentation.**
+  Automated acceptance and documentation are complete; the interactive matrix below is still owed.
   Update `README.md` with both supported agents, what the badge/action means, Sibling worktrees,
   new-window/focus behaviour, detached HEAD, missing worktrees and evidence limitations. Update
   the Marketplace description in `plugin.xml` only as appropriate to the delivered behaviour.
@@ -376,6 +378,18 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   did not establish a run using only the synthetic settings. No real agent was launched and no
   agent-owned history was modified. Project opening/focus/trust and terminal survival remain **owed**.
 
+- Item 8: README and Marketplace description document both agents, evidence limits, sibling
+  filtering, detached HEAD, missing directories, new-window/focus behaviour and protected-root
+  restrictions. Final `make release` passed: 432 tests (430 passed, two opt-in checks skipped),
+  plugin build and ZIP integrity. Artifact: `build/distributions/seshlog-0.6.9.zip`;
+  SHA-256 `91ee5706fd908f1b80cbfe37bb99dfa2983c1d72ddda850e3f46b67ac7811fa9`.
+  Final packaged-code verifier also passed on IU-262.10968.63: compatible, with existing
+  deprecated/experimental API notices and no new worktree API warnings. The report is at
+  `build/reports/pluginVerifier/IU-262.10968.63/report.html`.
+  No publication or Marketplace upload was performed. A scoped decision about allowing IDE
+  project writes inside verified checkouts under agent data roots was requested; absent approval,
+  the implemented guard and the existing AGENTS.md rule remain in force.
+
 ## Manual acceptance matrix
 
 Use `make run` with a disposable local repository and synthetic/test sessions where possible.
@@ -401,7 +415,7 @@ whether the Codex session came from CLI or app. Do not modify real histories to 
 - [ ] Test narrow tool-window display, keyboard action invocation, project trust/cancel/import
   behaviour and the agent-root project-storage approach established in item 1.
 
-All manual checks are **owed** as of this plan. Automated checks alone do not establish that IDE
+All interactive manual checks remain **owed** as of 2026-10-25; sandbox startup alone was observed. Automated checks alone do not establish that IDE
 project opening, focus and terminal lifetime behave correctly in the sandbox IDE.
 
 ## Commands and references

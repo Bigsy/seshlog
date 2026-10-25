@@ -1,0 +1,1 @@
+{"claudeMarker":{"pid":999999999,"sessionId":"claude-moves","cwd":"/synthetic/main","status":"busy","statusUpdatedAt":1792836300000},"codexDatabase":{"cwd":"/synthetic/main","git_branch":"main","updated_at_ms":1792836300000},"note":"Activity timestamps do not order directory changes against later transcript context."}

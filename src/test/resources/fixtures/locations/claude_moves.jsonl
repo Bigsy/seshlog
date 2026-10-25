@@ -1,0 +1,7 @@
+{"type":"user","sessionId":"claude-moves","timestamp":"2026-10-24T10:00:00Z","cwd":"/synthetic/main","gitBranch":"main","message":{"content":"Inspect the checkout"}}
+{"type":"worktree-state","sessionId":"claude-moves","worktreeSession":{"originalCwd":"/synthetic/main","worktreePath":"/synthetic/topic-a","worktreeName":"topic-a","worktreeBranch":"topic-a"}}
+{"type":"user","sessionId":"claude-moves","timestamp":"2026-10-24T10:01:00Z","cwd":"/synthetic/topic-a","message":{"content":[{"type":"tool_result","tool_use_id":"enter-a","content":"Success"}]}}
+{"type":"worktree-state","sessionId":"claude-moves","worktreeSession":{"originalCwd":"/synthetic/main","worktreePath":"/synthetic/topic-b","worktreeName":"topic-b"}}
+{"type":"user","sessionId":"claude-moves","isSidechain":true,"cwd":"/synthetic/child","message":{"content":[{"type":"tool_result","content":"child"}]}}
+{"type":"worktree-state","sessionId":"claude-moves","worktreeSession":null}
+{"type":"user","sessionId":"claude-moves","timestamp":"2026-10-24T10:02:00Z","cwd":"/synthetic/main","gitBranch":"main","toolUseResult":{"restoredCwd":"/synthetic/main"},"message":{"content":[{"type":"tool_result","content":"Exited"}]}}

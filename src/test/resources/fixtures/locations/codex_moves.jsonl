@@ -1,0 +1,6 @@
+{"type":"session_meta","timestamp":"2026-10-24T10:00:00Z","payload":{"id":"codex-moves","cwd":"/synthetic/main","source":"vscode","originator":"codex-tui","timestamp":"2026-10-24T09:59:00Z","git":{"branch":"main"}}}
+{"type":"turn_context","timestamp":"2026-10-24T10:01:00Z","payload":{"cwd":"/synthetic/topic-a/src","turn_id":"turn-a"}}
+{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{\"workdir\":\"/synthetic/other\"}"}}
+{"type":"turn_context","timestamp":"2026-10-24T10:02:00Z","payload":{"cwd":"/synthetic/topic-b","turn_id":"turn-b"}}
+{"type":"turn_context","timestamp":"2026-10-24T10:03:00Z","payload":{"turn_id":"missing-cwd"}}
+{"type":"turn_context","timestamp":"2026-10-24T10:04:00Z","payload":{"cwd":"/synthetic/main","turn_id":"turn-main"}}

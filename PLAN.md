@@ -1,517 +1,376 @@
-# Seshlog plan
+# Plan: agent worktree tracking and opening in IntelliJ
 
-From a review on 2026-09-27 at `d5aecf5` (262 tests green). Measurements come from local data:
-claude 2.1.283 (66 sessions, 134 MB), codex-cli 0.157.1 (852 listed rollouts, 847 MB), opencode
-1.18.31 (40 sessions), pi 0.85.1 (76 sessions). Only counts, sizes, key names and record types
-were inspected, never transcript content.
+Prepared 2026-10-24. This is an implementation handoff; implementation started 2026-10-25.
+Read `AGENTS.md` first. Work through the numbered items in order, one commit per item, with no
+co-authorship or generated-by trailers. Tick an item only after its regression tests pass under
+`make check`; leave any outstanding `make run` checks explicitly recorded. References below use
+symbol names rather than line numbers: re-find the symbols before editing.
 
-**Order:** section 0, then section 1 in order, then 4.1 and 4.2, then sections 2 and 3, the rest
-of 4, and 5 (5.1 after section 2).
+## Goal and agreed scope
 
-**Conventions (AGENTS.md):** one commit per item. Each fix lands with a regression test that fails
-before the change. Tick the box when that test passes under `make check`, and add a
-"manual:" note when a `make run` check is still owed. Line numbers carry the symbol name: trust
-the symbol, re-find the line.
+The user wants to see which Git worktree an agent is working in and right-click the session to
+open that checkout in IntelliJ. **Claude Code and Codex are both required in the first version.**
+Support sessions that start in a worktree and sessions that move into, between, or out of worktrees
+while running, when the agent records reliable evidence of that move. Show uncertainty when the
+available records cannot establish the location.
 
-## Implementation validation — 2026-09-27
+The useful flow is: select an agent session, see its worktree and branch, choose **Open Worktree
+in IntelliJ**, and inspect the files that session is using. If that checkout is already open,
+offer **Focus Worktree Window** and focus it instead of creating a duplicate project.
 
-All original implementation items are complete; manual IDE checks called out below remain outstanding.
+Opening a worktree means opening its existing directory as a project. Default to a new window
+when it is not already open, keeping the source project and its running terminals alive. Do not
+checkout a branch in the source project, copy changes, move the agent, restart it, or transfer
+its terminal. Same-window replacement is outside this first version.
 
-- `make check`: 365 passed, one opt-in real-data benchmark skipped.
-- `make release`: tests, plugin build and ZIP integrity check passed.
-- `verifyPlugin`: compatible with installed IntelliJ IDEA IU-262.10968.63. Experimental and
-  deprecated API warnings remain; EAP 263 has not been checked locally.
-- Warm search benchmark for the matching change: Codex 1,019 → 139 ms, Claude 97 → 19 ms,
-  Pi 3 → 1 ms, with unchanged hit counts. These isolate matching, before the later memory cap.
-- Deliberate adjustments are recorded under 0.3, 3.4, 4.2, 4.7 and 4.8.
+Keep the implementation shared where possible: agent readers supply location evidence, a common
+Git resolver identifies the checkout, and one UI/action implementation serves both agents.
+opencode and Pi must continue to work unchanged; extending their location tracking is optional
+and must not delay the two required agents.
 
-## Follow-up — resumed Claude sessions (2026-10-01)
+Out of scope: creating/removing/pruning worktrees, merging or moving changes between checkouts,
+automatic project switching, remote worktrees, a general worktree management UI, and tracking
+every child agent's worktree as a separate session. An agent can run individual commands against
+several checkouts; that does not necessarily give its parent session one new current directory.
 
-- [x] Read Claude's `continuedInSessionId`, refresh resumed branch/cwd metadata, and invalidate
-  the old metadata cache. Show the last available continuation in lists/search/attention surfaces
-  while retaining all transcripts in the index and an Earlier Sessions history menu. Follow the
-  continuation when restoring tree selection; preserve forks, live predecessors and broken links.
-  Regression: synthetic original/current transcripts, incremental parsing, cache reload, chain/cycle
-  handling and selected-row replacement. Three regression tests failed before the fix.
-  Verified: full `make check` test task via `./gradlew clean test --offline`: 377 passed,
-  one opt-in benchmark skipped. Old v5 metadata caches are discarded and rebuilt.
-  Manual: still owed — resume an old Claude session in `make run`, verify one current row and the
-  Earlier Sessions submenu, and confirm the existing terminal is focused when resuming that row.
+## Constraints to carry through implementation
 
-## Follow-up: Codex app-server daemon (2026-10-12)
+- Target IntelliJ Platform 2026.2 / build 262, JDK 25 and Kotlin API 2.3. Use supported SDK APIs
+  and verify them against this project's actual platform dependency.
+- Detection is local and read-only. No network, agent hooks/configuration changes, agent API
+  calls, or writes into agent-owned storage. Respect configured data roots, not just defaults.
+- Seshlog state belongs in IDE storage. Persist only necessary metadata such as paths and
+  evidence timestamps; never persist tool output or conversation bodies. Live Git snapshots
+  should remain in memory and be revalidated after restart.
+- Parse defensively: skip malformed/unknown records, preserve valid prior metadata when a field
+  is absent, and do not turn one unreadable directory or database into a failed global scan.
+- All filesystem/Git inspection runs on workers. Rendering and action presentation use immutable
+  snapshots. UI delivery must check disposal and reject stale generations/results.
+- Use synthetic JSONL/SQL/layout fixtures in `src/test/resources/fixtures/`, never real transcripts.
+  Use constructor lambdas for injected resolvers, clocks and project-opening effects. Keep pure
+  decisions independent of IntelliJ; use JUnit 4 and platform fixtures only where needed.
+- Opening an IntelliJ project normally involves project configuration files. Worktrees can live
+  under agent data roots (for example `$CODEX_HOME/worktrees`), so check the literal no-write rule
+  in `AGENTS.md` against the SDK's project-storage behaviour before enabling that case. Prefer
+  a supported external project-storage option if needed. If this cannot meet the rule, document
+  the concrete conflict and obtain a narrowly scoped decision before relaxing it; do not silently
+  change `AGENTS.md`. Discovery and tracking can still be implemented independently.
 
-From codex-cli 0.158 the TUI runs on a shared app-server daemon (`codex app-server
---managed-daemon`, parented to launchd). The daemon, not the TUI under the terminal's shell, holds
-the rollout open, and the rollout records `source: vscode` with `originator: codex-tui`. Locally,
-every TUI session from 0.154 to 0.156.1 recorded `cli` and every one from 0.158.0 records `vscode`.
-Writable-descriptor discovery therefore never fires and only `codex resume <id>` arguments remain:
-fresh sessions never adopt (the pending tab expires after 60 s), relaunching Codex in a tab leaves
-it unidentified so copy refuses, and an in-Codex `/new` keeps the stale resumed id. `--no-daemon`
-exists, but Seshlog cannot make users pass it. No on-disk record maps a TUI process to its thread:
-the rollout header, `state_5` threads and `logs_2` rows were checked (keys and counts only).
+## Current code and gaps
 
-- [x] **D.1 Accept app-server terminal rollouts.** `CodexTranscriptParser.isCliTranscript` also
-  accepts `originator: codex-tui`, still excluding internal subagents. Without it, a TUI that writes
-  its own app-server rollout (for example under `--no-daemon`) is treated as unknown and its resume
-  arguments are discarded. Regression: `codex_app_server` fixtures in `CodexTranscriptParserTest`,
-  and "app-server terminal rollout identifies its process over stale resume arguments" in
-  `ProcessTranscriptsTest`; both failed before the change. 380 passed, one benchmark skipped.
-- [x] **D.2 Match TUIs to daemon-held threads.** Read the daemon pid from
-  `$CODEX_HOME/app-server-daemon/daemon.pid`, rejecting a reused pid by `processIdentity.startSeconds`.
-  In the existing lsof batch, also collect the daemon's writable rollouts and the cwd of every Codex
-  TUI on the machine, not only those under IntelliJ tabs. Per directory, adopt only when the open
-  terminal threads and the Codex TUI instances are equal in number and exactly one of each is left
-  after removing exact pairs (own writable rollout, or a resume argument naming an open thread).
-  Resume arguments are overridden only by such a positive match, never by the thread being absent.
-  Missing or unreadable evidence leaves the tab unknown. Copy resolves through the same batch.
-  Regression: a TUI outside IntelliJ in the same directory, the startup race before the daemon
-  opens the rollout, a stale thread the daemon still holds, and a reused daemon pid.
-  Done in `CodexDaemon` (pid marker, machine-wide instances, matching), wired through
-  `ProcessBatchInspector.inspect(codexHome)`; `SessionProcess.inspect` (copy) now uses the batch
-  inspector. `app-server`, `exec` and `mcp-server` processes are not counted as TUIs; leaving out a
-  real TUI would be unsafe, so nothing else is excluded. Regression: `CodexDaemonTest` plus
-  `rolloutHeader` and lsof cwd tests. The end-to-end test shows the pre-change result (the stale
-  `resume` id) when no Codex home is passed. 392 passed, one benchmark skipped; run with
-  `--no-build-cache` once, because the internal `ProcessRecord` constructor change left stale test
-  classes. A local probe against the live daemon identified a plain `codex` IntelliJ tab's thread
-  in about 365 ms per inspection (mostly the existing lsof call); without the daemon match it was
-  unidentified and copy returned nothing.
-  Manual: still owed in `make run`: a new Codex session from Seshlog adopts within seconds;
-  relaunching Codex in a tracked tab re-adopts; copy works in a plain `codex` tab; and how soon an
-  in-Codex `/new` switches a resumed tab (depends on when the daemon closes the old rollout).
+All Kotlin paths in this table are relative to `src/main/kotlin/com/hedworth/seshlog/`.
 
-## Follow-up: Codex tabs losing their session (2026-10-16)
+| Area | Existing entry points and relevant behaviour |
+| --- | --- |
+| Session metadata | `model/Session.kt`: `Session.cwd`, `gitBranch`, `displayBranch`. There is no explicit worktree association or location provenance. `displayBranch` hides `HEAD`. |
+| Git relationship | `index/GitRepository.kt`: `commonDir` follows `.git` and `commondir` to associate sibling checkouts. It does not return the checkout root, worktree identity, HEAD, or availability. A `.git` file alone does not prove a linked worktree; submodules and separate Git directories also use files. |
+| Path snapshots | `index/ResolvedPaths.kt`: `resolve`, `merge`, `belongsToRepository`. Existing entries are reused indefinitely until invalidated. Git changes at an unchanged cwd therefore need explicit refresh support. |
+| Index and watching | `index/SessionIndex.kt`: `refresh`, `scanOnce`, `pathRefreshGeneration`; `index/SessionWatcher.kt`: `start`, `isRelevantPath`, debounce. Current watches cover provider storage, not general repository metadata. |
+| Filtering and grouping | `ui/SessionListViewModel.kt`: `visible`; `ui/SessionTreeModel.kt`: `group`, `groupHits`. Groups use cwd. `settings/AgentFilterState.kt` defaults `includeWorktrees` to true. Path containment currently admits nested worktrees even with sibling worktrees disabled. |
+| UI snapshots | `ui/SessionTreePanel.kt`: `preparePaths`, `invalidateResolvedPaths`, `render`, `rebuildTree`. There is already a generation guard for asynchronous path resolution. Both browse and search need the new metadata. |
+| Labels | `ui/SessionCellRenderer.kt`: `renderSession`, `tooltip`. Branch appears in details; cwd appears in the tooltip. Filesystem work must stay out of these methods. |
+| Claude parsing | `claude/TranscriptParser.kt`: `Accumulator.offerContext` updates cwd/branch on accepted user/context records. `offerUser` skips tool-result records once cwd is known. A move during a tool call may therefore be missed until a later accepted record. |
+| Claude live data | `claude/LiveSessionReader.kt` already reads `LiveSession.cwd` and verifies live PID markers. `claude/ClaudeCodeSessionProvider.kt`: `scan` currently takes cwd from parsed transcript metadata, using the live marker for PID/activity. Do not assume the marker's cwd is always current without checking its semantics. |
+| Codex parsing | `codex/CodexTranscriptParser.kt`: `Accumulator.offerSessionMeta` keeps the first cwd/branch and does not handle `turn_context`. `rolloutHeader` separately reads initial identity/launch evidence used by terminal tracking. |
+| Codex database | `codex/CodexSessionProvider.kt`: `scan`, `metadata`; `codex/CodexStateDatabase.kt`: `ThreadRow`, `read`. Non-null DB cwd/branch currently override the parsed values unconditionally. DB timestamps describe thread updates, not necessarily a directory change. |
+| Parse caches | `cache/FileBackedParseCache.kt`, `claude/TranscriptInfoStore.kt`, `codex/CodexTranscriptInfoStore.kt`. Both provider cache versions are currently 6. Parsing is incremental; new semantics must also work with warm/persisted caches. |
+| Actions | `ui/actions/SessionActions.kt`: `SessionAction`, `sessionFrom`; `src/main/resources/META-INF/plugin.xml`: `Seshlog.ContextMenu`. Reuse the selected-session action context. |
+| Consumers to protect | `terminal/CodexDaemon.kt` uses rollout headers and exact process evidence; `terminal/WorkingDirectoryRecovery.kt` contains `WorkingDirectoryChoice` and remembered replacement directories; resume/fork/copy actions and `restore/SessionRestoreManager.kt` also consume cwd. A remembered resume replacement is not evidence of the agent's actual location. |
 
-Reported with 0.6.9 installed (D.2 included): Codex tabs are often not linked, so double-clicking
-their session opens a second tab, and the tab's Fork action is missing. Checked against the live
-machine (codex-cli 0.163.0, daemon 0.160.0; process tables, lsof paths and rollout header keys only):
-two plain `codex` tabs in one project directory, each with its thread held by the daemon. D.2 pairs
-by elimination only, so with two fresh TUIs in one directory neither is ever matched. The TUI logs
-to `logs_2` with a `pid:` process id but never a thread id, and the daemon's rows never name a
-client pid, so no record maps a TUI to its thread. Timing does: a fresh TUI creates its thread as it
-starts (header `payload.timestamp` 0.5 to 3.5 s after the process start; the rollout file itself
-appears only at the first prompt).
+Existing tests worth extending: `index/GitRepositoryTest`, `index/ResolvedPathsTest`,
+`index/SessionWatcherTest`, `index/SessionWatcherVfsTest`, `claude/TranscriptParserTest`,
+`claude/LiveSessionReaderTest`, `claude/ClaudeCodeSessionProviderTest`,
+`codex/CodexTranscriptParserTest`, `codex/CodexSessionProviderTest`,
+`codex/CodexStateDatabaseTest`, `codex/CodexTranscriptInfoStoreTest`,
+`ui/SessionListViewModelTest`, `ui/SessionFilterActionsTest`, `ui/SessionActionInvocationTest`
+and `ui/SeshlogToolWindowTest`. Test paths mirror the production packages under `src/test/kotlin/`.
+Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
+`claude_resumed_queued_context.jsonl`, `codex_session.jsonl`, `codex_state_5.sql`, and
+`codex_app_server/` / `codex_subagents/`.
 
-- [x] **T.1 Pair Codex TUIs that share a directory by startup time.** In `CodexDaemon.match`, after
-  exact and resume-argument pairs, a launch that did not resume (plain or `fork`) takes the one
-  terminal thread created between its process start (1 s slack) and the earlier of 15 s later or
-  the next Codex launch start in that directory, provided no other launch's window holds that
-  thread. The equal-count guard stays first, and elimination still runs on whatever is left.
-  Regression: two fresh TUIs in one directory; two launches inside one window stay unknown; a
-  resumed TUI never takes a thread by timing; a thread created before the launch is not paired.
-  Done: `RolloutHeader.createdAt` reads `payload.timestamp`, `Instance` carries the earliest process
-  start and whether it resumed (with an id or a picker), and `CodexDaemon.startupPairs` runs between
-  resume pairing and elimination. A launch or thread without a time disables timing for its
-  directory. The two-TUI test returned `{}` before the change; the three safety tests already held
-  and pin that the new rule adds no guess. A throwaway live probe (pids and thread ids only) matched
-  both `unifhir` tabs to their own threads in 10 ms, where D.2 matched neither.
-  Manual: still owed in `make run`: two plain `codex` tabs in one project both attach after their
-  first prompt; double-clicking either session focuses its tab.
-- [x] **T.2 Fork tabs are pending launches.** `TerminalTabs.fork` opened an untracked tab, so the
-  fork was adoptable only like a tab the user opened, could be borrowed by a same-title resume
-  while starting, and was never recorded for restore. Mark it pending with the current ids, as a
-  new session does. Regression: a forked tab is owned while pending.
-  Done: `TerminalTabs.launchPending` replaces `NewSessionTab` and serves both actions; `fork` takes
-  the current ids and an injectable `Launcher`. `testForkedTabIsOwnedWhileItsNewSessionStarts`
-  failed before the change. Manual: still owed: fork a Codex session from the tree and from its
-  tab, and check the fork's tab attaches to the new session, not the source.
-- [x] **T.3 Resume reuses the tab where the session last ran.** After its agent exits, a tab keeps
-  the session only in `endedSessions`, and Resume reused it only when its title still matched.
-  Prefer an idle, unowned tab whose ended session is the one being resumed. Regression: a retitled
-  ended tab is reused instead of launching a new one.
-  Done: `ResumeTerminal.resume` takes `ended` ahead of title candidates, and now focuses any reused
-  tab (it typed into a background tab without showing it; restore reuses tabs too, and launched
-  tabs already take focus). The test failed with "opened a second tab" before the change.
-  Full suite: 397 passed, one benchmark skipped.
-- [x] **T.4 Make startup matching fail safe.** T.1 assumes a TUI creates its thread as it starts. If
-  Codex ever creates threads at the first prompt (or `payload.timestamp` changes meaning), another
-  tab's first prompt could land in a new launch's window and two tabs would swap sessions. Headers
-  show the signature of a startup thread: created, then unwritten until the first prompt. Every
-  daemon-era terminal rollout here waited 2 to 313 s, and 0.149 to 0.156 CLI rollouts mostly did too;
-  subagent forks are written about 45 ms after creation. So a window now claims only threads whose
-  `session_meta` record was written at least 1 s after `payload.timestamp`; anything else fails safe.
-  Forks, written at once, pair instead by `fork <id>` against the thread's `forked_from_id`, created
-  after the launch started, unique both ways. Regression: threads written as created are never
-  paired by timing; a fork pairs by source beside a fresh launch whose window holds the fork's
-  thread; two forks of one source stay unknown. Both failed before the change. Not verified: that a
-  daemon-mode `codex fork` records `forked_from_id` (only subagent forks were available locally);
-  without it a fork tab falls back to elimination. 399 passed, one benchmark skipped.
-- [x] **T.5 Opt-in check after Codex upgrades.** `make codex-check` runs `CodexLiveCheck`
-  (`SESHLOG_CODEX_CHECK=1`): fails when the daemon marker, its open files or the held headers can no
-  longer be read, warns when no held thread has the startup shape, and prints counts only. First run:
-  3 plain launches, 3 held terminal threads all startup-shaped, 3 launches matched in 4 ms.
+## Behaviour and evidence rules
 
-## 0. Platform baseline
+1. Distinguish the agent's **latest reported session directory**, Git's **checkout root**, and
+   the **initial launch directory** used for terminal identification. These can differ. Resolve
+   a session in `worktree/src/module` to its worktree root for opening, retaining the reported
+   subdirectory for display and existing launch behaviour where appropriate.
+2. Keep provenance for location evidence: source, record order/time when available, and whether
+   it is an initial fallback, later session context, or conflicting/unknown evidence. A session
+   being live does not by itself prove that an old cwd is current. Do not invent a numeric
+   confidence score or use transcript mtime/thread activity as the time of a directory change.
+3. Prefer explicit session context over guesses from folder names, branch names, transcript
+   storage paths, prose, or shell text. A successful agent worktree transition may supply evidence
+   once its actual record format is verified. An attempted/failed `EnterWorktree`, a quoted path,
+   `git -C`, or one tool's `workdir` is not automatically a session-wide move. Subagent evidence
+   must not overwrite the parent's location.
+4. Define deterministic precedence between sources after verifying their semantics. An older DB
+   row or stale live marker must not roll back a newer confirmed transition. Where ordering cannot
+   be established, retain the last known location and label the conflict/uncertainty.
+5. Use canonical checkout paths and shared Git metadata to establish repository relationships.
+   A branch name is display data, never an identity key. Codex worktrees can have detached HEADs;
+   display `detached HEAD` and optionally a short commit when available.
+6. Report the branch currently observed in the checkout as worktree metadata. Historical session
+   branch metadata is separate and must not be presented as the current Git branch after a switch.
+7. Worktree existence is independent of session activity. A stopped session may still have an
+   openable last recorded worktree; a running session may refer to one that has disappeared.
+   Never mark an entire session live just because its worktree exists.
 
-Target the IDE in daily use (IntelliJ IDEA 2026.2.3, reworked terminal) and drop older builds.
-Checked against the cached platforms:
+| Situation | Expected presentation/action |
+| --- | --- |
+| Verified linked checkout with unambiguous recorded location | Show worktree name and branch/detached HEAD; full path in tooltip; enable Open Worktree. Describe it as the latest recorded location rather than guaranteeing every tool writes there. |
+| Same checkout already open in this IDE instance | Focus Worktree Window, including when it is the invoking project; no duplicate project. |
+| Historical session with an existing verified checkout | Keep it openable, with last recorded location wording and no live implication. |
+| Missing/removed checkout | Show the recorded path and unavailable status; disable opening and revalidate on refresh. Never silently open the parent/main checkout instead. |
+| Conflicting or insufficient location evidence | Show unknown/uncertain or last known information; do not enable an action that claims a confirmed current worktree. An explicitly labelled last-known action may be used only if that target is itself validated. |
+| Main checkout or non-Git directory | Preserve normal session behaviour; do not label it as an agent-created linked worktree. |
 
-- The public reworked-terminal API (`com.intellij.terminal.frontend.*`) first appears in 2025.3.
-- `TerminalView.getSessionDeferred()` exists only from 2026.2 (262). Before that, the shell PID
-  and state come from the legacy path in `ReworkedTerminal` (`legacyRunning`, startup options).
-- `TerminalToolWindowTab.KEY` exists only from 2026.2.3 (262.10968), not in 2026.2 GA (262.8665).
-- The API is `@ApiStatus.Experimental`, and `TerminalToolWindowTabsManager.attachTab` changed
-  signature in 261, 262 GA and 262.10968.
-- 2026.2 ships JBR 25; its platform classes are Java 25 bytecode (major 69) and it bundles the
-  Kotlin 2.4.0 stdlib.
-- The Classic engine is still selectable in 2026.2.3 (`TerminalEngine.CLASSIC`), so classic tab
-  support stays.
+## Implementation sequence
 
-- [x] **0.1 Raise the minimum to 2026.2 (262).**
-  - `gradle.properties`: `pluginSinceBuild = 262`, `platformVersion = 2026.2.3`, `javaVersion = 25`,
-    and set `platformType` to the unified IntelliJ IDEA code so `usesUnifiedIntelliJIdea` in
-    `build.gradle.kts` can go.
-  - `build.gradle.kts`: raise `apiVersion` from `KOTLIN_1_9` to the newest the Kotlin plugin
-    supports (2.3 with 2.3.21; the platform bundles 2.4.0).
-  - CI (`.github/workflows/build.yml`, `release.yml`): `java-version: 25`.
-  - Update the baseline wording in README ("2024.1 or newer"), AGENTS.md "Hard constraints", the
-    `ReworkedTerminal` class comment and the `plugin.xml` change notes.
-  - Test: `make check` and `./gradlew verifyPlugin` pass against 2026.2.3. Expect some platform
-    test fixes now that tests run on the IDE actually in use.
-  - Verified: `make check` and `verifyPlugin` against installed IU-262.10968.63 pass (2026-09-27).
-    Foojay resolver updated to 1.0.0 for Gradle 9.6 compatibility.
-  - Manual: still owed — `make run`, resume in a reworked tab, copy from it, restart and restore.
+- [x] **1. Verify evidence formats and project-opening support.**
+  Establish the location contract before changing readers. Check current Claude Code worktree
+  transitions, exits, resume and transcript relocation; check Codex CLI/app-origin sessions,
+  session context records, DB updates and handoffs. Use local code/docs and read-only inspection
+  as needed; record agent versions and structural findings, never copy a real transcript into
+  the repository. The public docs linked below describe behaviour, not a stable storage schema.
+  Create small synthetic fixtures for the formats actually supported, including transitions
+  without a subsequent user prompt and conflicts between sources. Record any unobservable case
+  explicitly rather than promising complete tracking from launch cwd alone.
+  Inspect the bundled 262 SDK for supported project-open and window-focus APIs. Candidate areas
+  are `ProjectUtil`, `ProjectManager`/`ProjectManagerEx`, and `OpenProjectTask`; confirm exact
+  signatures and API status instead of assuming them. Check project trust handling, nested
+  worktrees, detached HEAD and project storage under agent roots. Do not depend on IntelliJ's
+  built-in Worktrees panel being available for every project layout.
+  - Deliverable: update this plan with the chosen sources/precedence, supported formats and
+    platform approach; keep unresolved cases explicit. No silent reduction to one agent.
+  - Validation: synthetic fixtures valid and existing `make check` passes. Manual SDK opening
+    and storage checks: **owed** until recorded here.
 
-- [x] **0.2 Delete compatibility code the new baseline makes dead.** No behaviour change.
-  - `terminal/ReworkedTerminal.kt:151` (`legacyRunning`) and the `!hasSessionApi` branches in
-    `handle.shellPid`/`state` (`:103`, `:117`), plus `localProject` if nothing else uses it.
-  - `terminal/TerminalTabs.kt:60` (`contentsRecursively`): call `ContentManager.getContentsRecursively()`
-    directly.
-  - `ui/SessionTreePanel.kt:302` (`invoke`): route double-click and Enter through
-    `ActionUtil.performAction` (present since 2025.2), as its comment anticipates.
-  - `settings/SeshlogConfigurable.kt:121`: use the current `Row.textFieldWithBrowseButton` overload.
-  - `ui/SessionTreePanel.kt:278`: deprecated `com.intellij.ProjectTopics.PROJECT_ROOTS` to
-    `ModuleRootListener.TOPIC`.
-  - Keep the `VIEW_KEY` fallback in `ReworkedTerminal.viewOf` (2026.2 GA has no tab key) and the
-    private `tabsRestoredDeferred` read in `restored` (still no public readiness API).
-  - Test: existing `ReworkedTerminalTest`, `ReworkedTerminalPlatformTest`, `TerminalTabObserverTest`
-    and `SeshlogToolWindowTest` pass unchanged.
+- [ ] **2. Add a pure worktree resolver and association model.**
+  Extend or compose `GitRepository` / `ResolvedPaths` with an immutable checkout description:
+  canonical root, per-worktree Git directory, common repository directory, main/linked kind,
+  branch or detached commit, and availability. Add a small location/association type carrying
+  the provenance from item 1; keep live Git facts separate from persisted transcript metadata.
+  Prefer extending the existing read-only layout inspection when sufficient. If using Git,
+  `git worktree list --porcelain -z` provides structured records; use argument lists, bounded
+  execution, and at most one query per repository snapshot, never one process per session.
+  Handle relative and absolute gitdir/commondir paths, subdirectories, symlinks, spaces, Unicode,
+  malformed/unreadable metadata, detached HEAD, multiple roots, and submodules without false
+  linked-worktree labels. Bare repositories are not openable working checkouts. Do not hard-code
+  `.claude/worktrees` or `$CODEX_HOME/worktrees` as the only valid locations.
+  A missing nested worktree must not resolve upward into the main checkout by accident. Retain
+  enough prior identity to distinguish an unavailable checkout from an unrelated directory later
+  created at the same path. Recheck identity before opening.
+  - Tests: synthetic main/linked/nested layouts, unrelated repositories with equal branch names,
+    relative paths, symlinks, missing paths, detached HEAD, malformed files and submodule layout.
+    Use injected resolvers to prove lookups/rendering do not perform I/O per session.
+  - Validation: `make check`; no manual check needed for the pure resolver.
 
-- [x] **0.3 Decide: link the reworked terminal API directly, or keep reflection.**
-  Direct linking means `verifyPlugin` reports API breaks in CI (including EAP 263) instead of
-  `ReworkedTerminal.read` silently returning null at runtime, and removes `call`/`loadApiClass`.
-  It needs a plugin dependency on the `intellij.terminal.frontend` content module
-  (`plugins/terminal/lib/modules/intellij.terminal.frontend.jar`) that the descriptor format
-  allows, and the verifier will list experimental API usage. Spike it; if the module cannot be
-  declared cleanly, keep the reflective adapter and record why here.
+- [ ] **3. Track Claude Code location changes reliably.**
+  Implement the evidence rules established in item 1 in `TranscriptParser`, `LiveSessionReader`
+  and `ClaudeCodeSessionProvider`. Support startup inside a worktree, main → worktree,
+  worktree A → B, exit to main, and resume. Use verified session context or successful transition
+  evidence so a move is visible without requiring another user prompt where the format permits.
+  Revisit the tool-result fast path carefully: retain bounded parsing and do not read all large
+  tool outputs solely to discover paths. Preserve prompt counts, titles, activity and sidechain
+  filtering. Validate live-marker identity as today; its status timestamp is not automatically
+  the timestamp of its cwd field.
+  Handle transcript relocation/duplicate discoveries under old and new project directories
+  deterministically if the verified format requires it: one session row, correct transcript
+  selection, no ID changes, and no stale record winning by filesystem enumeration order.
+  Update `TranscriptInfoStore` and invalidate its cache version when parsed semantics change,
+  even if the new model does not add a serialized field.
+  - Tests: fixture-backed startup/transitions/exit/resume; successful versus failed transition;
+    stale live marker; sidechain exclusion; relocated duplicate transcript when applicable;
+    malformed/partial records; missing fields; cold, appended and persisted-cache parsing agree.
+  - Validation: `make check`. Manual Claude transition check: **owed**.
 
-  - Decision: use the declared terminal frontend content module and typed APIs. Keep the tab-key
-    fallback, private restoration readiness, and internal session/PID lookup reflective. The verifier
-    rejects direct references to `TerminalSession` and `getSessionDeferred` as internal API usage; failed
-    reflective inspection remains unknown and never blocks. Local validation targets IU-262.10968.63; EAP
-    263 remains a CI/manual compatibility check.
+- [ ] **4. Track Codex location changes reliably.**
+  Extend `CodexTranscriptParser` for verified current session-context records (investigate
+  `turn_context`) while keeping initial `session_meta` as fallback. Preserve the separate
+  `rolloutHeader` launch/identity semantics used by `CodexDaemon`; changing current cwd must not
+  break terminal association on the shared app-server.
+  Replace unconditional cwd/branch overlay in `CodexSessionProvider.metadata` with the tested
+  precedence policy. A stale `state_5.sqlite` row must not undo a later context transition;
+  a valid DB-only update must be considered when the rollout is unchanged. Retain read-only
+  access, schema/missing-table fallback and the union of DB paths with disk-discovered rollouts.
+  Keep transcript IDs authoritative and exclude internal subagent/guardian/review rollouts.
+  Account for SQLite WAL updates when arranging refresh; do not create a scan loop from SHM
+  changes. Keep branch display tied to the resolved checkout, including detached HEAD.
+  Update `CodexTranscriptInfoStore` / cache version for new semantics and evidence metadata.
+  - Tests: startup, main → worktree → main, A → B, detached HEAD, old header plus new context,
+    stale DB versus newer context, DB-only location update, missing/incompatible DB, missing
+    fields, internal subagents, malformed/partial records, incremental and persisted-cache parity.
+    Retain the `CodexDaemonTest` identity/launch regression coverage.
+  - Validation: `make check`. Manual Codex CLI and app-origin transition checks: **owed**;
+    document any supported-format limits rather than inferring current cwd from a daemon PID.
 
-## 1. Fix first
+- [ ] **5. Refresh associations without blocking the UI or regressing filters.**
+  Integrate location evidence and Git snapshots with `SessionIndex`, `ResolvedPaths` and
+  `SessionTreePanel.preparePaths`. Resolve distinct paths/repositories once per relevant refresh.
+  Refresh when session location changes, on explicit Refresh, on project roots/settings changes,
+  and when relevant Git metadata or checkout availability changes without a transcript append.
+  Use targeted metadata watches and/or bounded background revalidation, including negative
+  cache entries, rather than recursively watching every file in all worktrees. Define and record
+  the automatic refresh bound; an idle agent must not leave deleted-worktree status stale forever.
+  Preserve debounce/coalescing and generation guards across settings changes and disposal.
+  Invalidate equality/repaint caches when association/HEAD/availability changes even if the
+  `Session` list itself is otherwise equal.
+  Keep sessions in related worktrees visible from the main project with Sibling worktrees enabled.
+  Make its disabled state consistent for nested and external sibling worktrees using checkout
+  identity, while retaining ordinary subdirectory sessions. Apply the same rules to browse and
+  search, preserve selected session identity on a move, and leave grouping by cwd unless a small
+  change is required to keep labels accurate. Cover projects with several repository roots.
+  Audit all `Session.cwd` consumers: resume/fork/copy, restore, changed-file path resolution and
+  terminal tracking. Keep current-location evidence separate wherever reusing it would change
+  launch identity or misinterpret historical relative paths. Do not turn a resume replacement
+  directory into an observed agent move.
+  - Tests: move updates association and both browse/search filters; nested sibling filtering;
+    HEAD switch and deletion without a transcript change; missing → recreated; DB WAL refresh
+    without SHM-triggered scan loops; stale worker results/disposal; selection preserved; bounded
+    resolver calls on a large synthetic history; existing resume/restore/terminal tests pass.
+  - Validation: `make check`. Manual automatic refresh check: **owed**.
 
-- [x] **1.1 Codex subagent rollouts are listed under their parent's id.**
-  `codex/CodexTranscriptParser.kt:103` (`offerSessionMeta`) prefers `payload.session_id` over
-  `payload.id`. Spawned subagents (`source.subagent.thread_spawn`) carry the parent's
-  `session_id`, so 46 local rollouts list as their parent: 852 rows, 803 distinct ids. Resume or
-  fork on such a row opens the parent, and search merges the transcripts. Only guardian reviews are
-  skipped (`codex/CodexSessionProvider.kt:74`, `scan`). Every local top-level rollout (cli, vscode,
-  mcp, exec) has `session_id == id`, so keying by `id` is safe for them.
-  - Fix: key by `payload.id`. Skip `thread_spawn` and `review` subagent rollouts like guardian ones
-    (65 and 42 locally). Decide separately whether `source: "mcp"` rollouts (112, Codex driven by
-    another agent) stay visible. Bump `CACHE_VERSION` in `codex/CodexTranscriptInfoStore.kt`.
-  - Test: synthetic fixture with a parent rollout, a `thread_spawn` rollout sharing its
-    `session_id`, and a `review` rollout. Scan returns only the parent, and ids are unique.
+- [ ] **6. Show worktree details and uncertainty in session rows.**
+  Add a compact worktree label and branch/detached HEAD to session details, with full canonical
+  path, reported subdirectory when different, and last-recorded/uncertain/unavailable explanation
+  in the tooltip. Avoid duplicate branch text. Keep labels literal and escape tooltip HTML.
+  Show the same information for search results, and include it in accessible descriptions.
+  Missing worktrees remain visible according to normal session filters with their recorded path;
+  do not hide the conversation solely because its checkout vanished. Preserve the last verified
+  repository association where available so related historical sessions remain discoverable.
+  An association alone must not change working/waiting/unread badges. Do not add a new permanent
+  toolbar or a separate worktree manager for this feature.
+  - Tests: both agents, detached HEAD, duplicate worktree basenames in different repositories,
+    historical/missing/uncertain states, escaped paths, browse/search consistency, accessibility,
+    and no filesystem calls while rendering.
+  - Validation: `make check`. Manual narrow tool-window and tooltip check: **owed**.
 
-  - Verified: synthetic parent/spawn/review fixtures pass under `make check`. MCP rollouts stay visible.
+- [ ] **7. Add Open Worktree / Focus Worktree Window.**
+  Register a session action in `Seshlog.ContextMenu`, using `SessionAction` / `sessionFrom`.
+  Presentation reads cached association state; no synchronous disk/Git work in `update`.
+  Hide it for sessions without a linked-worktree association; expose unavailable/uncertain
+  states with a disabled action and useful explanation as appropriate to the behaviour table.
+  At invocation, fetch the latest session/association, revalidate the target checkout on a worker,
+  and reject stale identity or a move that occurred while validating. Never fall back to opening
+  the main checkout or a remembered resume replacement after failure.
+  Compare canonical checkout roots with already open projects. Focus the matching window if
+  found; otherwise use the supported 262 project-open API with a new window. Open the checkout
+  root, not the session's arbitrary nested cwd. Coalesce repeated clicks for the same target and
+  recheck already-open state immediately before opening. Respect normal IntelliJ trust/import
+  handling and the storage decision from item 1. Report cancellation/open failure without leaving
+  the UI busy. Keep the source project and running agent terminal intact.
+  - Tests: pure target/focus/open decision through injected effects; action registration and
+    selected-session context; alias paths focus one existing project; missing target; deleted or
+    moved between menu display and click; conflicting evidence; disposed source project; repeated
+    click; opening failure/cancellation. No tests should launch a real agent or another IDE.
+  - Validation: `make check` and `./gradlew verifyPlugin`. Manual project/focus/trust behaviour
+    and source-terminal survival: **owed**.
 
-- [x] **1.2 Make the benchmark numbers-only and representative.**
-  `src/test/kotlin/com/hedworth/seshlog/claude/RealDataScanBenchmark.kt:23,42` prints real
-  titles, folder names and search snippets into Gradle test reports. It searches through
-  `conversationText`, not the `conversationEntries` path production search uses, and covers
-  Claude only. Needed before 1.3 so the speed-up can be measured.
-  - Fix: print counts and timings only. Drive `ContentSearchIndex` with the production extractor.
-    Add Codex and Pi.
-  - Test: none (skipped benchmark). Check its output contains no titles or paths.
+- [ ] **8. Complete acceptance checks and user-facing documentation.**
+  Update `README.md` with both supported agents, what the badge/action means, Sibling worktrees,
+  new-window/focus behaviour, detached HEAD, missing worktrees and evidence limitations. Update
+  the Marketplace description in `plugin.xml` only as appropriate to the delivered behaviour.
+  Record the versions and results of the manual matrix below, and any remaining limits here.
+  Do not describe universal mid-session detection unless the evidence tests establish it.
+  - Validation: final `make check`, `./gradlew verifyPlugin`, and `make release` for the packaged
+    plugin. Record successful checks and any environment failures separately. No publish or
+    Marketplace upload is part of this plan.
 
-- [x] **1.3 Search matching is slow on large histories.**
-  A warm Codex query takes 3.3 s and runs on every keystroke (first query 11.3 s).
-  `index/TextQuery.kt:9,16` (`QueryTerm.ranges`, `matches`) use `indexOf`/`contains(ignoreCase = true)`.
-  `index/ContentSearchIndex.kt:54` (`search`) walks each text three times (match, ranges for count
-  and snippet, phrase bonus) and computes every range although the count caps at 9.
-  - Fix: store a case-folded copy of each text when its entry is built, folding per `Char` so
-    offsets stay aligned with the original (whole-string `lowercase()` changes length for
-    characters such as `İ`). Match with plain `indexOf`, and do matching, capped counting and the
-    first snippet in one pass.
-  - Test: `ContentSearchIndexTest` cases proving identical hits, scores and snippet offsets for
-    mixed case, phrases and a length-changing character such as `İ`. Put before/after benchmark
-    timings in the commit message.
-  - Measured warm queries (before → after): Codex 1,019 → 139 ms, Claude 97 → 19 ms,
-    Pi 3 → 1 ms; hit counts unchanged. Numbers-only local benchmark, 2026-09-27.
+## Evidence contract verified 2026-10-25 (item 1)
 
-- [x] **1.4 Every scan redraws the list twice and reloads the preview.**
-  `ui/SessionTreePanel.kt:261` (`sessionsUpdated` listener) clears `requestedPaths`, so each scan
-  renders at once and again when `preparePaths` (`:527`) finishes. Each render replaces the whole
-  tree in `rebuildTree` (`:543`, `treeModel.setRoot`) and calls `preview.showSession` from `render`
-  (`:522`). With a query active, both passes rerun the full content search instead.
-  `ResolvedPaths.resolve` re-resolves every cwd and its git repository each time. This runs in
-  every open project on every scan.
-  - Fix: resolve only paths not resolved yet (refresh all on Refresh or a roots change). Skip
-    `rebuildTree` when the grouped result equals the last one. Reload the preview only when the
-    selected session's identity or `lastActivityAt` changed. Rerun a search only when the
-    candidates changed.
-  - Test: `SeshlogToolWindowTest`: deliver the same `sessionsUpdated` twice and assert the tree
-    root instance and preview load count are unchanged; a changed session rebuilds once.
-  - Manual: still owed — scroll position and an open context menu survive a background rescan.
+- Local installed Claude Code **2.1.296**, Codex CLI **0.164.0**; structural read-only
+  sampling of 35 recent files per agent (keys/counts only). No agent was launched or history
+  changed. Claude had 21 envelope-cwd changes; Codex had `session_meta` and `turn_context`
+  records, but no moves in that sample. App handoff timing remains a manual check.
+- Claude executable code serializes `worktree-state.worktreeSession.worktreePath` after entry,
+  and `worktreeSession: null` on exit **and on rejected resume**. Null alone cannot establish
+  the restored cwd: retain last known location as uncertain until a subsequent non-sidechain
+  user/assistant/attachment envelope reports cwd. The ExitWorktree result includes
+  `restoredCwd`, but general tool text/arguments are never session-move evidence. Failed entry
+  does not set a worktree state. Top-level envelopes carry cwd independently of tool output.
+  Read only envelope fields with a streaming JSON reader, skipping bodies without materializing
+  them. Last accepted record in the transcript wins; preserve ordinal and explicit timestamp.
+  Startup is fallback evidence; later envelopes/state are recorded session context. A live
+  marker's status update is not cwd freshness, so it never overrides transcript location.
+- Codex `turn_context.payload.cwd` supersedes initial `session_meta.payload.cwd` in record order.
+  The separate `rolloutHeader` remains initial launch identity. A DB cwd can update a header-only
+  fallback, but disagreement with later context retains that context and marks uncertainty;
+  `updated_at_ms` is activity, not directory-change time. Re-read the DB on each scan even if
+  rollouts are unchanged. Watch the WAL explicitly, excluding SHM. No inference from shell
+  commands, tool workdir, branch names, daemon PID, or child rollouts.
+- These sources establish **latest recorded** location, not every tool's target. A Codex handoff
+  with only a contradictory DB row cannot be ordered reliably and stays uncertain. A Claude
+  exit with only a null state cannot reveal its actual fallback cwd. Missing records are limits,
+  not confirmation that the initial directory is still current. Synthetic fixtures live in
+  `fixtures/locations`; they pin structure, not undocumented promises about future agents.
+- SDK sources: cached **IU-262.10968.63**. Public
+  `com.intellij.ide.impl.ProjectUtil.openOrImport(Path, OpenProjectTask)` and
+  `focusProjectWindow(Project, Boolean)`; use the public `OpenProjectTask {}` builder with
+  `forceOpenInNewFrame = true`, no projectToClose, normal trust/import handling. Root matching
+  is canonicalized on a worker. ProjectStorePathCustomizer is Internal/Experimental and the
+  implementation rejects non-bundled plugins except Bazel; ordinary directory projects store
+  `.idea` in the checkout. Therefore **new opening under default or configured agent data roots
+  is disabled**, with an explanation. Tracking remains available, and focusing an already-open
+  project requires no storage write. No supported external-store bypass is used and AGENTS.md
+  is unchanged. Enabling new opens there needs a narrowly scoped user decision.
+- Validation: synthetic JSON/JSONL parses; baseline `make check` passed. Manual SDK opening,
+  storage, Claude exit/resume/relocation and Codex CLI/app handoff checks remain **owed**.
 
-- [x] **1.5 Continuous file changes postpone rescans indefinitely.**
-  `index/SessionWatcher.kt:80` (`schedule`) cancels and re-arms a 1.5 s alarm on every VFS event
-  with no maximum wait. With several agents writing, or opencode streaming into `opencode.db-wal`,
-  no rescan runs, so activity badges, unread markers, waiting notifications and new-session
-  adoption stall. Events under paths the scan ignores (`subagents/`, `tool-results/`, `memory/`)
-  re-arm it too.
-  - Fix: add a maximum wait (about 5 s from the first pending event), as a small pure policy class
-    with an injected clock. Drop events for ignored subpaths (revisit if 4.6 reads subagent files).
-  - Test: unit test of the policy: events every 500 ms for 10 s fire at least twice; a single
-    event fires once after the debounce.
+## Manual acceptance matrix
 
-- [x] **1.6 Reusing an idle tab can type a resume command into another agent.**
-  `terminal/TerminalTabs.kt:92` (`findIdleTab`) returns any tab whose title matches and whose
-  state is IDLE, whoever owns it, and a tab still reads IDLE just after Seshlog sent it a command.
-  Restoring two sessions with the same title (`restore/SessionRestoreManager.kt:230`, `restore`),
-  or a quick double Resume, sends the second `cd … && <agent> --resume` into the first agent's
-  prompt. `OwnedTerminalTabs.track` then evicts the first session, which drops out of restore state.
-  - Fix: `findIdleTab` skips tabs registered to any session. Mark a tab "command pending" from
-    `execute` until an agent process is observed or about 10 s pass, and treat pending as not
-    idle in `resume` and `RestoreTabReadiness.ready`.
-  - Test: fake `TerminalHandle`s, two sessions with the same title: resuming both uses two tabs
-    and the first registration survives.
+Use `make run` with a disposable local repository and synthetic/test sessions where possible.
+Run each agent-specific flow for **both Claude Code and Codex**, recording their versions and
+whether the Codex session came from CLI or app. Do not modify real histories to manufacture a test.
 
-- [x] **1.7 Claude prompts queued while the agent is busy are invisible.**
-  Claude Code 2.1.x saves them as `type: "attachment"` records with
-  `attachment.type == "queued_command"`, never as `user` records. The parsers read only
-  `user`/`assistant` (`claude/TranscriptParser.kt:108`, `claude/ConversationMessages.kt:20`,
-  `claude/ClaudeConversationEntries.kt:15`), so these prompts are missing from prompt counts,
-  preview, the viewer and search (33 locally). Local shapes: `commandMode: "prompt"` with
-  `origin.kind: "human"` (33), `commandMode: "task-notification"` with no origin (48), and
-  `origin.kind: "peer"` with `isMeta: true` (3).
-  - Fix: treat `commandMode == "prompt"` as a user prompt unless `origin.kind` is present and not
-    `human`, or `isMeta` is set. Keep file order. Accept `prompt` as a string or a content array.
-    Bump `CACHE_VERSION` in `claude/TranscriptInfoStore.kt`. Cover `TranscriptTailReader` and the
-    last-assistant path as well.
-  - Test: synthetic fixture with one human queued prompt, one task notification and one peer
-    message. Prompt count, `lastMessages` and conversation entries include only the human prompt.
+- [ ] Start in an existing linked worktree, including a subdirectory: correct root, name, branch,
+  full path and Open target; inspect/edit/build the actual checkout after opening.
+- [ ] Start in main, enter/create a worktree during the session, and observe the label/filter
+  update without another prompt when supported; switch A → B and exit back to main.
+- [ ] Stop/resume in a worktree; verify last-recorded wording and continued openability.
+- [ ] Exercise a Codex detached-HEAD worktree and a later branch/HEAD change.
+- [ ] Open once, then invoke again: focus the same project window; test a symlink alias and a
+  worktree already open before Seshlog's action is used.
+- [ ] Keep an agent running in the source IDE terminal while opening its checkout: the source
+  window and terminal survive, tab association and attention badges remain correct.
+- [ ] Test an external sibling checkout and a nested `.claude/worktrees/...` checkout with
+  Sibling worktrees both enabled and disabled, in browse and search.
+- [ ] Remove/move a disposable checkout while its session remains listed: unavailable status,
+  disabled action, no wrong-parent opening; test removal between selection and invocation.
+- [ ] Test malformed/unreadable metadata and ambiguous multi-checkout tool activity: graceful
+  uncertainty, no invented current worktree, no UI freeze.
+- [ ] Test narrow tool-window display, keyboard action invocation, project trust/cancel/import
+  behaviour and the agent-root project-storage approach established in item 1.
 
-- [x] **1.8 A local rename only shows in the tree.**
-  The preview header (`ui/SessionPreviewPanel.kt:116`, `showSession`), the tooltip
-  (`ui/SessionCellRenderer.kt:85`, `tooltip`), terminal tab titles (`terminal/TerminalTabs.kt:141,147,175`,
-  `resume`/`fork`; `terminal/TabRegistry.kt:86`, `sync` retitles) and restore notifications
-  (`restore/SessionRestoreManager.kt:201,245,249`) use `session.title`, not
-  `SessionOrganisation.title(session)`.
-  - Fix: show the local title everywhere. `findIdleTab` matches a restored tab by either title.
-    The tooltip keeps the agent's title as a second line when they differ.
-  - Test: rename a session, then assert the preview header, the `TabRegistry.sync` retitle and the
-    fork tab title use the local title.
-  - Manual: still owed — rename a running session and watch its terminal tab title update.
+All manual checks are **owed** as of this plan. Automated checks alone do not establish that IDE
+project opening, focus and terminal lifetime behave correctly in the sandbox IDE.
 
-## 2. Tracking and restore hardening
+## Commands and references
 
-- [x] **2.1 "Restore" acts on a stale plan.**
-  `restore/SessionRestoreManager.kt:180` (`offerRestore`) captures `plan` when the notification
-  appears. Clicking Restore later (the notification stays in the Notifications tool window)
-  resumes sessions started manually in the meantime, and `restore` (`:230`) terminates orphans by
-  PID through `ProcessTree.System.terminate`, which by then may be an unrelated process.
-  - Fix: re-plan on click. Capture orphan `ProcessHandle`s at plan time and terminate through
-    them (their identity includes start time).
-  - Test: a session live at click time is not resumed; an orphan whose handle is no longer alive
-    is not terminated.
+```sh
+make check
+make run
+./gradlew verifyPlugin
+make release
+```
 
-- [x] **2.2 An `lsof` failure reads as "no open files".**
-  `terminal/ProcessTranscripts.kt:28` (`lsofFiles`) returns empty on timeout, on a non-zero exit
-  (lsof exits 1 whenever any listed PID has gone, discarding output for the rest) and on oversize
-  output. `terminal/SessionProcess.kt:61` (`identifyTree`) then falls back to process arguments,
-  so after `codex resume OLD` and `/new` the tab can flip back to OLD and Copy targets the wrong
-  session. A first line over the 64 KB `isCliTranscript` cap has the same effect. Nothing is logged.
-  - Fix: a three-state result (files, none, unknown); unknown keeps the current association. Parse
-    output on exit 1. Log failures at DEBUG.
-  - Test: `ProcessTranscriptsTest`/`SessionProcessTest`: unknown evidence keeps the current
-    session; exit-1 output with valid lines still parses.
+If dependency downloads are unavailable, use the Gradle equivalents with `--offline`, for example
+`./gradlew test --offline`. The Makefile does not currently expose a Gradle-arguments variable.
+Real-data benchmarks and `make codex-check` are opt-in as documented in `AGENTS.md`; they are not
+required in CI and must never print conversation content.
 
-- [x] **2.3 Kill then quick Resume detaches the new tab.**
-  `ObservedAgents` entries survive `OwnedTerminalTabs.track` (`terminal/OwnedTerminalTabs.kt:199`),
-  so the next tick sees the old process as exited and `release`s the new tab (`:184`) until
-  discovery re-adopts it 2 to 4 s later. Meanwhile "Show Tab" reverts to "Resume".
-  - Fix: `track` clears the session's observed agent.
-  - Test: tracking after an observed exit does not release the new tab.
+Official references checked during the feature discussion on 2026-10-24; re-check against the
+versions being implemented when needed:
 
-- [x] **2.4 An Error in a process tick stops tracking for the project.**
-  `terminal/OwnedTerminalTabs.kt:129` (`refreshRunning`) sets `checkingProcesses` before the pooled
-  block and clears it only on the normal path.
-  - Fix: clear it in `finally`.
-  - Test: with the tick body behind an injectable inspector, a throwing inspector does not block
-    the next tick.
+- [IntelliJ IDEA 2026.2: Use Git worktrees](https://www.jetbrains.com/help/idea/use-git-worktrees.html)
+  documents opening externally created worktrees as projects and focusing/opening via the IDE.
+  Its built-in worktree integration has single-repository and nested-worktree limitations; verify
+  generic project opening rather than assuming that panel's action works for every agent layout.
+- [Git: git-worktree](https://git-scm.com/docs/git-worktree) documents linked checkout metadata,
+  `list --porcelain -z`, detached HEAD, and missing/prunable worktrees.
+- [Claude Code: Worktrees](https://code.claude.com/docs/en/worktrees) documents startup,
+  `EnterWorktree`, moving between worktrees, resume and transcript relocation behaviour.
+- [Official OpenAI documentation: Worktrees](https://learn.chatgpt.com/docs/environments/git-worktrees)
+  documents Codex worktrees, detached HEAD, local/worktree handoff, and managed-worktree storage.
 
-- [x] **2.5 `endedSessions` is read off the EDT.** `terminal/OwnedTerminalTabs.kt:33` is a
-  `WeakHashMap` written on the EDT and read on a background thread by
-  `ForkTerminalTabSessionAction.update` (`ui/actions/SessionActions.kt:132`, via `lastSessionFor`).
-  `WeakHashMap.get` also purges entries. Synchronise it.
-  - Test: concurrent reads and writes do not throw.
-
-- [x] **2.6 `SessionAttentionState.getState` can throw while saving.** `settings/SessionAttentionState.kt:20`
-  copies a `LinkedHashMap` the EDT mutates, from the save thread. Keep an immutable snapshot that
-  mutations replace. Also prune unread entries for sessions no longer in the index, so
-  `seshlog.xml` stops growing.
-  - Test: `getState` during `viewed` does not throw; a scan without the session prunes it.
-
-- [x] **2.7 Concurrent `SessionWatcher.start` calls can leak watch roots.** `index/SessionWatcher.kt:51`
-  reads and replaces `watchRequests` without a lock.
-  - Test: two concurrent starts leave exactly the last set of roots watched.
-
-## 3. Performance
-
-- [x] **3.1 Batch and back off process polling.**
-  `terminal/OwnedTerminalTabs.kt:124` (`processClock`, 2 s) runs per project even with the IDE in
-  the background. Each tick walks the full process table once per owned session and again per
-  tab, spawns one `lsof` per Codex tab (`terminal/ProcessTranscripts.kt:28`), and walks process
-  ancestry on the EDT (`terminal/TabRegistry.kt:66`, `sync`). With 20 Codex tabs that is about 40
-  table walks and 20 sequential `lsof` runs (1 s timeout each) per tick.
-  - Fix: one process snapshot per tick, shared; one `lsof` for all PIDs; ancestry off the EDT;
-    slow to about 10 s while no IDE frame is active and after several unchanged ticks.
-  - Test: a tick with a fake process source and N tabs calls the snapshot and `lsof` runners once each.
-
-- [x] **3.2 Stop initialising the Terminal tool window in every project.**
-  `ToolWindow.contentManager` creates the tool window's content, which runs
-  `TerminalToolWindowFactory` and restores its tabs. `terminal/TerminalTabs.kt:55` (`contents`),
-  `terminal/OwnedTerminalTabs.kt:41` and the focus path in `TerminalTabObserver` reach it at
-  startup and on focus changes, so every opened project builds its Terminal tool window. Each
-  project also installs its own global `permanentFocusOwner` listener (`terminal/TerminalTabObserver.kt:50`).
-  - Fix: use `getContentManagerIfCreated()` wherever Seshlog only inspects tabs; keep
-    `contentManager` for launch and restore (`TerminalTabs.kt:157`). One app-level focus
-    listener that dispatches to the focused project.
-  - Test: starting `OwnedTerminalTabs` in a project whose Terminal tool window was never opened
-    leaves its content uncreated.
-  - Manual: still owed — open a project without opening Terminal; no restored shells start.
-    The headless fixture checks that no content factory runs and the existing manager is unchanged.
-
-- [x] **3.3 Cap the content search index.**
-  Only per-session caps exist (`model/ConversationLimits.kt`). The first query extracts every
-  candidate and the index lives for the IDE session: 212 MB of heap for local Codex data, with
-  354 of 803 sessions at the 500K-character per-session cap. `ConversationLimits.read` (`:49`)
-  reads one character at a time.
-  - Fix: a global character budget with least-recently-used eviction in `ContentSearchIndex`;
-    read in buffered chunks.
-  - Test: with a small budget, older entries are evicted and re-extracted on demand, and results
-    are unchanged.
-  - The default budget is 32 million original-plus-folded characters. Search visits cached candidates
-    first to avoid eviction thrashing while preserving result tie order.
-
-- [x] **3.4 Parse only the appended part of a changed transcript.**
-  `cache/FileBackedParseCache.kt:63` (`get`) re-reads a changed transcript from the start (35 to
-  65 ms for a 20 MB file, on every scan while an agent writes), and `persist` (`:79`) rewrites the
-  whole cache file each scan (the Codex cache is 481 KB).
-  - Fix: transcripts are append-only, so keep the byte offset and resumable parser state per
-    entry and parse only new lines, with a full parse when the file shrank or its first line
-    changed. Persist on a timer and at shutdown. Metadata only, as now.
-  - Test: parse, append lines, parse again: same info as a full parse; truncation triggers a
-    full parse.
-  - Claude and Codex resume from validated byte checkpoints; truncation, replacement and unterminated
-    final records fall back safely. Pi retains full parsing because its branch structure needs the
-    complete transcript; its metadata cache still gains deferred persistence.
-
-## 4. Features
-
-- [x] **4.1 Show attention outside the tool window.**
-  Unread and working counts appear only in the Seshlog panel. Badge the Seshlog tool window icon
-  when anything is unread (`BadgeIconSupplier` or `ExecutionUtil.getLiveIndicator`), and add an
-  optional status bar widget ("2 working · 1 unread") that runs Next Session Needing Attention on
-  click. Counts follow the project's filters, like the project rows (`index/SessionAttention.kt`, `summary`).
-  - Test: a pure count function over sessions, running ids and unread ids; widget text from counts.
-  - Manual: still owed — the badge shows with the tool window hidden and clears when the session is viewed.
-
-- [x] **4.2 New session action.**
-  Start a fresh Claude Code, Codex, opencode or Pi session in the project directory from the
-  toolbar or a project row, with the configured executable and additional arguments. Seshlog owns
-  the tab from the start (a pending association that resolves when the transcript appears), so
-  these sessions skip the process and `lsof` discovery heuristics.
-  - Test: command building per agent; a pending association resolves to the first new session
-    seen in that tab.
-  - Adjustment: launch reserves its exact tab immediately; adoption still needs exact process or
-    transcript evidence. No cwd/time guessing. Pending reservations expire after 60 seconds;
-    fresh Pi/opencode sessions without exact identity evidence may remain unassociated.
-  - Manual: still owed — launch each configured agent and verify tab adoption.
-
-- [x] **4.3 Open a conversation in a read-only editor tab.**
-  `ui/ConversationDialog.kt` is a non-modal dialog around a plain `JBTextArea`. Open the
-  conversation as an in-memory, read-only `LightVirtualFile` (Markdown) in an editor tab instead:
-  editor find, several conversations side by side, splits, and Markdown rendering when the
-  Markdown plugin is enabled. Still no session content on disk. Carry over match navigation and
-  the unread "viewed" signal.
-  - Test: opening a fixture builds a read-only light file with the expected Markdown; viewing the
-    last reply clears unread.
-  - Verified with Markdown absent using a plain-text fallback; F3/Shift+F3 navigate carried search
-    matches. Manual: still owed — splits and rendered Markdown view with the Markdown plugin enabled.
-
-- [x] **4.4 Render Markdown in the preview.**
-  `ui/SessionPreviewPanel.kt:176` (`toHtml`) wraps each message in `<pre>`. Render assistant
-  Markdown (headings, lists, code blocks) with the bundled `org.intellij.markdown` library,
-  escaping raw HTML.
-  - Test: a fixture reply with a list and a code block renders the expected HTML; raw `<script>`
-    is escaped.
-
-- [x] **4.5 Tidy the header.**
-  `ui/SessionTreePanel.kt:222` (header in `init`): the search hint and "Limited coverage" are
-  permanent labels beside 8 toolbar actions and 3 plain `JButton`s. Move the hint into the search
-  field's empty text and tooltip, and show coverage in the status line only when a search is
-  partial. Fold Agents, date, Show Hidden and Sibling Worktrees into one action-based filter
-  dropdown. Replace the `JOptionPane` custom range in `chooseDateFilter` (`:83`) with a validating
-  `DialogWrapper`.
-  - Test: existing filter tests in `SeshlogToolWindowTest` drive the new actions.
-  - Manual: still owed — inspect the header at a narrow tool-window width.
-
-- [x] **4.6 Claude subagent transcripts and continuations.**
-  Subagent conversations now live in `<session>/subagents/agent-*.jsonl` (38 locally) and are not
-  searchable; the parsers' `isSidechain` filters no longer match anything at top level.
-  `continued-in` records point to a successor session (2 locally). Search subagent text as tool
-  activity of the parent, and link a session to its continuation in the tooltip and viewer.
-  - Test: a fixture session with a subagent file and a `continued-in` record.
-
-- [x] **4.7 Files a session changed.**
-  List the files touched by Edit/Write/MultiEdit (Claude), apply_patch (Codex) and the opencode
-  equivalents, which tool search already parses, with Open and Compare with Current actions.
-  Paths only, extracted on demand, nothing written to disk.
-  - Test: fixtures per agent yield the expected paths.
-  - Extraction uses bounded in-memory conversation data and reports incomplete coverage. Complete Write
-    payloads can be compared with current files; patch payloads remain labeled as patches, never
-    reconstructed historical files.
-
-- [x] **4.8 Read Codex metadata from `state_5.sqlite`.**
-  codex-cli 0.157 keeps a `threads` table (rollout_path, source, cwd, title, name, archived,
-  git_branch, updated_at_ms). One query could replace parsing about 1,040 rollouts (cold scan
-  3.5 s). Fall back to rollout parsing when the table or a column is missing; read-only, like
-  `OpenCodeDatabase`.
-  - Test: a fixture database built from SQL like `opencode_fixture.sql`; a missing table falls
-    back to rollouts.
-  - Adjustment: union database paths with disk discovery so database lag cannot hide fresh sessions. Cold
-    transcript parsing remains necessary for prompt/activity fields absent from SQLite; archived sessions
-    remain visible.
-
-## 5. Code health
-
-- [x] **5.1 Make terminal tracking a pure reconciler.**
-  `OwnedTerminalTabs.refreshRunning` reconciles four stores (`TabRegistry`, `ObservedAgents`,
-  `endedSessions`, `running`) written from three paths (index sync, process tick, copy resolver),
-  each with its own staleness checks and no per-tab generation. Extract a pure function (tab
-  snapshot, process evidence and sessions in; register, release, adopt and retitle operations
-  out) applied on the EDT. About half of the last ten commits were tracking fixes; this gives
-  them one tested place. Do it after section 2 so those tests carry over.
-
-- [x] **5.2 Extract a list view model from `SessionTreePanel`.**
-  662 lines mixing filter state, menus, search orchestration and tree building. Move filtering,
-  grouping and the empty-state choice into a pure class in the style of `SessionFilter`
-  (sessions, filters, resolved paths and organisation in; groups out). This turns the
-  "unchanged" check in 1.4 into plain equality.
-
-- [x] **5.3 Replace inline fully qualified names with imports.**
-  61 in `SessionTreePanel.kt`, more in `SessionActions.kt`, the providers, `OpenCodeDatabase.kt`
-  and `SessionRestoreManager.kt`. Mechanical, no behaviour change.
-
-- [x] **5.4 Docs.**
-  - README links to AGENTS.md and PLAN.md, but both are gitignored (AGENTS.md in `.gitignore`,
-    PLAN.md in the global ignore), so the links are dead on GitHub. Track AGENTS.md or drop
-    the links.
-  - AGENTS.md "Working the plan" refers to README roadmap items that no longer exist.
-  - The Marketplace description in `plugin.xml` lags the README: add activity badges, waiting
-    notifications, unread markers and attention navigation, pin/rename/hide and date filters.
+These references establish product behaviour, not guaranteed JSONL fields, database freshness,
+or a supported IntelliJ plugin API signature. Those must be verified in item 1 and pinned by tests.

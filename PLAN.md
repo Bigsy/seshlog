@@ -165,7 +165,7 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
     Use injected resolvers to prove lookups/rendering do not perform I/O per session.
   - Validation: `make check`; no manual check needed for the pure resolver.
 
-- [ ] **3. Track Claude Code location changes reliably.**
+- [x] **3. Track Claude Code location changes reliably.**
   Implement the evidence rules established in item 1 in `TranscriptParser`, `LiveSessionReader`
   and `ClaudeCodeSessionProvider`. Support startup inside a worktree, main → worktree,
   worktree A → B, exit to main, and resume. Use verified session context or successful transition
@@ -325,6 +325,12 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   Full test task passed with `./gradlew clean test --offline --no-build-cache
   -Pkotlin.incremental=false` (401 passed, two opt-in checks skipped). Ordinary incremental
   compilation reused old Session constructor bytecode; a clean uncached rebuild resolved it.
+
+- Item 3: Claude envelope/state tracking, metadata cache v7, deterministic relocation selection
+  and stale-marker protection. Both new transition regressions failed before implementation;
+  full clean test task passed (407 passed, two skipped). Persisted/appended parsing agrees at
+  every fixture boundary. Null worktree state stays uncertain until actual cwd is reported.
+  Manual Claude transition/exit/resume checks remain **owed**.
 
 ## Manual acceptance matrix
 

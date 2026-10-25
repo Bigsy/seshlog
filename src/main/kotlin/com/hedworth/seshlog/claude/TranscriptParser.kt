@@ -3,6 +3,8 @@ package com.hedworth.seshlog.claude
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.hedworth.seshlog.model.SessionLocation
+import com.hedworth.seshlog.model.LocationSource
 import com.hedworth.seshlog.cache.IncrementalJsonl
 import com.hedworth.seshlog.cache.IncrementalParseResult
 import com.intellij.openapi.diagnostic.logger
@@ -31,6 +33,8 @@ data class TranscriptInfo(
     val startedAt: Instant?,
     val promptCount: Int,
     val continuationId: String? = null,
+    val location: SessionLocation? = null,
+    val recordCount: Long = 0,
 ) {
     /** `custom-title` → `ai-title` → first prompt → "Untitled session". */
     val title: String
@@ -56,7 +60,6 @@ object TranscriptParser {
     private val LOG = logger<TranscriptParser>()
 
     private const val MAX_TITLE_LENGTH = 80
-    private val TYPE_REGEX = Regex("\"type\"\\s*:\\s*\"([a-zA-Z-]+)\"")
     private val TIMESTAMP_REGEX = Regex("\"timestamp\"\\s*:\\s*\"([^\"]+)\"")
 
     fun parse(path: Path): TranscriptInfo =
@@ -97,15 +100,27 @@ object TranscriptParser {
         var promptCount = previous?.promptCount ?: 0
         var continuationId: String? = previous?.continuationId
 
+        var location = previous?.location
+        var recordCount = previous?.recordCount ?: 0L
+
         fun offer(line: String) {
             if (line.isBlank()) return
+            recordCount++
+            val envelope = ClaudeEnvelope.read(line) ?: return
+            if (envelope.bool("isSidechain")) return
+            val recordId = envelope.string("sessionId")
+            if (sessionId != null && recordId != null && recordId != sessionId) return
             if (startedAt == null) {
                 TIMESTAMP_REGEX.find(line)?.groupValues?.get(1)?.let { ts ->
                     startedAt = runCatching { Instant.parse(ts) }.getOrNull()
                 }
             }
             // Cheap pre-filter: only parse lines whose top-level type we care about.
-            val type = TYPE_REGEX.find(line)?.groupValues?.get(1) ?: return
+            val type = envelope.string("type") ?: return
+            if (type in setOf("user", "assistant", "attachment", "worktree-state")) {
+                if (sessionId == null) sessionId = recordId
+                if (type == "worktree-state") offerWorktree(envelope) else offerContext(envelope)
+            }
             when (type) {
                 "ai-title" -> parseObject(line)?.let { obj ->
                     obj.string("aiTitle")?.let { aiTitle = it }
@@ -129,19 +144,17 @@ object TranscriptParser {
             val obj = parseObject(line) ?: return
             val text = obj.queuedPrompt() ?: return
             if (sessionId == null) sessionId = obj.string("sessionId")
-            offerContext(obj)
             promptCount++
             if (promptTitle == null) promptTitle = promptToTitle(text)
             if (startedAt == null) startedAt = obj.string("timestamp")?.let { runCatching { Instant.parse(it) }.getOrNull() }
         }
 
         private fun offerUser(line: String) {
-            // Tool results are `user` records too, and they can be huge — skip without parsing.
+            // The envelope was already read; skip the large tool body without building a tree.
             if (line.contains("\"tool_result\"") && cwd != null) return
             val obj = parseObject(line) ?: return
             if (obj.string("type") != "user") return
             if (sessionId == null) sessionId = obj.string("sessionId")
-            if (!obj.bool("isSidechain")) offerContext(obj)
             if (obj.bool("isSidechain") || obj.bool("isMeta")) return
             val text = promptText(obj.getAsJsonObjectOrNull("message")?.get("content")) ?: return
             if (!isRealPrompt(text)) return
@@ -151,15 +164,37 @@ object TranscriptParser {
 
         /** Resuming can change context; absent fields must not erase the last known values. */
         private fun offerContext(obj: JsonObject) {
-            obj.string("cwd")?.takeIf { it.isNotBlank() }?.let { cwd = it }
+            absoluteDirectory(obj.string("cwd"))?.let {
+                val source = if (location == null) LocationSource.INITIAL else LocationSource.CLAUDE_CONTEXT
+                cwd = it
+                location = SessionLocation(source, recordCount, timestamp(obj))
+            }
             obj.string("gitBranch")?.let { gitBranch = it }
             obj.string("version")?.let { version = it }
         }
 
+        private fun offerWorktree(obj: JsonObject) {
+            val state = obj.get("worktreeSession") ?: return
+            if (state.isJsonNull) {
+                location = location?.copy(record = recordCount, uncertain = true,
+                    explanation = "Worktree state cleared; restored directory not yet recorded")
+            } else if (state.isJsonObject) {
+                absoluteDirectory(state.asJsonObject.string("worktreePath"))?.let {
+                    cwd = it
+                    location = SessionLocation(LocationSource.CLAUDE_WORKTREE_STATE, recordCount, timestamp(obj))
+                }
+            }
+        }
+
+        private fun timestamp(obj: JsonObject) = obj.string("timestamp")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+
         fun build() = TranscriptInfo(
-            sessionId, cwd, gitBranch, version, promptTitle, aiTitle, customTitle, startedAt, promptCount, continuationId,
+            sessionId, cwd, gitBranch, version, promptTitle, aiTitle, customTitle, startedAt, promptCount, continuationId, location, recordCount,
         )
     }
+
+    internal fun absoluteDirectory(value: String?): String? = value?.takeIf { it.isNotBlank() }
+        ?.takeIf { runCatching { Path.of(it).isAbsolute }.getOrDefault(false) }
 
     internal fun parseObject(line: String): JsonObject? = try {
         JsonParser.parseString(line).takeIf { it.isJsonObject }?.asJsonObject

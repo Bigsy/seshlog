@@ -14,6 +14,7 @@ import java.time.Instant
 data class LiveSession(
     val pid: Long,
     val sessionId: String,
+    /** Registration cwd; statusUpdatedAt does not date this field. Never overrides transcript context. */
     val cwd: String?,
     val status: String?,
     val statusUpdatedAt: Instant? = null,

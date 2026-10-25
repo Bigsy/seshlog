@@ -105,9 +105,25 @@ class ClaudeCodeSessionProvider(
                 activitySince = liveEntry?.statusUpdatedAt,
                 subagentTranscriptPaths = subagents,
                 continuationId = info.continuationId,
+                location = info.location,
             )
         }
-        return sessions
+        return sessions.groupBy { it.id }.values.map { copies ->
+            if (copies.size == 1) copies.single() else selectTranscript(copies, previous[copies.first().id])
+        }
+    }
+
+    /** Relocation can leave multiple discoveries. Compare recorded evidence, never enumeration order. */
+    private fun selectTranscript(copies: List<Session>, previous: Session?): Session {
+        val ordered = copies.sortedWith(compareByDescending<Session> { it.location?.timestamp ?: Instant.MIN }
+            .thenByDescending { it.location?.record ?: 0 }.thenBy { it.transcriptPath.toString() })
+        val newest = ordered.first()
+        val conflict = copies.any { it.cwd != newest.cwd &&
+            (it.location?.timestamp == null || newest.location?.timestamp == null || it.location.timestamp == newest.location.timestamp) }
+        if (!conflict) return newest
+        val retained = copies.firstOrNull { it.transcriptPath == previous?.transcriptPath } ?: newest
+        return retained.copy(location = retained.location?.copy(uncertain = true,
+            explanation = "Conflicting relocated transcripts; last known location retained"))
     }
 
     override fun conversationText(session: Session): List<String> =

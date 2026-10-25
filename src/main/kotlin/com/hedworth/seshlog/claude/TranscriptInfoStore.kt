@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.claude
 
 import com.google.gson.JsonObject
+import com.hedworth.seshlog.cache.LocationInfoStore
 import com.hedworth.seshlog.cache.InfoStore
 import com.hedworth.seshlog.cache.InfoStore.Companion.long
 import com.hedworth.seshlog.cache.InfoStore.Companion.string
@@ -10,13 +11,15 @@ import java.time.Instant
  * Persistent metadata-only cache for parsed Claude Code transcripts (see [InfoStore]). Version 1
  * stored the raw first prompt; those caches are dropped rather than migrated.
  */
-private const val CACHE_VERSION = 6
+private const val CACHE_VERSION = 7
 
 object TranscriptInfoStore : InfoStore<TranscriptInfo>(CACHE_VERSION, ::write, ::read) {
     const val VERSION = CACHE_VERSION
 }
 
 private fun write(i: TranscriptInfo, o: JsonObject) {
+    LocationInfoStore.write(i.location, o)
+    o.addProperty("recordCount", i.recordCount)
     o.addProperty("sessionId", i.sessionId)
     o.addProperty("cwd", i.cwd)
     o.addProperty("gitBranch", i.gitBranch)
@@ -30,6 +33,8 @@ private fun write(i: TranscriptInfo, o: JsonObject) {
 }
 
 private fun read(o: JsonObject) = TranscriptInfo(
+    location = LocationInfoStore.read(o),
+    recordCount = o.long("recordCount") ?: 0,
     sessionId = o.string("sessionId"),
     cwd = o.string("cwd"),
     gitBranch = o.string("gitBranch"),

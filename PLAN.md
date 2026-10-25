@@ -900,7 +900,7 @@ depends on an endpoint, credentials, native helper or installed model.
 
 ### 0. Freeze behavior and build the evaluation harness
 
-- [ ] **Deliverable:** encode section 5 as explicit test cases; expand/split the synthetic corpus
+- [x] **Deliverable:** encode section 5 as explicit test cases; expand/split the synthetic corpus
   per section 9; add a common evaluator for production literal/BM25 and optional model methods.
 - Add labels with multiple relevant sessions, hard negatives, exact/phrase categories and a frozen
   evaluation split. Include query cases with two phrases in different entries, a phrase crossing
@@ -913,6 +913,17 @@ depends on an endpoint, credentials, native helper or installed model.
   happens to occupy `ContentSearchIndex` when comparing against the old algorithm.
 - **Done when:** deterministic metric/fixture tests and `make check` pass; corpus/version/split and
   baseline results are recorded here; no model is needed for the ordinary evaluation tests.
+
+Item 0 evidence (2026-10-25): `make check` passed. Frozen literal implementation and its
+regression tests now live in the test source set; both original benchmarks use that adapter.
+`fixtures/search/retrieval-v1.json` v1/seed 0 contains 200 synthetic sessions, 150 positive queries
+(including multi-label cases), 50 negatives, family-separated 100/100 development/evaluation queries.
+SHA-256 `1ccad9157d44ee0a76a27097276c4b90e25d29df92c7151b87610a2e03d031fa`.
+Old baseline: hit@1/recall@5 0.6667, no-answer false-positive rate 0. This generated corpus is
+intentionally a contract/load scaffold, not independently judged evidence of real-history quality;
+manual label review and broader resource/manual release gates remain owed. Exact boundary cases
+are frozen separately in `fixtures/search/query-contract.json`. Metrics validate references,
+duplicate IDs/rankings, missing rankings, multiple relevant labels and empty/truncated results.
 
 ### 1. Implement query compilation and SQLite ranking semantics
 

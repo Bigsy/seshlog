@@ -1,5 +1,8 @@
 package com.hedworth.seshlog.index
 
+import com.hedworth.seshlog.index.evaluation.LegacyLiteralSearchIndex as ContentSearchIndex
+import com.hedworth.seshlog.index.evaluation.LegacySearchHit as SearchHit
+
 import com.hedworth.seshlog.cache.FileStamp
 import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.ConversationMessage

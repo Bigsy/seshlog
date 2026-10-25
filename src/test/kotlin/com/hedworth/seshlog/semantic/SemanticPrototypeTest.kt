@@ -1,6 +1,6 @@
 package com.hedworth.seshlog.semantic
 
-import com.hedworth.seshlog.index.ContentSearchIndex
+import com.hedworth.seshlog.index.evaluation.LegacyLiteralSearchIndex as ContentSearchIndex
 import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.EntryKind

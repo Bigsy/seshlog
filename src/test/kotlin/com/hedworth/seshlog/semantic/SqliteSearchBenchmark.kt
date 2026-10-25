@@ -1,7 +1,7 @@
 package com.hedworth.seshlog.semantic
 
 import com.google.gson.Gson
-import com.hedworth.seshlog.index.ContentSearchIndex
+import com.hedworth.seshlog.index.evaluation.LegacyLiteralSearchIndex as ContentSearchIndex
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Files

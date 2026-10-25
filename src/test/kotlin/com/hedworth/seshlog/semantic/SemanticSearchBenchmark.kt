@@ -4,7 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
 import com.hedworth.seshlog.codex.CodexSessionProvider
-import com.hedworth.seshlog.index.ContentSearchIndex
+import com.hedworth.seshlog.index.evaluation.LegacyLiteralSearchIndex as ContentSearchIndex
 import com.hedworth.seshlog.index.TextQuery
 import com.hedworth.seshlog.model.*
 import com.hedworth.seshlog.opencode.OpenCodeSessionProvider

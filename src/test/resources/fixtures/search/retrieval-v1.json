@@ -1,0 +1,4060 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "seed": 0,
+  "description": "Frozen scenario families; two relevant alternatives and two distractors per family. Generated synthetic labels, not representative real-history ground truth.",
+  "sessions": [
+    {
+      "id": "f00a",
+      "family": "f00",
+      "split": "development",
+      "title": "payments recovery",
+      "cwd": "/synthetic/f00",
+      "messages": [
+        "Repair payments retries with durable checkpoints.",
+        "Failure code ERR_PAYMENTS_409",
+        "payments database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f00b",
+      "family": "f00",
+      "split": "development",
+      "title": "payments reference",
+      "cwd": "/synthetic/f00",
+      "messages": [
+        "payments durable checkpoints prevent duplicate retries.",
+        "ERR_PAYMENTS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f00c",
+      "family": "f00",
+      "split": "development",
+      "title": "payments rejected approach",
+      "cwd": "/synthetic/f00",
+      "messages": [
+        "payments unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f00d",
+      "family": "f00",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f00",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f01a",
+      "family": "f01",
+      "split": "development",
+      "title": "sockets recovery",
+      "cwd": "/synthetic/f01",
+      "messages": [
+        "Repair sockets retries with durable checkpoints.",
+        "Failure code ERR_SOCKETS_409",
+        "sockets database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f01b",
+      "family": "f01",
+      "split": "development",
+      "title": "sockets reference",
+      "cwd": "/synthetic/f01",
+      "messages": [
+        "sockets durable checkpoints prevent duplicate retries.",
+        "ERR_SOCKETS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f01c",
+      "family": "f01",
+      "split": "development",
+      "title": "sockets rejected approach",
+      "cwd": "/synthetic/f01",
+      "messages": [
+        "sockets unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f01d",
+      "family": "f01",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f01",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f02a",
+      "family": "f02",
+      "split": "development",
+      "title": "migrations recovery",
+      "cwd": "/synthetic/f02",
+      "messages": [
+        "Repair migrations retries with durable checkpoints.",
+        "Failure code ERR_MIGRATIONS_409",
+        "migrations database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f02b",
+      "family": "f02",
+      "split": "development",
+      "title": "migrations reference",
+      "cwd": "/synthetic/f02",
+      "messages": [
+        "migrations durable checkpoints prevent duplicate retries.",
+        "ERR_MIGRATIONS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f02c",
+      "family": "f02",
+      "split": "development",
+      "title": "migrations rejected approach",
+      "cwd": "/synthetic/f02",
+      "messages": [
+        "migrations unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f02d",
+      "family": "f02",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f02",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f03a",
+      "family": "f03",
+      "split": "development",
+      "title": "scheduler recovery",
+      "cwd": "/synthetic/f03",
+      "messages": [
+        "Repair scheduler retries with durable checkpoints.",
+        "Failure code ERR_SCHEDULER_409",
+        "scheduler database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f03b",
+      "family": "f03",
+      "split": "development",
+      "title": "scheduler reference",
+      "cwd": "/synthetic/f03",
+      "messages": [
+        "scheduler durable checkpoints prevent duplicate retries.",
+        "ERR_SCHEDULER_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f03c",
+      "family": "f03",
+      "split": "development",
+      "title": "scheduler rejected approach",
+      "cwd": "/synthetic/f03",
+      "messages": [
+        "scheduler unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f03d",
+      "family": "f03",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f03",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f04a",
+      "family": "f04",
+      "split": "development",
+      "title": "certificates recovery",
+      "cwd": "/synthetic/f04",
+      "messages": [
+        "Repair certificates retries with durable checkpoints.",
+        "Failure code ERR_CERTIFICATES_409",
+        "certificates database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f04b",
+      "family": "f04",
+      "split": "development",
+      "title": "certificates reference",
+      "cwd": "/synthetic/f04",
+      "messages": [
+        "certificates durable checkpoints prevent duplicate retries.",
+        "ERR_CERTIFICATES_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f04c",
+      "family": "f04",
+      "split": "development",
+      "title": "certificates rejected approach",
+      "cwd": "/synthetic/f04",
+      "messages": [
+        "certificates unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f04d",
+      "family": "f04",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f04",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f05a",
+      "family": "f05",
+      "split": "development",
+      "title": "pagination recovery",
+      "cwd": "/synthetic/f05",
+      "messages": [
+        "Repair pagination retries with durable checkpoints.",
+        "Failure code ERR_PAGINATION_409",
+        "pagination database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f05b",
+      "family": "f05",
+      "split": "development",
+      "title": "pagination reference",
+      "cwd": "/synthetic/f05",
+      "messages": [
+        "pagination durable checkpoints prevent duplicate retries.",
+        "ERR_PAGINATION_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f05c",
+      "family": "f05",
+      "split": "development",
+      "title": "pagination rejected approach",
+      "cwd": "/synthetic/f05",
+      "messages": [
+        "pagination unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f05d",
+      "family": "f05",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f05",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f06a",
+      "family": "f06",
+      "split": "development",
+      "title": "inventory recovery",
+      "cwd": "/synthetic/f06",
+      "messages": [
+        "Repair inventory retries with durable checkpoints.",
+        "Failure code ERR_INVENTORY_409",
+        "inventory database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f06b",
+      "family": "f06",
+      "split": "development",
+      "title": "inventory reference",
+      "cwd": "/synthetic/f06",
+      "messages": [
+        "inventory durable checkpoints prevent duplicate retries.",
+        "ERR_INVENTORY_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f06c",
+      "family": "f06",
+      "split": "development",
+      "title": "inventory rejected approach",
+      "cwd": "/synthetic/f06",
+      "messages": [
+        "inventory unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f06d",
+      "family": "f06",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f06",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f07a",
+      "family": "f07",
+      "split": "development",
+      "title": "renderer recovery",
+      "cwd": "/synthetic/f07",
+      "messages": [
+        "Repair renderer retries with durable checkpoints.",
+        "Failure code ERR_RENDERER_409",
+        "renderer database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f07b",
+      "family": "f07",
+      "split": "development",
+      "title": "renderer reference",
+      "cwd": "/synthetic/f07",
+      "messages": [
+        "renderer durable checkpoints prevent duplicate retries.",
+        "ERR_RENDERER_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f07c",
+      "family": "f07",
+      "split": "development",
+      "title": "renderer rejected approach",
+      "cwd": "/synthetic/f07",
+      "messages": [
+        "renderer unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f07d",
+      "family": "f07",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f07",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f08a",
+      "family": "f08",
+      "split": "development",
+      "title": "compiler recovery",
+      "cwd": "/synthetic/f08",
+      "messages": [
+        "Repair compiler retries with durable checkpoints.",
+        "Failure code ERR_COMPILER_409",
+        "compiler database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f08b",
+      "family": "f08",
+      "split": "development",
+      "title": "compiler reference",
+      "cwd": "/synthetic/f08",
+      "messages": [
+        "compiler durable checkpoints prevent duplicate retries.",
+        "ERR_COMPILER_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f08c",
+      "family": "f08",
+      "split": "development",
+      "title": "compiler rejected approach",
+      "cwd": "/synthetic/f08",
+      "messages": [
+        "compiler unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f08d",
+      "family": "f08",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f08",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f09a",
+      "family": "f09",
+      "split": "development",
+      "title": "queues recovery",
+      "cwd": "/synthetic/f09",
+      "messages": [
+        "Repair queues retries with durable checkpoints.",
+        "Failure code ERR_QUEUES_409",
+        "queues database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f09b",
+      "family": "f09",
+      "split": "development",
+      "title": "queues reference",
+      "cwd": "/synthetic/f09",
+      "messages": [
+        "queues durable checkpoints prevent duplicate retries.",
+        "ERR_QUEUES_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f09c",
+      "family": "f09",
+      "split": "development",
+      "title": "queues rejected approach",
+      "cwd": "/synthetic/f09",
+      "messages": [
+        "queues unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f09d",
+      "family": "f09",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f09",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f10a",
+      "family": "f10",
+      "split": "development",
+      "title": "encryption recovery",
+      "cwd": "/synthetic/f10",
+      "messages": [
+        "Repair encryption retries with durable checkpoints.",
+        "Failure code ERR_ENCRYPTION_409",
+        "encryption database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f10b",
+      "family": "f10",
+      "split": "development",
+      "title": "encryption reference",
+      "cwd": "/synthetic/f10",
+      "messages": [
+        "encryption durable checkpoints prevent duplicate retries.",
+        "ERR_ENCRYPTION_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f10c",
+      "family": "f10",
+      "split": "development",
+      "title": "encryption rejected approach",
+      "cwd": "/synthetic/f10",
+      "messages": [
+        "encryption unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f10d",
+      "family": "f10",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f10",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f11a",
+      "family": "f11",
+      "split": "development",
+      "title": "backups recovery",
+      "cwd": "/synthetic/f11",
+      "messages": [
+        "Repair backups retries with durable checkpoints.",
+        "Failure code ERR_BACKUPS_409",
+        "backups database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f11b",
+      "family": "f11",
+      "split": "development",
+      "title": "backups reference",
+      "cwd": "/synthetic/f11",
+      "messages": [
+        "backups durable checkpoints prevent duplicate retries.",
+        "ERR_BACKUPS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f11c",
+      "family": "f11",
+      "split": "development",
+      "title": "backups rejected approach",
+      "cwd": "/synthetic/f11",
+      "messages": [
+        "backups unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f11d",
+      "family": "f11",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f11",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f12a",
+      "family": "f12",
+      "split": "development",
+      "title": "routing recovery",
+      "cwd": "/synthetic/f12",
+      "messages": [
+        "Repair routing retries with durable checkpoints.",
+        "Failure code ERR_ROUTING_409",
+        "routing database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f12b",
+      "family": "f12",
+      "split": "development",
+      "title": "routing reference",
+      "cwd": "/synthetic/f12",
+      "messages": [
+        "routing durable checkpoints prevent duplicate retries.",
+        "ERR_ROUTING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f12c",
+      "family": "f12",
+      "split": "development",
+      "title": "routing rejected approach",
+      "cwd": "/synthetic/f12",
+      "messages": [
+        "routing unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f12d",
+      "family": "f12",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f12",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f13a",
+      "family": "f13",
+      "split": "development",
+      "title": "telemetry recovery",
+      "cwd": "/synthetic/f13",
+      "messages": [
+        "Repair telemetry retries with durable checkpoints.",
+        "Failure code ERR_TELEMETRY_409",
+        "telemetry database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f13b",
+      "family": "f13",
+      "split": "development",
+      "title": "telemetry reference",
+      "cwd": "/synthetic/f13",
+      "messages": [
+        "telemetry durable checkpoints prevent duplicate retries.",
+        "ERR_TELEMETRY_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f13c",
+      "family": "f13",
+      "split": "development",
+      "title": "telemetry rejected approach",
+      "cwd": "/synthetic/f13",
+      "messages": [
+        "telemetry unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f13d",
+      "family": "f13",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f13",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f14a",
+      "family": "f14",
+      "split": "development",
+      "title": "notifications recovery",
+      "cwd": "/synthetic/f14",
+      "messages": [
+        "Repair notifications retries with durable checkpoints.",
+        "Failure code ERR_NOTIFICATIONS_409",
+        "notifications database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f14b",
+      "family": "f14",
+      "split": "development",
+      "title": "notifications reference",
+      "cwd": "/synthetic/f14",
+      "messages": [
+        "notifications durable checkpoints prevent duplicate retries.",
+        "ERR_NOTIFICATIONS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f14c",
+      "family": "f14",
+      "split": "development",
+      "title": "notifications rejected approach",
+      "cwd": "/synthetic/f14",
+      "messages": [
+        "notifications unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f14d",
+      "family": "f14",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f14",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f15a",
+      "family": "f15",
+      "split": "development",
+      "title": "checkout recovery",
+      "cwd": "/synthetic/f15",
+      "messages": [
+        "Repair checkout retries with durable checkpoints.",
+        "Failure code ERR_CHECKOUT_409",
+        "checkout database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f15b",
+      "family": "f15",
+      "split": "development",
+      "title": "checkout reference",
+      "cwd": "/synthetic/f15",
+      "messages": [
+        "checkout durable checkpoints prevent duplicate retries.",
+        "ERR_CHECKOUT_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f15c",
+      "family": "f15",
+      "split": "development",
+      "title": "checkout rejected approach",
+      "cwd": "/synthetic/f15",
+      "messages": [
+        "checkout unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f15d",
+      "family": "f15",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f15",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f16a",
+      "family": "f16",
+      "split": "development",
+      "title": "deployments recovery",
+      "cwd": "/synthetic/f16",
+      "messages": [
+        "Repair deployments retries with durable checkpoints.",
+        "Failure code ERR_DEPLOYMENTS_409",
+        "deployments database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f16b",
+      "family": "f16",
+      "split": "development",
+      "title": "deployments reference",
+      "cwd": "/synthetic/f16",
+      "messages": [
+        "deployments durable checkpoints prevent duplicate retries.",
+        "ERR_DEPLOYMENTS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f16c",
+      "family": "f16",
+      "split": "development",
+      "title": "deployments rejected approach",
+      "cwd": "/synthetic/f16",
+      "messages": [
+        "deployments unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f16d",
+      "family": "f16",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f16",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f17a",
+      "family": "f17",
+      "split": "development",
+      "title": "caching recovery",
+      "cwd": "/synthetic/f17",
+      "messages": [
+        "Repair caching retries with durable checkpoints.",
+        "Failure code ERR_CACHING_409",
+        "caching database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f17b",
+      "family": "f17",
+      "split": "development",
+      "title": "caching reference",
+      "cwd": "/synthetic/f17",
+      "messages": [
+        "caching durable checkpoints prevent duplicate retries.",
+        "ERR_CACHING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f17c",
+      "family": "f17",
+      "split": "development",
+      "title": "caching rejected approach",
+      "cwd": "/synthetic/f17",
+      "messages": [
+        "caching unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f17d",
+      "family": "f17",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f17",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f18a",
+      "family": "f18",
+      "split": "development",
+      "title": "webhooks recovery",
+      "cwd": "/synthetic/f18",
+      "messages": [
+        "Repair webhooks retries with durable checkpoints.",
+        "Failure code ERR_WEBHOOKS_409",
+        "webhooks database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f18b",
+      "family": "f18",
+      "split": "development",
+      "title": "webhooks reference",
+      "cwd": "/synthetic/f18",
+      "messages": [
+        "webhooks durable checkpoints prevent duplicate retries.",
+        "ERR_WEBHOOKS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f18c",
+      "family": "f18",
+      "split": "development",
+      "title": "webhooks rejected approach",
+      "cwd": "/synthetic/f18",
+      "messages": [
+        "webhooks unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f18d",
+      "family": "f18",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f18",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f19a",
+      "family": "f19",
+      "split": "development",
+      "title": "uploads recovery",
+      "cwd": "/synthetic/f19",
+      "messages": [
+        "Repair uploads retries with durable checkpoints.",
+        "Failure code ERR_UPLOADS_409",
+        "uploads database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f19b",
+      "family": "f19",
+      "split": "development",
+      "title": "uploads reference",
+      "cwd": "/synthetic/f19",
+      "messages": [
+        "uploads durable checkpoints prevent duplicate retries.",
+        "ERR_UPLOADS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f19c",
+      "family": "f19",
+      "split": "development",
+      "title": "uploads rejected approach",
+      "cwd": "/synthetic/f19",
+      "messages": [
+        "uploads unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f19d",
+      "family": "f19",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f19",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f20a",
+      "family": "f20",
+      "split": "development",
+      "title": "downloads recovery",
+      "cwd": "/synthetic/f20",
+      "messages": [
+        "Repair downloads retries with durable checkpoints.",
+        "Failure code ERR_DOWNLOADS_409",
+        "downloads database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f20b",
+      "family": "f20",
+      "split": "development",
+      "title": "downloads reference",
+      "cwd": "/synthetic/f20",
+      "messages": [
+        "downloads durable checkpoints prevent duplicate retries.",
+        "ERR_DOWNLOADS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f20c",
+      "family": "f20",
+      "split": "development",
+      "title": "downloads rejected approach",
+      "cwd": "/synthetic/f20",
+      "messages": [
+        "downloads unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f20d",
+      "family": "f20",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f20",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f21a",
+      "family": "f21",
+      "split": "development",
+      "title": "replication recovery",
+      "cwd": "/synthetic/f21",
+      "messages": [
+        "Repair replication retries with durable checkpoints.",
+        "Failure code ERR_REPLICATION_409",
+        "replication database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f21b",
+      "family": "f21",
+      "split": "development",
+      "title": "replication reference",
+      "cwd": "/synthetic/f21",
+      "messages": [
+        "replication durable checkpoints prevent duplicate retries.",
+        "ERR_REPLICATION_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f21c",
+      "family": "f21",
+      "split": "development",
+      "title": "replication rejected approach",
+      "cwd": "/synthetic/f21",
+      "messages": [
+        "replication unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f21d",
+      "family": "f21",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f21",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f22a",
+      "family": "f22",
+      "split": "development",
+      "title": "permissions recovery",
+      "cwd": "/synthetic/f22",
+      "messages": [
+        "Repair permissions retries with durable checkpoints.",
+        "Failure code ERR_PERMISSIONS_409",
+        "permissions database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f22b",
+      "family": "f22",
+      "split": "development",
+      "title": "permissions reference",
+      "cwd": "/synthetic/f22",
+      "messages": [
+        "permissions durable checkpoints prevent duplicate retries.",
+        "ERR_PERMISSIONS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f22c",
+      "family": "f22",
+      "split": "development",
+      "title": "permissions rejected approach",
+      "cwd": "/synthetic/f22",
+      "messages": [
+        "permissions unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f22d",
+      "family": "f22",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f22",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f23a",
+      "family": "f23",
+      "split": "development",
+      "title": "authentication recovery",
+      "cwd": "/synthetic/f23",
+      "messages": [
+        "Repair authentication retries with durable checkpoints.",
+        "Failure code ERR_AUTHENTICATION_409",
+        "authentication database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f23b",
+      "family": "f23",
+      "split": "development",
+      "title": "authentication reference",
+      "cwd": "/synthetic/f23",
+      "messages": [
+        "authentication durable checkpoints prevent duplicate retries.",
+        "ERR_AUTHENTICATION_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f23c",
+      "family": "f23",
+      "split": "development",
+      "title": "authentication rejected approach",
+      "cwd": "/synthetic/f23",
+      "messages": [
+        "authentication unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f23d",
+      "family": "f23",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f23",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f24a",
+      "family": "f24",
+      "split": "development",
+      "title": "billing recovery",
+      "cwd": "/synthetic/f24",
+      "messages": [
+        "Repair billing retries with durable checkpoints.",
+        "Failure code ERR_BILLING_409",
+        "billing database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f24b",
+      "family": "f24",
+      "split": "development",
+      "title": "billing reference",
+      "cwd": "/synthetic/f24",
+      "messages": [
+        "billing durable checkpoints prevent duplicate retries.",
+        "ERR_BILLING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f24c",
+      "family": "f24",
+      "split": "development",
+      "title": "billing rejected approach",
+      "cwd": "/synthetic/f24",
+      "messages": [
+        "billing unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f24d",
+      "family": "f24",
+      "split": "development",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f24",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f25a",
+      "family": "f25",
+      "split": "evaluation",
+      "title": "shipping recovery",
+      "cwd": "/synthetic/f25",
+      "messages": [
+        "Repair shipping retries with durable checkpoints.",
+        "Failure code ERR_SHIPPING_409",
+        "shipping database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f25b",
+      "family": "f25",
+      "split": "evaluation",
+      "title": "shipping reference",
+      "cwd": "/synthetic/f25",
+      "messages": [
+        "shipping durable checkpoints prevent duplicate retries.",
+        "ERR_SHIPPING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f25c",
+      "family": "f25",
+      "split": "evaluation",
+      "title": "shipping rejected approach",
+      "cwd": "/synthetic/f25",
+      "messages": [
+        "shipping unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f25d",
+      "family": "f25",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f25",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f26a",
+      "family": "f26",
+      "split": "evaluation",
+      "title": "refunds recovery",
+      "cwd": "/synthetic/f26",
+      "messages": [
+        "Repair refunds retries with durable checkpoints.",
+        "Failure code ERR_REFUNDS_409",
+        "refunds database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f26b",
+      "family": "f26",
+      "split": "evaluation",
+      "title": "refunds reference",
+      "cwd": "/synthetic/f26",
+      "messages": [
+        "refunds durable checkpoints prevent duplicate retries.",
+        "ERR_REFUNDS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f26c",
+      "family": "f26",
+      "split": "evaluation",
+      "title": "refunds rejected approach",
+      "cwd": "/synthetic/f26",
+      "messages": [
+        "refunds unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f26d",
+      "family": "f26",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f26",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f27a",
+      "family": "f27",
+      "split": "evaluation",
+      "title": "invoices recovery",
+      "cwd": "/synthetic/f27",
+      "messages": [
+        "Repair invoices retries with durable checkpoints.",
+        "Failure code ERR_INVOICES_409",
+        "invoices database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f27b",
+      "family": "f27",
+      "split": "evaluation",
+      "title": "invoices reference",
+      "cwd": "/synthetic/f27",
+      "messages": [
+        "invoices durable checkpoints prevent duplicate retries.",
+        "ERR_INVOICES_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f27c",
+      "family": "f27",
+      "split": "evaluation",
+      "title": "invoices rejected approach",
+      "cwd": "/synthetic/f27",
+      "messages": [
+        "invoices unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f27d",
+      "family": "f27",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f27",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f28a",
+      "family": "f28",
+      "split": "evaluation",
+      "title": "reports recovery",
+      "cwd": "/synthetic/f28",
+      "messages": [
+        "Repair reports retries with durable checkpoints.",
+        "Failure code ERR_REPORTS_409",
+        "reports database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f28b",
+      "family": "f28",
+      "split": "evaluation",
+      "title": "reports reference",
+      "cwd": "/synthetic/f28",
+      "messages": [
+        "reports durable checkpoints prevent duplicate retries.",
+        "ERR_REPORTS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f28c",
+      "family": "f28",
+      "split": "evaluation",
+      "title": "reports rejected approach",
+      "cwd": "/synthetic/f28",
+      "messages": [
+        "reports unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f28d",
+      "family": "f28",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f28",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f29a",
+      "family": "f29",
+      "split": "evaluation",
+      "title": "exports recovery",
+      "cwd": "/synthetic/f29",
+      "messages": [
+        "Repair exports retries with durable checkpoints.",
+        "Failure code ERR_EXPORTS_409",
+        "exports database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f29b",
+      "family": "f29",
+      "split": "evaluation",
+      "title": "exports reference",
+      "cwd": "/synthetic/f29",
+      "messages": [
+        "exports durable checkpoints prevent duplicate retries.",
+        "ERR_EXPORTS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f29c",
+      "family": "f29",
+      "split": "evaluation",
+      "title": "exports rejected approach",
+      "cwd": "/synthetic/f29",
+      "messages": [
+        "exports unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f29d",
+      "family": "f29",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f29",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f30a",
+      "family": "f30",
+      "split": "evaluation",
+      "title": "imports recovery",
+      "cwd": "/synthetic/f30",
+      "messages": [
+        "Repair imports retries with durable checkpoints.",
+        "Failure code ERR_IMPORTS_409",
+        "imports database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f30b",
+      "family": "f30",
+      "split": "evaluation",
+      "title": "imports reference",
+      "cwd": "/synthetic/f30",
+      "messages": [
+        "imports durable checkpoints prevent duplicate retries.",
+        "ERR_IMPORTS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f30c",
+      "family": "f30",
+      "split": "evaluation",
+      "title": "imports rejected approach",
+      "cwd": "/synthetic/f30",
+      "messages": [
+        "imports unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f30d",
+      "family": "f30",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f30",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f31a",
+      "family": "f31",
+      "split": "evaluation",
+      "title": "subscriptions recovery",
+      "cwd": "/synthetic/f31",
+      "messages": [
+        "Repair subscriptions retries with durable checkpoints.",
+        "Failure code ERR_SUBSCRIPTIONS_409",
+        "subscriptions database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f31b",
+      "family": "f31",
+      "split": "evaluation",
+      "title": "subscriptions reference",
+      "cwd": "/synthetic/f31",
+      "messages": [
+        "subscriptions durable checkpoints prevent duplicate retries.",
+        "ERR_SUBSCRIPTIONS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f31c",
+      "family": "f31",
+      "split": "evaluation",
+      "title": "subscriptions rejected approach",
+      "cwd": "/synthetic/f31",
+      "messages": [
+        "subscriptions unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f31d",
+      "family": "f31",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f31",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f32a",
+      "family": "f32",
+      "split": "evaluation",
+      "title": "search recovery",
+      "cwd": "/synthetic/f32",
+      "messages": [
+        "Repair search retries with durable checkpoints.",
+        "Failure code ERR_SEARCH_409",
+        "search database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f32b",
+      "family": "f32",
+      "split": "evaluation",
+      "title": "search reference",
+      "cwd": "/synthetic/f32",
+      "messages": [
+        "search durable checkpoints prevent duplicate retries.",
+        "ERR_SEARCH_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f32c",
+      "family": "f32",
+      "split": "evaluation",
+      "title": "search rejected approach",
+      "cwd": "/synthetic/f32",
+      "messages": [
+        "search unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f32d",
+      "family": "f32",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f32",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f33a",
+      "family": "f33",
+      "split": "evaluation",
+      "title": "indexing recovery",
+      "cwd": "/synthetic/f33",
+      "messages": [
+        "Repair indexing retries with durable checkpoints.",
+        "Failure code ERR_INDEXING_409",
+        "indexing database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f33b",
+      "family": "f33",
+      "split": "evaluation",
+      "title": "indexing reference",
+      "cwd": "/synthetic/f33",
+      "messages": [
+        "indexing durable checkpoints prevent duplicate retries.",
+        "ERR_INDEXING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f33c",
+      "family": "f33",
+      "split": "evaluation",
+      "title": "indexing rejected approach",
+      "cwd": "/synthetic/f33",
+      "messages": [
+        "indexing unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f33d",
+      "family": "f33",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f33",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f34a",
+      "family": "f34",
+      "split": "evaluation",
+      "title": "terminals recovery",
+      "cwd": "/synthetic/f34",
+      "messages": [
+        "Repair terminals retries with durable checkpoints.",
+        "Failure code ERR_TERMINALS_409",
+        "terminals database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f34b",
+      "family": "f34",
+      "split": "evaluation",
+      "title": "terminals reference",
+      "cwd": "/synthetic/f34",
+      "messages": [
+        "terminals durable checkpoints prevent duplicate retries.",
+        "ERR_TERMINALS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f34c",
+      "family": "f34",
+      "split": "evaluation",
+      "title": "terminals rejected approach",
+      "cwd": "/synthetic/f34",
+      "messages": [
+        "terminals unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f34d",
+      "family": "f34",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f34",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f35a",
+      "family": "f35",
+      "split": "evaluation",
+      "title": "worktrees recovery",
+      "cwd": "/synthetic/f35",
+      "messages": [
+        "Repair worktrees retries with durable checkpoints.",
+        "Failure code ERR_WORKTREES_409",
+        "worktrees database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f35b",
+      "family": "f35",
+      "split": "evaluation",
+      "title": "worktrees reference",
+      "cwd": "/synthetic/f35",
+      "messages": [
+        "worktrees durable checkpoints prevent duplicate retries.",
+        "ERR_WORKTREES_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f35c",
+      "family": "f35",
+      "split": "evaluation",
+      "title": "worktrees rejected approach",
+      "cwd": "/synthetic/f35",
+      "messages": [
+        "worktrees unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f35d",
+      "family": "f35",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f35",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f36a",
+      "family": "f36",
+      "split": "evaluation",
+      "title": "processes recovery",
+      "cwd": "/synthetic/f36",
+      "messages": [
+        "Repair processes retries with durable checkpoints.",
+        "Failure code ERR_PROCESSES_409",
+        "processes database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f36b",
+      "family": "f36",
+      "split": "evaluation",
+      "title": "processes reference",
+      "cwd": "/synthetic/f36",
+      "messages": [
+        "processes durable checkpoints prevent duplicate retries.",
+        "ERR_PROCESSES_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f36c",
+      "family": "f36",
+      "split": "evaluation",
+      "title": "processes rejected approach",
+      "cwd": "/synthetic/f36",
+      "messages": [
+        "processes unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f36d",
+      "family": "f36",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f36",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f37a",
+      "family": "f37",
+      "split": "evaluation",
+      "title": "tracing recovery",
+      "cwd": "/synthetic/f37",
+      "messages": [
+        "Repair tracing retries with durable checkpoints.",
+        "Failure code ERR_TRACING_409",
+        "tracing database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f37b",
+      "family": "f37",
+      "split": "evaluation",
+      "title": "tracing reference",
+      "cwd": "/synthetic/f37",
+      "messages": [
+        "tracing durable checkpoints prevent duplicate retries.",
+        "ERR_TRACING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f37c",
+      "family": "f37",
+      "split": "evaluation",
+      "title": "tracing rejected approach",
+      "cwd": "/synthetic/f37",
+      "messages": [
+        "tracing unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f37d",
+      "family": "f37",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f37",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f38a",
+      "family": "f38",
+      "split": "evaluation",
+      "title": "metrics recovery",
+      "cwd": "/synthetic/f38",
+      "messages": [
+        "Repair metrics retries with durable checkpoints.",
+        "Failure code ERR_METRICS_409",
+        "metrics database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f38b",
+      "family": "f38",
+      "split": "evaluation",
+      "title": "metrics reference",
+      "cwd": "/synthetic/f38",
+      "messages": [
+        "metrics durable checkpoints prevent duplicate retries.",
+        "ERR_METRICS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f38c",
+      "family": "f38",
+      "split": "evaluation",
+      "title": "metrics rejected approach",
+      "cwd": "/synthetic/f38",
+      "messages": [
+        "metrics unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f38d",
+      "family": "f38",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f38",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f39a",
+      "family": "f39",
+      "split": "evaluation",
+      "title": "logging recovery",
+      "cwd": "/synthetic/f39",
+      "messages": [
+        "Repair logging retries with durable checkpoints.",
+        "Failure code ERR_LOGGING_409",
+        "logging database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f39b",
+      "family": "f39",
+      "split": "evaluation",
+      "title": "logging reference",
+      "cwd": "/synthetic/f39",
+      "messages": [
+        "logging durable checkpoints prevent duplicate retries.",
+        "ERR_LOGGING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f39c",
+      "family": "f39",
+      "split": "evaluation",
+      "title": "logging rejected approach",
+      "cwd": "/synthetic/f39",
+      "messages": [
+        "logging unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f39d",
+      "family": "f39",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f39",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f40a",
+      "family": "f40",
+      "split": "evaluation",
+      "title": "localization recovery",
+      "cwd": "/synthetic/f40",
+      "messages": [
+        "Repair localization retries with durable checkpoints.",
+        "Failure code ERR_LOCALIZATION_409",
+        "localization database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f40b",
+      "family": "f40",
+      "split": "evaluation",
+      "title": "localization reference",
+      "cwd": "/synthetic/f40",
+      "messages": [
+        "localization durable checkpoints prevent duplicate retries.",
+        "ERR_LOCALIZATION_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f40c",
+      "family": "f40",
+      "split": "evaluation",
+      "title": "localization rejected approach",
+      "cwd": "/synthetic/f40",
+      "messages": [
+        "localization unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f40d",
+      "family": "f40",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f40",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f41a",
+      "family": "f41",
+      "split": "evaluation",
+      "title": "accessibility recovery",
+      "cwd": "/synthetic/f41",
+      "messages": [
+        "Repair accessibility retries with durable checkpoints.",
+        "Failure code ERR_ACCESSIBILITY_409",
+        "accessibility database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f41b",
+      "family": "f41",
+      "split": "evaluation",
+      "title": "accessibility reference",
+      "cwd": "/synthetic/f41",
+      "messages": [
+        "accessibility durable checkpoints prevent duplicate retries.",
+        "ERR_ACCESSIBILITY_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f41c",
+      "family": "f41",
+      "split": "evaluation",
+      "title": "accessibility rejected approach",
+      "cwd": "/synthetic/f41",
+      "messages": [
+        "accessibility unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f41d",
+      "family": "f41",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f41",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f42a",
+      "family": "f42",
+      "split": "evaluation",
+      "title": "databases recovery",
+      "cwd": "/synthetic/f42",
+      "messages": [
+        "Repair databases retries with durable checkpoints.",
+        "Failure code ERR_DATABASES_409",
+        "databases database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f42b",
+      "family": "f42",
+      "split": "evaluation",
+      "title": "databases reference",
+      "cwd": "/synthetic/f42",
+      "messages": [
+        "databases durable checkpoints prevent duplicate retries.",
+        "ERR_DATABASES_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f42c",
+      "family": "f42",
+      "split": "evaluation",
+      "title": "databases rejected approach",
+      "cwd": "/synthetic/f42",
+      "messages": [
+        "databases unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f42d",
+      "family": "f42",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f42",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f43a",
+      "family": "f43",
+      "split": "evaluation",
+      "title": "transactions recovery",
+      "cwd": "/synthetic/f43",
+      "messages": [
+        "Repair transactions retries with durable checkpoints.",
+        "Failure code ERR_TRANSACTIONS_409",
+        "transactions database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f43b",
+      "family": "f43",
+      "split": "evaluation",
+      "title": "transactions reference",
+      "cwd": "/synthetic/f43",
+      "messages": [
+        "transactions durable checkpoints prevent duplicate retries.",
+        "ERR_TRANSACTIONS_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f43c",
+      "family": "f43",
+      "split": "evaluation",
+      "title": "transactions rejected approach",
+      "cwd": "/synthetic/f43",
+      "messages": [
+        "transactions unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f43d",
+      "family": "f43",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f43",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f44a",
+      "family": "f44",
+      "split": "evaluation",
+      "title": "locking recovery",
+      "cwd": "/synthetic/f44",
+      "messages": [
+        "Repair locking retries with durable checkpoints.",
+        "Failure code ERR_LOCKING_409",
+        "locking database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f44b",
+      "family": "f44",
+      "split": "evaluation",
+      "title": "locking reference",
+      "cwd": "/synthetic/f44",
+      "messages": [
+        "locking durable checkpoints prevent duplicate retries.",
+        "ERR_LOCKING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f44c",
+      "family": "f44",
+      "split": "evaluation",
+      "title": "locking rejected approach",
+      "cwd": "/synthetic/f44",
+      "messages": [
+        "locking unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f44d",
+      "family": "f44",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f44",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f45a",
+      "family": "f45",
+      "split": "evaluation",
+      "title": "pooling recovery",
+      "cwd": "/synthetic/f45",
+      "messages": [
+        "Repair pooling retries with durable checkpoints.",
+        "Failure code ERR_POOLING_409",
+        "pooling database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f45b",
+      "family": "f45",
+      "split": "evaluation",
+      "title": "pooling reference",
+      "cwd": "/synthetic/f45",
+      "messages": [
+        "pooling durable checkpoints prevent duplicate retries.",
+        "ERR_POOLING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f45c",
+      "family": "f45",
+      "split": "evaluation",
+      "title": "pooling rejected approach",
+      "cwd": "/synthetic/f45",
+      "messages": [
+        "pooling unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f45d",
+      "family": "f45",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f45",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f46a",
+      "family": "f46",
+      "split": "evaluation",
+      "title": "streaming recovery",
+      "cwd": "/synthetic/f46",
+      "messages": [
+        "Repair streaming retries with durable checkpoints.",
+        "Failure code ERR_STREAMING_409",
+        "streaming database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f46b",
+      "family": "f46",
+      "split": "evaluation",
+      "title": "streaming reference",
+      "cwd": "/synthetic/f46",
+      "messages": [
+        "streaming durable checkpoints prevent duplicate retries.",
+        "ERR_STREAMING_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f46c",
+      "family": "f46",
+      "split": "evaluation",
+      "title": "streaming rejected approach",
+      "cwd": "/synthetic/f46",
+      "messages": [
+        "streaming unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f46d",
+      "family": "f46",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f46",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f47a",
+      "family": "f47",
+      "split": "evaluation",
+      "title": "compression recovery",
+      "cwd": "/synthetic/f47",
+      "messages": [
+        "Repair compression retries with durable checkpoints.",
+        "Failure code ERR_COMPRESSION_409",
+        "compression database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f47b",
+      "family": "f47",
+      "split": "evaluation",
+      "title": "compression reference",
+      "cwd": "/synthetic/f47",
+      "messages": [
+        "compression durable checkpoints prevent duplicate retries.",
+        "ERR_COMPRESSION_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f47c",
+      "family": "f47",
+      "split": "evaluation",
+      "title": "compression rejected approach",
+      "cwd": "/synthetic/f47",
+      "messages": [
+        "compression unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f47d",
+      "family": "f47",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f47",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f48a",
+      "family": "f48",
+      "split": "evaluation",
+      "title": "serialization recovery",
+      "cwd": "/synthetic/f48",
+      "messages": [
+        "Repair serialization retries with durable checkpoints.",
+        "Failure code ERR_SERIALIZATION_409",
+        "serialization database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f48b",
+      "family": "f48",
+      "split": "evaluation",
+      "title": "serialization reference",
+      "cwd": "/synthetic/f48",
+      "messages": [
+        "serialization durable checkpoints prevent duplicate retries.",
+        "ERR_SERIALIZATION_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f48c",
+      "family": "f48",
+      "split": "evaluation",
+      "title": "serialization rejected approach",
+      "cwd": "/synthetic/f48",
+      "messages": [
+        "serialization unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f48d",
+      "family": "f48",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f48",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    },
+    {
+      "id": "f49a",
+      "family": "f49",
+      "split": "evaluation",
+      "title": "deadlines recovery",
+      "cwd": "/synthetic/f49",
+      "messages": [
+        "Repair deadlines retries with durable checkpoints.",
+        "Failure code ERR_DEADLINES_409",
+        "deadlines database locked",
+        "generation counter"
+      ]
+    },
+    {
+      "id": "f49b",
+      "family": "f49",
+      "split": "evaluation",
+      "title": "deadlines reference",
+      "cwd": "/synthetic/f49",
+      "messages": [
+        "deadlines durable checkpoints prevent duplicate retries.",
+        "ERR_DEADLINES_409 recovery steps"
+      ]
+    },
+    {
+      "id": "f49c",
+      "family": "f49",
+      "split": "evaluation",
+      "title": "deadlines rejected approach",
+      "cwd": "/synthetic/f49",
+      "messages": [
+        "deadlines unrelated archived draft.",
+        "database-locked generation-counter"
+      ]
+    },
+    {
+      "id": "f49d",
+      "family": "f49",
+      "split": "evaluation",
+      "title": "Daily build output",
+      "cwd": "/synthetic/f49",
+      "messages": [
+        "Build succeeded. Tests passed. No action required."
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "f00-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "payments durable checkpoints unexpectedly",
+      "relevant": [
+        "f00a",
+        "f00b"
+      ]
+    },
+    {
+      "id": "f00-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_PAYMENTS_409",
+      "relevant": [
+        "f00a",
+        "f00b"
+      ]
+    },
+    {
+      "id": "f00-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"payments database locked\" \"generation counter\"",
+      "relevant": [
+        "f00a"
+      ]
+    },
+    {
+      "id": "f00-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing payments evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f01-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "sockets durable checkpoints unexpectedly",
+      "relevant": [
+        "f01a",
+        "f01b"
+      ]
+    },
+    {
+      "id": "f01-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_SOCKETS_409",
+      "relevant": [
+        "f01a",
+        "f01b"
+      ]
+    },
+    {
+      "id": "f01-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"sockets database locked\" \"generation counter\"",
+      "relevant": [
+        "f01a"
+      ]
+    },
+    {
+      "id": "f01-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing sockets evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f02-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "migrations durable checkpoints unexpectedly",
+      "relevant": [
+        "f02a",
+        "f02b"
+      ]
+    },
+    {
+      "id": "f02-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_MIGRATIONS_409",
+      "relevant": [
+        "f02a",
+        "f02b"
+      ]
+    },
+    {
+      "id": "f02-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"migrations database locked\" \"generation counter\"",
+      "relevant": [
+        "f02a"
+      ]
+    },
+    {
+      "id": "f02-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing migrations evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f03-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "scheduler durable checkpoints unexpectedly",
+      "relevant": [
+        "f03a",
+        "f03b"
+      ]
+    },
+    {
+      "id": "f03-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_SCHEDULER_409",
+      "relevant": [
+        "f03a",
+        "f03b"
+      ]
+    },
+    {
+      "id": "f03-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"scheduler database locked\" \"generation counter\"",
+      "relevant": [
+        "f03a"
+      ]
+    },
+    {
+      "id": "f03-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing scheduler evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f04-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "certificates durable checkpoints unexpectedly",
+      "relevant": [
+        "f04a",
+        "f04b"
+      ]
+    },
+    {
+      "id": "f04-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_CERTIFICATES_409",
+      "relevant": [
+        "f04a",
+        "f04b"
+      ]
+    },
+    {
+      "id": "f04-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"certificates database locked\" \"generation counter\"",
+      "relevant": [
+        "f04a"
+      ]
+    },
+    {
+      "id": "f04-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing certificates evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f05-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "pagination durable checkpoints unexpectedly",
+      "relevant": [
+        "f05a",
+        "f05b"
+      ]
+    },
+    {
+      "id": "f05-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_PAGINATION_409",
+      "relevant": [
+        "f05a",
+        "f05b"
+      ]
+    },
+    {
+      "id": "f05-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"pagination database locked\" \"generation counter\"",
+      "relevant": [
+        "f05a"
+      ]
+    },
+    {
+      "id": "f05-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing pagination evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f06-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "inventory durable checkpoints unexpectedly",
+      "relevant": [
+        "f06a",
+        "f06b"
+      ]
+    },
+    {
+      "id": "f06-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_INVENTORY_409",
+      "relevant": [
+        "f06a",
+        "f06b"
+      ]
+    },
+    {
+      "id": "f06-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"inventory database locked\" \"generation counter\"",
+      "relevant": [
+        "f06a"
+      ]
+    },
+    {
+      "id": "f06-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing inventory evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f07-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "renderer durable checkpoints unexpectedly",
+      "relevant": [
+        "f07a",
+        "f07b"
+      ]
+    },
+    {
+      "id": "f07-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_RENDERER_409",
+      "relevant": [
+        "f07a",
+        "f07b"
+      ]
+    },
+    {
+      "id": "f07-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"renderer database locked\" \"generation counter\"",
+      "relevant": [
+        "f07a"
+      ]
+    },
+    {
+      "id": "f07-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing renderer evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f08-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "compiler durable checkpoints unexpectedly",
+      "relevant": [
+        "f08a",
+        "f08b"
+      ]
+    },
+    {
+      "id": "f08-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_COMPILER_409",
+      "relevant": [
+        "f08a",
+        "f08b"
+      ]
+    },
+    {
+      "id": "f08-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"compiler database locked\" \"generation counter\"",
+      "relevant": [
+        "f08a"
+      ]
+    },
+    {
+      "id": "f08-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing compiler evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f09-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "queues durable checkpoints unexpectedly",
+      "relevant": [
+        "f09a",
+        "f09b"
+      ]
+    },
+    {
+      "id": "f09-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_QUEUES_409",
+      "relevant": [
+        "f09a",
+        "f09b"
+      ]
+    },
+    {
+      "id": "f09-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"queues database locked\" \"generation counter\"",
+      "relevant": [
+        "f09a"
+      ]
+    },
+    {
+      "id": "f09-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing queues evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f10-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "encryption durable checkpoints unexpectedly",
+      "relevant": [
+        "f10a",
+        "f10b"
+      ]
+    },
+    {
+      "id": "f10-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_ENCRYPTION_409",
+      "relevant": [
+        "f10a",
+        "f10b"
+      ]
+    },
+    {
+      "id": "f10-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"encryption database locked\" \"generation counter\"",
+      "relevant": [
+        "f10a"
+      ]
+    },
+    {
+      "id": "f10-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing encryption evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f11-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "backups durable checkpoints unexpectedly",
+      "relevant": [
+        "f11a",
+        "f11b"
+      ]
+    },
+    {
+      "id": "f11-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_BACKUPS_409",
+      "relevant": [
+        "f11a",
+        "f11b"
+      ]
+    },
+    {
+      "id": "f11-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"backups database locked\" \"generation counter\"",
+      "relevant": [
+        "f11a"
+      ]
+    },
+    {
+      "id": "f11-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing backups evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f12-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "routing durable checkpoints unexpectedly",
+      "relevant": [
+        "f12a",
+        "f12b"
+      ]
+    },
+    {
+      "id": "f12-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_ROUTING_409",
+      "relevant": [
+        "f12a",
+        "f12b"
+      ]
+    },
+    {
+      "id": "f12-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"routing database locked\" \"generation counter\"",
+      "relevant": [
+        "f12a"
+      ]
+    },
+    {
+      "id": "f12-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing routing evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f13-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "telemetry durable checkpoints unexpectedly",
+      "relevant": [
+        "f13a",
+        "f13b"
+      ]
+    },
+    {
+      "id": "f13-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_TELEMETRY_409",
+      "relevant": [
+        "f13a",
+        "f13b"
+      ]
+    },
+    {
+      "id": "f13-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"telemetry database locked\" \"generation counter\"",
+      "relevant": [
+        "f13a"
+      ]
+    },
+    {
+      "id": "f13-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing telemetry evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f14-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "notifications durable checkpoints unexpectedly",
+      "relevant": [
+        "f14a",
+        "f14b"
+      ]
+    },
+    {
+      "id": "f14-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_NOTIFICATIONS_409",
+      "relevant": [
+        "f14a",
+        "f14b"
+      ]
+    },
+    {
+      "id": "f14-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"notifications database locked\" \"generation counter\"",
+      "relevant": [
+        "f14a"
+      ]
+    },
+    {
+      "id": "f14-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing notifications evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f15-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "checkout durable checkpoints unexpectedly",
+      "relevant": [
+        "f15a",
+        "f15b"
+      ]
+    },
+    {
+      "id": "f15-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_CHECKOUT_409",
+      "relevant": [
+        "f15a",
+        "f15b"
+      ]
+    },
+    {
+      "id": "f15-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"checkout database locked\" \"generation counter\"",
+      "relevant": [
+        "f15a"
+      ]
+    },
+    {
+      "id": "f15-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing checkout evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f16-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "deployments durable checkpoints unexpectedly",
+      "relevant": [
+        "f16a",
+        "f16b"
+      ]
+    },
+    {
+      "id": "f16-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_DEPLOYMENTS_409",
+      "relevant": [
+        "f16a",
+        "f16b"
+      ]
+    },
+    {
+      "id": "f16-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"deployments database locked\" \"generation counter\"",
+      "relevant": [
+        "f16a"
+      ]
+    },
+    {
+      "id": "f16-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing deployments evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f17-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "caching durable checkpoints unexpectedly",
+      "relevant": [
+        "f17a",
+        "f17b"
+      ]
+    },
+    {
+      "id": "f17-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_CACHING_409",
+      "relevant": [
+        "f17a",
+        "f17b"
+      ]
+    },
+    {
+      "id": "f17-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"caching database locked\" \"generation counter\"",
+      "relevant": [
+        "f17a"
+      ]
+    },
+    {
+      "id": "f17-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing caching evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f18-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "webhooks durable checkpoints unexpectedly",
+      "relevant": [
+        "f18a",
+        "f18b"
+      ]
+    },
+    {
+      "id": "f18-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_WEBHOOKS_409",
+      "relevant": [
+        "f18a",
+        "f18b"
+      ]
+    },
+    {
+      "id": "f18-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"webhooks database locked\" \"generation counter\"",
+      "relevant": [
+        "f18a"
+      ]
+    },
+    {
+      "id": "f18-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing webhooks evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f19-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "uploads durable checkpoints unexpectedly",
+      "relevant": [
+        "f19a",
+        "f19b"
+      ]
+    },
+    {
+      "id": "f19-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_UPLOADS_409",
+      "relevant": [
+        "f19a",
+        "f19b"
+      ]
+    },
+    {
+      "id": "f19-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"uploads database locked\" \"generation counter\"",
+      "relevant": [
+        "f19a"
+      ]
+    },
+    {
+      "id": "f19-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing uploads evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f20-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "downloads durable checkpoints unexpectedly",
+      "relevant": [
+        "f20a",
+        "f20b"
+      ]
+    },
+    {
+      "id": "f20-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_DOWNLOADS_409",
+      "relevant": [
+        "f20a",
+        "f20b"
+      ]
+    },
+    {
+      "id": "f20-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"downloads database locked\" \"generation counter\"",
+      "relevant": [
+        "f20a"
+      ]
+    },
+    {
+      "id": "f20-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing downloads evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f21-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "replication durable checkpoints unexpectedly",
+      "relevant": [
+        "f21a",
+        "f21b"
+      ]
+    },
+    {
+      "id": "f21-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_REPLICATION_409",
+      "relevant": [
+        "f21a",
+        "f21b"
+      ]
+    },
+    {
+      "id": "f21-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"replication database locked\" \"generation counter\"",
+      "relevant": [
+        "f21a"
+      ]
+    },
+    {
+      "id": "f21-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing replication evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f22-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "permissions durable checkpoints unexpectedly",
+      "relevant": [
+        "f22a",
+        "f22b"
+      ]
+    },
+    {
+      "id": "f22-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_PERMISSIONS_409",
+      "relevant": [
+        "f22a",
+        "f22b"
+      ]
+    },
+    {
+      "id": "f22-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"permissions database locked\" \"generation counter\"",
+      "relevant": [
+        "f22a"
+      ]
+    },
+    {
+      "id": "f22-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing permissions evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f23-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "authentication durable checkpoints unexpectedly",
+      "relevant": [
+        "f23a",
+        "f23b"
+      ]
+    },
+    {
+      "id": "f23-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_AUTHENTICATION_409",
+      "relevant": [
+        "f23a",
+        "f23b"
+      ]
+    },
+    {
+      "id": "f23-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"authentication database locked\" \"generation counter\"",
+      "relevant": [
+        "f23a"
+      ]
+    },
+    {
+      "id": "f23-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing authentication evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f24-natural",
+      "category": "natural",
+      "split": "development",
+      "text": "billing durable checkpoints unexpectedly",
+      "relevant": [
+        "f24a",
+        "f24b"
+      ]
+    },
+    {
+      "id": "f24-technical",
+      "category": "technical",
+      "split": "development",
+      "text": "ERR_BILLING_409",
+      "relevant": [
+        "f24a",
+        "f24b"
+      ]
+    },
+    {
+      "id": "f24-phrase",
+      "category": "phrase",
+      "split": "development",
+      "text": "\"billing database locked\" \"generation counter\"",
+      "relevant": [
+        "f24a"
+      ]
+    },
+    {
+      "id": "f24-absent",
+      "category": "absent",
+      "split": "development",
+      "text": "\"missing billing evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f25-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "shipping durable checkpoints unexpectedly",
+      "relevant": [
+        "f25a",
+        "f25b"
+      ]
+    },
+    {
+      "id": "f25-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_SHIPPING_409",
+      "relevant": [
+        "f25a",
+        "f25b"
+      ]
+    },
+    {
+      "id": "f25-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"shipping database locked\" \"generation counter\"",
+      "relevant": [
+        "f25a"
+      ]
+    },
+    {
+      "id": "f25-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing shipping evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f26-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "refunds durable checkpoints unexpectedly",
+      "relevant": [
+        "f26a",
+        "f26b"
+      ]
+    },
+    {
+      "id": "f26-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_REFUNDS_409",
+      "relevant": [
+        "f26a",
+        "f26b"
+      ]
+    },
+    {
+      "id": "f26-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"refunds database locked\" \"generation counter\"",
+      "relevant": [
+        "f26a"
+      ]
+    },
+    {
+      "id": "f26-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing refunds evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f27-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "invoices durable checkpoints unexpectedly",
+      "relevant": [
+        "f27a",
+        "f27b"
+      ]
+    },
+    {
+      "id": "f27-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_INVOICES_409",
+      "relevant": [
+        "f27a",
+        "f27b"
+      ]
+    },
+    {
+      "id": "f27-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"invoices database locked\" \"generation counter\"",
+      "relevant": [
+        "f27a"
+      ]
+    },
+    {
+      "id": "f27-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing invoices evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f28-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "reports durable checkpoints unexpectedly",
+      "relevant": [
+        "f28a",
+        "f28b"
+      ]
+    },
+    {
+      "id": "f28-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_REPORTS_409",
+      "relevant": [
+        "f28a",
+        "f28b"
+      ]
+    },
+    {
+      "id": "f28-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"reports database locked\" \"generation counter\"",
+      "relevant": [
+        "f28a"
+      ]
+    },
+    {
+      "id": "f28-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing reports evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f29-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "exports durable checkpoints unexpectedly",
+      "relevant": [
+        "f29a",
+        "f29b"
+      ]
+    },
+    {
+      "id": "f29-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_EXPORTS_409",
+      "relevant": [
+        "f29a",
+        "f29b"
+      ]
+    },
+    {
+      "id": "f29-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"exports database locked\" \"generation counter\"",
+      "relevant": [
+        "f29a"
+      ]
+    },
+    {
+      "id": "f29-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing exports evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f30-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "imports durable checkpoints unexpectedly",
+      "relevant": [
+        "f30a",
+        "f30b"
+      ]
+    },
+    {
+      "id": "f30-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_IMPORTS_409",
+      "relevant": [
+        "f30a",
+        "f30b"
+      ]
+    },
+    {
+      "id": "f30-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"imports database locked\" \"generation counter\"",
+      "relevant": [
+        "f30a"
+      ]
+    },
+    {
+      "id": "f30-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing imports evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f31-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "subscriptions durable checkpoints unexpectedly",
+      "relevant": [
+        "f31a",
+        "f31b"
+      ]
+    },
+    {
+      "id": "f31-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_SUBSCRIPTIONS_409",
+      "relevant": [
+        "f31a",
+        "f31b"
+      ]
+    },
+    {
+      "id": "f31-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"subscriptions database locked\" \"generation counter\"",
+      "relevant": [
+        "f31a"
+      ]
+    },
+    {
+      "id": "f31-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing subscriptions evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f32-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "search durable checkpoints unexpectedly",
+      "relevant": [
+        "f32a",
+        "f32b"
+      ]
+    },
+    {
+      "id": "f32-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_SEARCH_409",
+      "relevant": [
+        "f32a",
+        "f32b"
+      ]
+    },
+    {
+      "id": "f32-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"search database locked\" \"generation counter\"",
+      "relevant": [
+        "f32a"
+      ]
+    },
+    {
+      "id": "f32-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing search evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f33-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "indexing durable checkpoints unexpectedly",
+      "relevant": [
+        "f33a",
+        "f33b"
+      ]
+    },
+    {
+      "id": "f33-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_INDEXING_409",
+      "relevant": [
+        "f33a",
+        "f33b"
+      ]
+    },
+    {
+      "id": "f33-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"indexing database locked\" \"generation counter\"",
+      "relevant": [
+        "f33a"
+      ]
+    },
+    {
+      "id": "f33-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing indexing evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f34-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "terminals durable checkpoints unexpectedly",
+      "relevant": [
+        "f34a",
+        "f34b"
+      ]
+    },
+    {
+      "id": "f34-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_TERMINALS_409",
+      "relevant": [
+        "f34a",
+        "f34b"
+      ]
+    },
+    {
+      "id": "f34-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"terminals database locked\" \"generation counter\"",
+      "relevant": [
+        "f34a"
+      ]
+    },
+    {
+      "id": "f34-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing terminals evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f35-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "worktrees durable checkpoints unexpectedly",
+      "relevant": [
+        "f35a",
+        "f35b"
+      ]
+    },
+    {
+      "id": "f35-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_WORKTREES_409",
+      "relevant": [
+        "f35a",
+        "f35b"
+      ]
+    },
+    {
+      "id": "f35-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"worktrees database locked\" \"generation counter\"",
+      "relevant": [
+        "f35a"
+      ]
+    },
+    {
+      "id": "f35-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing worktrees evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f36-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "processes durable checkpoints unexpectedly",
+      "relevant": [
+        "f36a",
+        "f36b"
+      ]
+    },
+    {
+      "id": "f36-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_PROCESSES_409",
+      "relevant": [
+        "f36a",
+        "f36b"
+      ]
+    },
+    {
+      "id": "f36-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"processes database locked\" \"generation counter\"",
+      "relevant": [
+        "f36a"
+      ]
+    },
+    {
+      "id": "f36-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing processes evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f37-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "tracing durable checkpoints unexpectedly",
+      "relevant": [
+        "f37a",
+        "f37b"
+      ]
+    },
+    {
+      "id": "f37-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_TRACING_409",
+      "relevant": [
+        "f37a",
+        "f37b"
+      ]
+    },
+    {
+      "id": "f37-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"tracing database locked\" \"generation counter\"",
+      "relevant": [
+        "f37a"
+      ]
+    },
+    {
+      "id": "f37-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing tracing evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f38-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "metrics durable checkpoints unexpectedly",
+      "relevant": [
+        "f38a",
+        "f38b"
+      ]
+    },
+    {
+      "id": "f38-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_METRICS_409",
+      "relevant": [
+        "f38a",
+        "f38b"
+      ]
+    },
+    {
+      "id": "f38-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"metrics database locked\" \"generation counter\"",
+      "relevant": [
+        "f38a"
+      ]
+    },
+    {
+      "id": "f38-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing metrics evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f39-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "logging durable checkpoints unexpectedly",
+      "relevant": [
+        "f39a",
+        "f39b"
+      ]
+    },
+    {
+      "id": "f39-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_LOGGING_409",
+      "relevant": [
+        "f39a",
+        "f39b"
+      ]
+    },
+    {
+      "id": "f39-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"logging database locked\" \"generation counter\"",
+      "relevant": [
+        "f39a"
+      ]
+    },
+    {
+      "id": "f39-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing logging evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f40-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "localization durable checkpoints unexpectedly",
+      "relevant": [
+        "f40a",
+        "f40b"
+      ]
+    },
+    {
+      "id": "f40-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_LOCALIZATION_409",
+      "relevant": [
+        "f40a",
+        "f40b"
+      ]
+    },
+    {
+      "id": "f40-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"localization database locked\" \"generation counter\"",
+      "relevant": [
+        "f40a"
+      ]
+    },
+    {
+      "id": "f40-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing localization evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f41-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "accessibility durable checkpoints unexpectedly",
+      "relevant": [
+        "f41a",
+        "f41b"
+      ]
+    },
+    {
+      "id": "f41-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_ACCESSIBILITY_409",
+      "relevant": [
+        "f41a",
+        "f41b"
+      ]
+    },
+    {
+      "id": "f41-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"accessibility database locked\" \"generation counter\"",
+      "relevant": [
+        "f41a"
+      ]
+    },
+    {
+      "id": "f41-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing accessibility evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f42-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "databases durable checkpoints unexpectedly",
+      "relevant": [
+        "f42a",
+        "f42b"
+      ]
+    },
+    {
+      "id": "f42-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_DATABASES_409",
+      "relevant": [
+        "f42a",
+        "f42b"
+      ]
+    },
+    {
+      "id": "f42-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"databases database locked\" \"generation counter\"",
+      "relevant": [
+        "f42a"
+      ]
+    },
+    {
+      "id": "f42-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing databases evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f43-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "transactions durable checkpoints unexpectedly",
+      "relevant": [
+        "f43a",
+        "f43b"
+      ]
+    },
+    {
+      "id": "f43-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_TRANSACTIONS_409",
+      "relevant": [
+        "f43a",
+        "f43b"
+      ]
+    },
+    {
+      "id": "f43-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"transactions database locked\" \"generation counter\"",
+      "relevant": [
+        "f43a"
+      ]
+    },
+    {
+      "id": "f43-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing transactions evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f44-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "locking durable checkpoints unexpectedly",
+      "relevant": [
+        "f44a",
+        "f44b"
+      ]
+    },
+    {
+      "id": "f44-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_LOCKING_409",
+      "relevant": [
+        "f44a",
+        "f44b"
+      ]
+    },
+    {
+      "id": "f44-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"locking database locked\" \"generation counter\"",
+      "relevant": [
+        "f44a"
+      ]
+    },
+    {
+      "id": "f44-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing locking evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f45-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "pooling durable checkpoints unexpectedly",
+      "relevant": [
+        "f45a",
+        "f45b"
+      ]
+    },
+    {
+      "id": "f45-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_POOLING_409",
+      "relevant": [
+        "f45a",
+        "f45b"
+      ]
+    },
+    {
+      "id": "f45-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"pooling database locked\" \"generation counter\"",
+      "relevant": [
+        "f45a"
+      ]
+    },
+    {
+      "id": "f45-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing pooling evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f46-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "streaming durable checkpoints unexpectedly",
+      "relevant": [
+        "f46a",
+        "f46b"
+      ]
+    },
+    {
+      "id": "f46-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_STREAMING_409",
+      "relevant": [
+        "f46a",
+        "f46b"
+      ]
+    },
+    {
+      "id": "f46-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"streaming database locked\" \"generation counter\"",
+      "relevant": [
+        "f46a"
+      ]
+    },
+    {
+      "id": "f46-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing streaming evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f47-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "compression durable checkpoints unexpectedly",
+      "relevant": [
+        "f47a",
+        "f47b"
+      ]
+    },
+    {
+      "id": "f47-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_COMPRESSION_409",
+      "relevant": [
+        "f47a",
+        "f47b"
+      ]
+    },
+    {
+      "id": "f47-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"compression database locked\" \"generation counter\"",
+      "relevant": [
+        "f47a"
+      ]
+    },
+    {
+      "id": "f47-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing compression evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f48-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "serialization durable checkpoints unexpectedly",
+      "relevant": [
+        "f48a",
+        "f48b"
+      ]
+    },
+    {
+      "id": "f48-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_SERIALIZATION_409",
+      "relevant": [
+        "f48a",
+        "f48b"
+      ]
+    },
+    {
+      "id": "f48-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"serialization database locked\" \"generation counter\"",
+      "relevant": [
+        "f48a"
+      ]
+    },
+    {
+      "id": "f48-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing serialization evidence\"",
+      "relevant": []
+    },
+    {
+      "id": "f49-natural",
+      "category": "natural",
+      "split": "evaluation",
+      "text": "deadlines durable checkpoints unexpectedly",
+      "relevant": [
+        "f49a",
+        "f49b"
+      ]
+    },
+    {
+      "id": "f49-technical",
+      "category": "technical",
+      "split": "evaluation",
+      "text": "ERR_DEADLINES_409",
+      "relevant": [
+        "f49a",
+        "f49b"
+      ]
+    },
+    {
+      "id": "f49-phrase",
+      "category": "phrase",
+      "split": "evaluation",
+      "text": "\"deadlines database locked\" \"generation counter\"",
+      "relevant": [
+        "f49a"
+      ]
+    },
+    {
+      "id": "f49-absent",
+      "category": "absent",
+      "split": "evaluation",
+      "text": "\"missing deadlines evidence\"",
+      "relevant": []
+    }
+  ]
+}

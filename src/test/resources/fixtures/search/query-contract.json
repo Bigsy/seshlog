@@ -1,0 +1,11 @@
+[
+  {"query":"\"database locked\" timeout", "fields":["database locked"], "required":true},
+  {"query":"\"database locked\"", "fields":["database-locked"], "required":false},
+  {"query":"\"database locked\"", "fields":["database", "locked"], "required":false},
+  {"query":"\"first phrase\" \"second phrase\"", "fields":["First phrase", "second phrase"], "required":true},
+  {"query":"\"unfinished phrase", "fields":["unfinished phrase"], "required":true},
+  {"query":"the and of", "fields":["the and of"], "required":true},
+  {"query":"SearchRequestScope.kt", "fields":["SearchRequestScope.kt"], "required":true},
+  {"query":"C++", "fields":["C++"], "required":true},
+  {"query":"İSTANBUL", "fields":["istanbul"], "required":true}
+]

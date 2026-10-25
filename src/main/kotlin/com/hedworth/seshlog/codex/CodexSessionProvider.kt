@@ -2,6 +2,9 @@ package com.hedworth.seshlog.codex
 
 import com.hedworth.seshlog.cache.FileBackedParseCache
 import com.hedworth.seshlog.cache.FileStamp
+import com.hedworth.seshlog.claude.TranscriptParser
+import com.hedworth.seshlog.model.LocationSource
+import com.hedworth.seshlog.model.SessionLocation
 import com.hedworth.seshlog.claude.TranscriptTailReader
 import com.hedworth.seshlog.claude.TranscriptTextExtractor
 import com.hedworth.seshlog.copy.LastAssistantReader
@@ -51,7 +54,7 @@ class CodexSessionProvider(
 
     override fun isAvailable(): Boolean = Files.isDirectory(sessionsDir())
 
-    override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile(), stateFile())
+    override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile(), stateFile(), stateFile().resolveSibling("state_5.sqlite-wal"))
 
     override fun resumeCommand(session: Session): String =
         ExtraArguments.append("${ShellQuote.quote(executable())} resume ${ShellQuote.quote(session.id)}", extraArgs())
@@ -112,6 +115,7 @@ class CodexSessionProvider(
                 forkedFromId = info.forkedFromId,
                 activity = info.activity,
                 activitySince = info.activityAt,
+                location = info.location,
             )
         }
         return result
@@ -120,16 +124,26 @@ class CodexSessionProvider(
     private fun resolveRolloutPath(path: Path): Path =
         if (path.isAbsolute) path.normalize() else stateFile().parent.resolve(path).normalize()
 
-    private fun metadata(row: CodexStateDatabase.ThreadRow, parsed: CodexTranscriptInfo): CodexTranscriptInfo =
-        parsed.copy(
-            // The transcript payload id is authoritative. The database id is a fallback for
-            // older or incomplete rollouts and must not recreate the pre-1.1 parent merge.
+    internal fun metadata(row: CodexStateDatabase.ThreadRow, parsed: CodexTranscriptInfo): CodexTranscriptInfo {
+        val dbCwd = TranscriptParser.absoluteDirectory(row.cwd)
+        val context = parsed.location?.takeIf { it.source == LocationSource.CODEX_CONTEXT }
+        val conflict = context != null && dbCwd != null && dbCwd != parsed.cwd &&
+            !(row.updatedAtMillis != null && context.timestamp != null && row.updatedAtMillis < context.timestamp.toEpochMilli())
+        val evidence = when {
+            conflict -> context!!.copy(uncertain = true,
+                explanation = "Database and recorded session context disagree; directory-change order unknown")
+            context != null -> context
+            dbCwd != null -> SessionLocation(LocationSource.CODEX_DATABASE)
+            else -> parsed.location
+        }
+        return parsed.copy(
+            // Transcript identity is authoritative even when the database's index lags.
             sessionId = parsed.sessionId ?: row.id,
-            cwd = row.cwd ?: parsed.cwd,
-            gitBranch = row.gitBranch ?: parsed.gitBranch,
-            // The DB title/name is applied by scan; retain the prompt-derived title for search and fallback.
-            startedAt = parsed.startedAt,
+            cwd = if (context == null) dbCwd ?: parsed.cwd else parsed.cwd,
+            gitBranch = if (context == null) row.gitBranch ?: parsed.gitBranch else parsed.gitBranch,
+            location = evidence,
         )
+    }
 
     override fun conversationText(session: Session): List<String> =
         session.transcriptPath?.let { TranscriptTextExtractor.extract(it, CodexConversationMessages::parseLine) } ?: emptyList()

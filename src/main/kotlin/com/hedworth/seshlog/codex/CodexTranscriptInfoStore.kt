@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.codex
 
 import com.google.gson.JsonObject
+import com.hedworth.seshlog.cache.LocationInfoStore
 import com.hedworth.seshlog.cache.InfoStore
 import com.hedworth.seshlog.cache.InfoStore.Companion.long
 import com.hedworth.seshlog.cache.InfoStore.Companion.string
@@ -8,13 +9,15 @@ import com.hedworth.seshlog.model.Activity
 import java.time.Instant
 
 /** Persistent metadata-only cache for parsed Codex rollouts (see [InfoStore]). Version 5 separates subagent rollouts. */
-private const val CACHE_VERSION = 6
+private const val CACHE_VERSION = 7
 
 object CodexTranscriptInfoStore : InfoStore<CodexTranscriptInfo>(CACHE_VERSION, ::write, ::read) {
     const val VERSION = CACHE_VERSION
 }
 
 private fun write(i: CodexTranscriptInfo, o: JsonObject) {
+    LocationInfoStore.write(i.location, o)
+    o.addProperty("recordCount", i.recordCount)
     o.addProperty("sessionId", i.sessionId)
     o.addProperty("forkedFromId", i.forkedFromId)
     o.addProperty("cwd", i.cwd)
@@ -28,6 +31,8 @@ private fun write(i: CodexTranscriptInfo, o: JsonObject) {
 }
 
 private fun read(o: JsonObject) = CodexTranscriptInfo(
+    location = LocationInfoStore.read(o),
+    recordCount = o.long("recordCount") ?: 0,
     sessionId = o.string("sessionId"),
     forkedFromId = o.string("forkedFromId"),
     cwd = o.string("cwd"),

@@ -6,6 +6,8 @@ import com.google.gson.JsonParser
 import com.hedworth.seshlog.cache.IncrementalJsonl
 import com.hedworth.seshlog.cache.IncrementalParseResult
 import com.hedworth.seshlog.claude.TranscriptParser
+import com.hedworth.seshlog.model.SessionLocation
+import com.hedworth.seshlog.model.LocationSource
 import com.hedworth.seshlog.model.Activity
 import com.intellij.openapi.diagnostic.logger
 import java.io.BufferedReader
@@ -29,6 +31,8 @@ data class CodexTranscriptInfo(
     /** From the last `task_started` / `task_complete` / `turn_aborted` event, see [Activity]. */
     val activity: Activity = Activity.UNKNOWN,
     val activityAt: Instant? = null,
+    val location: SessionLocation? = null,
+    val recordCount: Long = 0,
 )
 
 /**
@@ -106,8 +110,13 @@ object CodexTranscriptParser {
         var activity = previous?.activity ?: Activity.UNKNOWN
         var activityAt: Instant? = previous?.activityAt
 
+        var location = previous?.location
+        var recordCount = previous?.recordCount ?: 0L
+
         fun offer(line: String) {
             if (line.isBlank()) return
+            recordCount++
+            if (line.contains("turn_context")) offerContext(line)
             when {
                 line.contains("session_meta") -> offerSessionMeta(line)
                 line.contains("response_item") -> offerResponseItem(line)
@@ -135,9 +144,23 @@ object CodexTranscriptParser {
             isSubagentRollout = isSubagentRollout || payload.isInternalSubagent()
             if (sessionId == null) sessionId = payload.string("id")
             if (forkedFromId == null) forkedFromId = payload.string("forked_from_id")?.takeIf { it.isNotBlank() }
-            if (cwd == null) cwd = payload.string("cwd")
+            if (cwd == null) TranscriptParser.absoluteDirectory(payload.string("cwd"))?.let {
+                cwd = it
+                location = SessionLocation(LocationSource.INITIAL, recordCount,
+                    instant(payload.string("timestamp") ?: obj.string("timestamp")))
+            }
             if (gitBranch == null) gitBranch = payload.objectValue("git")?.string("branch")
             if (startedAt == null) startedAt = instant(payload.string("timestamp") ?: obj.string("timestamp"))
+        }
+
+        private fun offerContext(line: String) {
+            val obj = parseObject(line) ?: return
+            if (obj.string("type") != "turn_context") return
+            val payload = obj.objectValue("payload") ?: return
+            TranscriptParser.absoluteDirectory(payload.string("cwd"))?.let {
+                cwd = it
+                location = SessionLocation(LocationSource.CODEX_CONTEXT, recordCount, instant(obj.string("timestamp")))
+            }
         }
 
         private fun offerResponseItem(line: String) {
@@ -156,7 +179,7 @@ object CodexTranscriptParser {
         }
 
         fun build() = CodexTranscriptInfo(
-            sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isSubagentRollout, forkedFromId, activity, activityAt,
+            sessionId, cwd, gitBranch, promptTitle, startedAt, promptCount, isSubagentRollout, forkedFromId, activity, activityAt, location, recordCount,
         )
     }
 

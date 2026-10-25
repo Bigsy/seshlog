@@ -184,7 +184,7 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
     malformed/partial records; missing fields; cold, appended and persisted-cache parsing agree.
   - Validation: `make check`. Manual Claude transition check: **owed**.
 
-- [ ] **4. Track Codex location changes reliably.**
+- [x] **4. Track Codex location changes reliably.**
   Extend `CodexTranscriptParser` for verified current session-context records (investigate
   `turn_context`) while keeping initial `session_meta` as fallback. Preserve the separate
   `rolloutHeader` launch/identity semantics used by `CodexDaemon`; changing current cwd must not
@@ -331,6 +331,11 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   full clean test task passed (407 passed, two skipped). Persisted/appended parsing agrees at
   every fixture boundary. Null worktree state stays uncertain until actual cwd is reported.
   Manual Claude transition/exit/resume checks remain **owed**.
+
+- Item 4: Codex turn-context tracking, metadata cache v7, DB fallback/conflict policy, explicit
+  WAL watch. Launch headers and CodexDaemon matching remain unchanged. The new context regression
+  failed before implementation; all 414 tests completed successfully (two opt-in checks skipped)
+  in the full clean test task. CLI/app handoff checks remain **owed**.
 
 ## Manual acceptance matrix
 

@@ -481,6 +481,31 @@ Manual acceptance on 2026-10-25:
 - [ ] Manually check rapid repeated clicks during opening/validation create only one terminal
   (automated coalescing coverage passed). A later intentional invocation creates another fork.
 
+## Follow-up: Marketplace worktree assets
+
+- [x] Lead the Marketplace carousel and README gallery with the worktree-and-fork workflow.
+  Replace the older Claude-only presentation with current plugin UI rendered from synthetic demo
+  sessions, show both worktree opening and independent conversation forks, and keep supporting
+  session browsing/search cards. Keep the existing 1920×1200 format, provide a reproducible local
+  renderer and upload-order notes, and visually inspect every generated card. No Marketplace
+  upload or publication is part of this asset preparation.
+
+Completed 2026-10-25: four rebuilt 1920×1200 cards lead with **Open the worktree. Keep the
+conversation.** and the open/focus/fork workflow, followed by all-agent browsing and conversation
+search. `MarketplaceScreenshotTest` is an opt-in renderer for real Seshlog components using only
+in-memory demo sessions and the bundled Darcula theme; it launches no agents. `gen.js` composes
+the cards and `render.sh` renders local HTML with a disposable Chrome profile and validates each
+fresh PNG before replacing an asset. README copy/gallery and upload-order/rebuild notes are updated.
+The obsolete Claude-only cards are removed from the upload folder; old raw captures remain unused.
+
+Validation: synthetic UI rendering passed; `make check` passed (451 cases, no failures, two
+opt-in live-data checks skipped); JavaScript/shell syntax and gallery links passed. All four final
+cards were visually inspected, including corrected row cropping and search-card spacing, and
+their dimensions verified. Chrome Beta rendered the final set successfully. The regular Chrome
+build produced a valid first image but exited abnormally during teardown; the script now validates
+fresh output before accepting such a result. Upload bundle:
+`build/marketplace/seshlog-marketplace-assets.zip`. The live Marketplace media was not changed.
+
 ## Manual acceptance matrix
 
 Use `make run` with a disposable local repository and synthetic/test sessions where possible.

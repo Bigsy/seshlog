@@ -1,17 +1,19 @@
 # Seshlog
 
-Find and resume your local **Claude Code, Codex, opencode and Pi** sessions from an IntelliJ tool window.
+Open a **Claude Code or Codex worktree** in IntelliJ and continue the conversation in an independent
+fork. Browse, search and resume your local **Claude Code, Codex, opencode and Pi** sessions from one
+tool window.
 
 [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33850-seshlog--coding-agent-session-manager)
 
 <table>
   <tr>
-    <td><a href="docs/marketplace/01-hero.png"><img src="docs/marketplace/01-hero.png" alt="Seshlog session browser" width="360"></a></td>
-    <td><a href="docs/marketplace/02-session-list.png"><img src="docs/marketplace/02-session-list.png" alt="Session list and message preview" width="360"></a></td>
+    <td><a href="docs/marketplace/01-hero.png"><img src="docs/marketplace/01-hero.png" alt="Open the worktree. Keep the conversation." width="360"></a></td>
+    <td><a href="docs/marketplace/02-worktrees.png"><img src="docs/marketplace/02-worktrees.png" alt="Open or focus a worktree and start an independent session fork" width="360"></a></td>
   </tr>
   <tr>
-    <td><a href="docs/marketplace/03-search.png"><img src="docs/marketplace/03-search.png" alt="Search across conversations" width="360"></a></td>
-    <td><a href="docs/marketplace/04-fork.png"><img src="docs/marketplace/04-fork.png" alt="Fork a session from the context menu" width="360"></a></td>
+    <td><a href="docs/marketplace/03-sessions.png"><img src="docs/marketplace/03-sessions.png" alt="Browse sessions from all four supported agents" width="360"></a></td>
+    <td><a href="docs/marketplace/04-search.png"><img src="docs/marketplace/04-search.png" alt="Find matching conversations and resume with their context" width="360"></a></td>
   </tr>
 </table>
 
@@ -19,9 +21,11 @@ Click a screenshot to view it full size.
 
 ## What it does
 
-- Groups sessions by project, with titles, branches and recent activity.
 - Shows recorded Claude Code and Codex worktrees and opens eligible checkouts in a new IDE window,
   or focuses the window already using that checkout.
+- **Open Worktree and Fork Session** starts an independent conversation fork in that window's
+  terminal while the original session keeps running.
+- Groups sessions by project, with titles, branches and recent activity.
 - Starts, resumes or forks a session in an IDE terminal; focuses its tab if it is already running.
 - Searches titles, project paths and conversations, with highlighted matches and a message preview.
 - Filters by agent, project and date. Pin, rename or hide sessions to keep the list manageable.

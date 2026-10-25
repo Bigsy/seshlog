@@ -18,6 +18,9 @@ make release  # test + buildPlugin + verify the zip
   Skipped by default; never in CI.
 - `make codex-check` (opt-in `CodexLiveCheck`, `SESHLOG_CODEX_CHECK=1`) checks, after a Codex upgrade, that
   the shared app-server still leaves the evidence `CodexDaemon` matches tabs on. Counts only; never in CI.
+- Marketplace media: follow `docs/marketplace/README.md`. The opt-in `MarketplaceScreenshotTest`
+  renders real UI components from synthetic in-memory sessions; `gen.js` / `render.sh` compose
+  the cards. Never substitute real conversation content. Updating the files does not upload them.
 
 ## Reading session-management diagnostics
 

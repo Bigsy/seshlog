@@ -9,37 +9,103 @@ import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 
 /** Held for the entire lifetime: another IDE cannot replace/purge a live database. */
-internal class SearchStoreLease private constructor(private val channel: FileChannel, private val lock: FileLock) : AutoCloseable {
-    override fun close() { try { lock.release() } finally { channel.close() } }
+internal class SearchStoreLease
+private constructor(private val channel: FileChannel, private val lock: FileLock) : AutoCloseable {
+    override fun close() {
+        try {
+            lock.release()
+        } finally {
+            channel.close()
+        }
+    }
+
     companion object {
         fun acquire(path: Path): SearchStoreLease {
-            val channel = FileChannel.open(path.resolveSibling(path.fileName.toString()+".lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE)
-            try { return SearchStoreLease(channel, channel.tryLock() ?: error("Search index is in use by another IDE. Close it and retry.")) }
-            catch (t: Throwable) { channel.close();throw t }
+            val channel =
+                FileChannel.open(
+                    path.resolveSibling(path.fileName.toString() + ".lock"),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE,
+                )
+            try {
+                return SearchStoreLease(
+                    channel,
+                    channel.tryLock()
+                        ?: error("Search index is in use by another IDE. Close it and retry."),
+                )
+            } catch (t: Throwable) {
+                channel.close()
+                throw t
+            }
         }
     }
 }
-internal fun privatePermissions(path: Path, directory: Boolean = false) {
-    try { Files.setPosixFilePermissions(path,PosixFilePermissions.fromString(if (directory) "rwx------" else "rw-------")) }
-    catch (_: UnsupportedOperationException) { /* ACLs are inherited on Windows. */ }
-}
-fun searchHash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
-/** Portable identity hashes raw local sources without parsing or tokenizing them. Never follows imported locators. */
-fun sourceFingerprint(paths: List<Path>): String? {
-    if (paths.isEmpty()) return null
+internal fun privatePermissions(path: Path, directory: Boolean = false) {
+    try {
+        Files.setPosixFilePermissions(
+            path,
+            PosixFilePermissions.fromString(if (directory) "rwx------" else "rw-------"),
+        )
+    } catch (_: UnsupportedOperationException) {
+        /* ACLs are inherited on Windows. */
+    }
+}
+
+private fun hex(bytes: ByteArray): String {
+    val digits = "0123456789abcdef"
+    return buildString(bytes.size * 2) {
+        bytes.forEach { byte ->
+            val value = byte.toInt() and 255
+            append(digits[value ushr 4])
+            append(digits[value and 15])
+        }
+    }
+}
+
+fun searchHash(text: String): String =
+    hex(MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)))
+
+/**
+ * Portable identity hashes raw local sources without parsing or tokenizing them. Never follows
+ * imported locators.
+ */
+fun sourceFingerprint(paths: List<Path>, cancelled: () -> Boolean = { false }): String? {
+    if (paths.isEmpty() || paths.size > 2000 || cancelled()) return null
     return try {
+        var sourceBytes = 0L
+        val sizes =
+            paths.map { path ->
+                if (cancelled()) return null
+                val size = Files.size(path)
+                sourceBytes += size
+                if (sourceBytes > 16_000_000) return null
+                size
+            }
+        var readBytes = 0L
         val digest = MessageDigest.getInstance("SHA-256")
-        for (path in paths) {
-            val size=Files.size(path)
-            // Shared scan budget bounds work; an unvalidated tail cannot be claimed portable.
-            if (size > 16_000_000) return null
-            digest.update(size.toString().toByteArray());digest.update(0.toByte())
+        for ((index, path) in paths.withIndex()) {
+            if (index > 0) {
+                digest.update(path.fileName.toString().toByteArray(Charsets.UTF_8))
+                digest.update(0.toByte())
+            }
+            val size = sizes[index]
+            digest.update(size.toString().toByteArray())
+            digest.update(0.toByte())
             Files.newInputStream(path).use { input ->
-                val buffer=ByteArray(32*1024); var read=0L
-                while (true) { val n=input.read(buffer);if(n<0)break;read+=n;if(read>16_000_000)return null;digest.update(buffer,0,n) }
+                val buffer = ByteArray(32 * 1024)
+                while (true) {
+                    if (cancelled()) return null
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    readBytes += n
+                    if (readBytes > 16_000_000) return null
+                    digest.update(buffer, 0, n)
+                }
             }
         }
-        digest.digest().joinToString("") { "%02x".format(it) }
-    } catch (_: Exception) { null }
+        hex(digest.digest())
+    } catch (_: Exception) {
+        null
+    }
 }

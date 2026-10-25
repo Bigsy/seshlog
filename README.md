@@ -203,11 +203,13 @@ make run      # Launch a sandbox IDE with the plugin loaded
 make check    # Run tests
 make release  # Test, build and check the plugin zip
 ./gradlew verifyPlugin  # Check IDE compatibility
+make lexical-bench     # Opt-in synthetic BM25 quality/durability benchmark
 ```
 
 Issues and pull requests are welcome. New parsing behaviour needs a synthetic fixture in
 `src/test/resources/fixtures/`; never commit real transcripts.
 See [AGENTS.md](AGENTS.md) for development conventions and [PLAN.md](PLAN.md) for current work.
+The [production BM25 report](docs/production-bm25.md) records relevance, durability and resource evidence and its remaining acceptance limits.
 
 Keep the five most recent release entries in `src/main/resources/META-INF/plugin.xml`; when adding
 another, move the oldest entry to the top of [the changelog archive](docs/changelog-archive.md).

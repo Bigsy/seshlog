@@ -954,7 +954,7 @@ These constants are the specified defaults; no evaluation-partition tuning was p
 
 ### 2. Implement the durable SQLite lexical store and incremental indexing
 
-- [ ] **Deliverable:** production contentless FTS5 store with source/metadata associations, schema
+- [x] **Deliverable:** production contentless FTS5 store with source/metadata associations, schema
   versions, short atomic writes, startup reuse, bounded resources and portable export/import.
 - Implement the entire Phase 1 store contract in section 6, including durable path/Settings Sync
   verification, multi-window/process coordination, error recovery, cache controls and snapshot helpers.
@@ -1047,6 +1047,49 @@ Manual `make run` checks in section 14 are still owed, so this release checkbox 
   production change. Inspect the ZIP: no model, helper, test-only benchmark or private data leaked in.
 - **Done when:** BM25 relevance/resource/compatibility gates and relevant manual acceptance pass.
   This is an independently shippable milestone; do not publish or upload it without a user request.
+
+Item 4 validation record (2026-10-25): implementation and automated preparation are complete;
+manual/platform release acceptance is **not** marked complete. See `docs/production-bm25.md` and
+`docs/benchmarks/production-bm25-2026-10-25.jsonl` for all synthetic cases/measurements and caveats.
+Current production schema is **2**: Unicode-word preprocessing feeds the ASCII FTS tokenizer so
+newer Unicode letters survive SQLite token boundaries; Unicode/source and identifier-substring
+literal lanes retain the original contract. Field aggregation and winner selection run in SQL.
+Older/incompatible schemas are preserved and use temporary fallback until explicit rebuild.
+
+`make lexical-bench` passed three 1k/10k synthetic builds. On the M1 Max/64 GiB, 10k warm p95 was
+84–89 ms, reopen/reconcile/metadata query 75–87 ms with zero source extractions, changed-title work
+zero extractions and a one-source append one extraction. Import took 1.39–1.47 s; main DB size
+7,630,848 bytes. These use cheap synthetic stamps and a warmed JVM/filesystem; they are not full
+IDE-startup or real-history costs. Whole-JVM/RSS samples do not isolate search/native memory.
+Frozen evaluation metrics improved over the preserved literal baseline; original 44-query smoke
+was 32/40 first and 39/40 top-five, with no lost previously-correct literal technical/phrase top-one.
+Perfect scores on the generated expanded scaffold do not establish real-history relevance.
+
+The user's additional **256 valid passages × 350 tokens** export/import reproduction is fixed:
+import now retries a smaller document batch when its 64k-token/4M-character buffer fills, without
+lifting either memory bound. The regression checks exact scores/entry identity, existing-source
+preservation, idempotence and reopening. Additional regressions cover known-number multi-document
+BM25, Unicode/technical substrings, empty scopes, SQLite full/busy rollback and temporary fallback,
+source races, cancellation, missing-root/deletion/import distinctions, whole-source-set hashing
+bounds, recovery-file accounting, managed-path symlinks and export destination preservation.
+Source fingerprinting is cancellable, at most 16 MB across 2,000 files. Exports start with private
+permissions; a creation race cannot delete another file. Normal tests need no model or endpoint.
+
+Validation: `make check`/`make release` passed (496 tests, zero failures/errors, eight opt-in skips).
+Final ZIP integrity/content inspection passed: only main/searchable-options jars and sqlite-jdbc;
+no transcripts, DBs, models, formatter, test corpora or benchmark classes. `./gradlew verifyPlugin
+--offline` passed against cached IU-262.10968.63 and IU-263.7307.44, with existing terminal API
+warnings; no compatibility problems. Initial online verifier resolution stalled and was stopped.
+A sandbox launch was attempted with synthetic project/profile arguments; the launcher did not
+apply the profile overrides, and computer-use could not attach to its Java application. It was
+closed without treating any manual row as passed. The normal installed IDE was not changed.
+
+Still owed: the section 14 manual matrix, supported OS checks, lower-memory/reference long-history
+profiling and broader realism/human review of relevance labels. Items 3–4 therefore remain open
+as release acceptance gates. No publishing/upload was performed. Phase 2 remains untouched.
+
+Implementation commits: item 0 `6d504cd`, item 1 `8544261`, item 2 `442e4ab`, item 3 `41ac887`.
+Item 4 is the commit titled `test(search): validate and harden the persistent BM25 milestone`.
 
 ### 5. Implement the bounded HTTP embedding client
 
@@ -1335,10 +1378,10 @@ prototype evidence remains valid as historical measurements, not proof of the ne
 | Storage | Phase 1 durable contentless FTS5 terms/positions/source metadata and portable snapshots; Phase 2 separate vector cache with in-memory vector retrieval. No raw transcript/query copies. | Agreed, supersedes memory-only lexical design |
 | SQLite benchmark | Same 44-query fixture: aligned FTS5 36/40 first, 39/40 top-five; 10k-session p95 8.85 ms, reopen+first query 3.56 ms with warm filesystem. See docs/sqlite-bm25-benchmark.md. | Complete, test-only |
 | Prototype | `e598a18`; section 2 and docs/semantic-search-prototype.md. | Complete, local/test-only |
-| Evaluation corpus | Record version/hash, frozen split, labels and baseline. | Pending item 0 |
-| BM25 scorer | SQLite FTS5; record tokenizer, exact tier, field tables/weights and statistics population. | Pending item 1 |
-| Lexical persistence | Record path/schema, source validation, zero-retokenization restart/import, budgets and failure recovery. | Pending item 2 |
-| BM25 release | Record held-out metrics, tests, performance and manual checks. | Pending item 4 |
+| Evaluation corpus | Frozen v1: 200 sessions / 200 queries, family-separated split, preserved literal adapter and metric checks. See item 0; broader realism/human review remains a release gate. | Automated scaffold complete |
+| BM25 scorer | Schema 2, Unicode-word preprocessing + ASCII FTS; separate title/path/body populations, 8/3/1, exact tier, native SQL BM25/max aggregation. | Implemented/tested |
+| Lexical persistence | Durable IDE config path, contentless schema 2, validated restart/import reuse, bounded atomic writes, controls, snapshots and recovery. See items 2–4. | Implemented/tested |
+| BM25 release | Automated suite/release/262+263 verifier and three-run synthetic benchmarks passed. Manual matrix, broader corpus review and lower-memory/native profiling remain owed. | Acceptance pending |
 | HTTP protocol/client | Record supported API, input/response bounds, URL/TLS/proxy behavior and tests. | Pending item 5 |
 | Settings/credentials/authorization | Record PasswordSafe API, config revisions, test-only probes and disclosure/Apply tests. | Pending item 6 |
 | Persistent cache | Record durable path/schema/encoding, transactions, migrations, disk limits, export/import and unchanged-input restart tests. | Pending item 7 |

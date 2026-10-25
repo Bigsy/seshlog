@@ -927,7 +927,7 @@ duplicate IDs/rankings, missing rankings, multiple relevant labels and empty/tru
 
 ### 1. Implement query compilation and SQLite ranking semantics
 
-- [ ] **Deliverable:** pure query/tokenizer/compiler components and a testable SQLite FTS5 ranking
+- [x] **Deliverable:** pure query/tokenizer/compiler components and a testable SQLite FTS5 ranking
   adapter under `index/` (a subpackage is fine). Keep IntelliJ types out. FTS5 computes BM25;
   do not spend this item implementing another custom inverted index/scorer.
 - Implement ordinary-term scoring, mandatory quoted phrases, technical-token exact lane, title/
@@ -942,6 +942,15 @@ duplicate IDs/rankings, missing rankings, multiple relevant labels and empty/tru
   scores; deterministic ties independent of map iteration; metadata-only matches.
 - **Done when:** pure tests and `make check` pass and development-set behavior is documented.
   The default UI need not switch yet.
+
+Item 1 evidence (2026-10-25): `make check` passed with pure FTS5/contract tests. Version 1 uses
+Unicode word/underscore normalization, the historical small stop list, no stemming, document aliases,
+and distinct raw query tokens (aliases cannot multiply a compound query's evidence). Independent
+contentless title/path/body populations use weights 8/3/1, max title variant and max body passage.
+SQLite's negative BM25 is sign-normalized. A one-document hand calculation asserts 9e-6 for one
+identical title/body term; repeated body output cannot overwhelm the matching title. Literal phrase
+verification is entry-local and retains original UTF-16 offsets. Query limits are 4096/128.
+These constants are the specified defaults; no evaluation-partition tuning was performed.
 
 ### 2. Implement the durable SQLite lexical store and incremental indexing
 

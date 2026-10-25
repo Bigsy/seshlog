@@ -1,6 +1,9 @@
 package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.copy.CopyTarget
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.DiagnosticTrace
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
@@ -85,17 +88,21 @@ internal class ReworkedTerminal(
 
     internal fun handle(content: Content?, view: Any): TerminalHandle = object : TerminalHandle {
         override val content = content
+        override val diagnosticEngine = "reworked"
+        private val trace = SessionDiagnostics.trace("terminal_adapter", "tab" to DiagnosticRef.tab(content))
         init { content?.putUserData(VIEW_KEY, view) }
 
         override fun shellPid(): Long? = try {
-            val session = session(view) ?: return null
+            val session = session(view, trace) ?: return null.also { trace.event("shell_unavailable", "reason" to "session_not_ready_or_closed") }
             // Remote PIDs must never be compared with, or used to terminate, local processes.
-            if (sessionProperty(session, "getEelDescriptor") !== LocalEelDescriptor) return null
+            if (sessionProperty(session, "getEelDescriptor") !== LocalEelDescriptor) return null.also { trace.event("shell_unavailable", "reason" to "non_local") }
             (sessionProperty(session, "getProcessId") as? Number)?.toLong()?.takeIf { it > 0 }
         } catch (e: ReflectiveOperationException) {
+            trace.failure("shell_lookup_failed", e)
             log.debug("Cannot inspect reworked terminal session", e)
             null
         } catch (e: LinkageError) {
+            trace.failure("shell_api_unavailable", e)
             log.debug("Reworked terminal session API is unavailable", e)
             null
         }
@@ -144,7 +151,7 @@ internal class ReworkedTerminal(
     } catch (_: ReflectiveOperationException) { false }
 
     /** Internal session APIs are intentionally reached by narrow reflection for verifier safety. */
-    private fun session(view: Any): Any? = try {
+    private fun session(view: Any, trace: DiagnosticTrace = DiagnosticTrace.NONE): Any? = try {
         val terminalView = view as? TerminalView ?: return null
         val method = terminalView.javaClass.getMethod("getSessionDeferred")
         if (!method.trySetAccessible()) return null
@@ -155,6 +162,7 @@ internal class ReworkedTerminal(
         val closed = closedMethod.invoke(session) as? Boolean ?: return null
         if (closed) null else session
     } catch (e: ReflectiveOperationException) {
+        trace.failure("terminal_session_lookup_failed", e)
         log.debug("Cannot inspect reworked terminal session", e)
         null
     }

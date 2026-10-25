@@ -50,6 +50,8 @@ object CodexTranscriptParser {
     internal data class RolloutHeader(
         val id: String?, val cwd: String?, val terminal: Boolean,
         val createdAt: Instant? = null, val writtenAt: Instant? = null, val forkedFrom: String? = null,
+        /** Historical writer version, not necessarily the currently running TUI/daemon version. */
+        val cliVersion: String? = null,
     )
 
     /** Null when the first record is unreadable, oversize or not `session_meta`: unknown, not absent. */
@@ -66,7 +68,8 @@ object CodexTranscriptParser {
                 RolloutHeader(it.string("id"), it.string("cwd"), !it.isInternalSubagent() &&
                     (it.string("source") == "cli" || it.string("originator") == TUI_ORIGINATOR),
                     instant(it.string("timestamp")), instant(record.string("timestamp")),
-                    it.string("forked_from_id")?.takeIf { id -> id.isNotBlank() })
+                    it.string("forked_from_id")?.takeIf { id -> id.isNotBlank() },
+                    it.string("cli_version")?.takeIf { version -> version.matches(CLI_VERSION) })
             }
         }
     } catch (_: Exception) { null }
@@ -79,6 +82,7 @@ object CodexTranscriptParser {
     internal fun isCliTranscript(path: Path): Boolean = rolloutHeader(path)?.terminal == true
 
     private const val TUI_ORIGINATOR = "codex-tui"
+    private val CLI_VERSION = Regex("[0-9]{1,5}\\.[0-9]{1,5}\\.[0-9]{1,5}(?:[-+][A-Za-z0-9.-]{1,40})?")
 
     fun parse(path: Path): CodexTranscriptInfo =
         Files.newInputStream(path).use { input ->

@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.settings
 
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.ui.actions.OpenSessionDiagnosticsAction
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
@@ -100,6 +101,11 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                         .bindIntText(settings::previewMessageCount)
                         .columns(4)
                 }.comment("The most recent user prompts and assistant replies of the selected session.")
+            }
+            group("Session Diagnostics") {
+                row {
+                    button("Open session diagnostics") { OpenSessionDiagnosticsAction.show() }
+                }.comment("Always-on local logs: four files of up to 5 MiB in the IDE log directory. Records process matching and tab changes; no conversations or commands. Paths and session IDs are hashed.")
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.index
 
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.worktree.WorktreeProjects
 import com.intellij.openapi.project.Project
 import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
@@ -164,6 +166,8 @@ class SessionIndex : Disposable {
     private fun scanOnce() {
         if (disposed.get()) return
         val generation = configurationGeneration.get()
+        val trace = SessionDiagnostics.trace("index", "scan" to SessionDiagnostics.nextId(), "generation" to generation)
+        trace.event("scan_started")
         val start = System.currentTimeMillis()
         val previous = sessions.associateBy { it.id }
         val result = ArrayList<Session>()
@@ -171,6 +175,8 @@ class SessionIndex : Disposable {
         for (provider in providers) {
             val scan = provider.scanWithDiagnostics(previous)
             diagnostics[provider.kind] = scan
+            trace.event("provider_scanned", "kind" to provider.kind, "health" to scan.health, "sessions" to scan.sessions.size,
+                "storage" to DiagnosticRef.path(provider.storagePath()))
             result += scan.sessions
         }
         val inputs = result.mapTo(HashSet()) { it.cwd }
@@ -181,7 +187,10 @@ class SessionIndex : Disposable {
         }.sortedByDescending { it.lastActivityAt }
         val openProjects = WorktreeProjects.capture()
         val protectedRoots = WorktreeProjects.protectedRoots()
-        if (disposed.get() || configurationGeneration.get() != generation) return
+        if (disposed.get() || configurationGeneration.get() != generation) {
+            trace.event("scan_discarded", "reason" to "disposed_or_settings_changed")
+            return
+        }
         openProjectRoots = openProjects.roots
         protectedDataRoots = protectedRoots
         providerDiagnostics = diagnostics
@@ -189,6 +198,7 @@ class SessionIndex : Disposable {
         pathRevision.incrementAndGet()
         sessions = associated
         lastScanMillis = System.currentTimeMillis() - start
+        trace.event("scan_finished", "sessions" to result.size, "elapsedMs" to lastScanMillis)
         LOG.debug("Scanned ${result.size} sessions in ${lastScanMillis} ms")
         val app = ApplicationManager.getApplication()
         if (app != null && !app.isDisposed) {

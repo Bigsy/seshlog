@@ -390,6 +390,30 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   project writes inside verified checkouts under agent data roots was requested; absent approval,
   the implemented guard and the existing AGENTS.md rule remain in force.
 
+## Follow-up: session-management diagnostics
+
+Requested 2026-10-25 after intermittent Codex terminal association loss.
+
+- [x] Add always-on, asynchronous rotating metadata logs in the running IDE's log directory
+  (four files, 5 MiB each), bounded queue, visible loss/recovery and no conversation/command data.
+  Correlate process snapshots, descriptors, Codex matching reasons, tab generations/ownership,
+  pending launches, exits, copy, scans and restore decisions. Add an incident-marker/reveal action
+  and settings button. Document reading sandbox and installed-IDE logs in AGENTS.md. Verify
+  rotation, concurrency, privacy, write failures and decision diagnostics with `make check`.
+
+Implemented and validated: `make check` / `make release` passed with 442 tests (440 passed,
+two opt-in checks skipped), plugin build and ZIP integrity. Plugin Verifier passed on
+IU-262.10968.63. The plugin-version lookup uses the platform's public, experimental
+`PluginDetailsService`; there are no internal API violations. Diagnostics do not write agent data
+or persist conversation content. The sandbox and installed-IDE log locations, incident markers,
+rotation order and correlation fields are documented in AGENTS.md.
+
+Manual follow-up **owed**: in `make run` and a normally installed IDE, reproduce a Codex association
+loss or an ambiguous same-directory launch, invoke Open Session Diagnostics from the affected tab,
+and confirm the revealed directory and incident/poll correlation. No live agent is launched by
+automated tests. Diagnostic logging does not itself change matching policy or promise to fix the
+underlying intermittent association loss.
+
 ## Manual acceptance matrix
 
 Use `make run` with a disposable local repository and synthetic/test sessions where possible.

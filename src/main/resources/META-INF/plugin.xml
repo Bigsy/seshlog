@@ -81,6 +81,8 @@
     </extensions>
 
     <actions>
+        <action id="Seshlog.OpenSessionDiagnostics" class="com.hedworth.seshlog.ui.actions.OpenSessionDiagnosticsAction"
+                text="Seshlog: Open Session Diagnostics" description="Mark this incident and reveal the rotating session-management logs"/>
         <action id="Seshlog.NextAttention" class="com.hedworth.seshlog.ui.actions.NextAttentionAction"
                 text="Seshlog: Next Session Needing Attention" description="View the next unread completion in the current filters"
                 icon="AllIcons.Actions.NextOccurence"/>
@@ -124,6 +126,8 @@
                     text="Reveal Transcript"/>
             <action id="Seshlog.OpenTranscript" class="com.hedworth.seshlog.ui.actions.OpenTranscriptAction"
                     text="Open Transcript"/>
+            <separator/>
+            <reference ref="Seshlog.OpenSessionDiagnostics"/>
         </group>
         <action id="Seshlog.ForkTerminalTab" class="com.hedworth.seshlog.ui.actions.ForkTerminalTabSessionAction"
                 text="Fork Session" description="Continue this tab's coding-agent session in a new session" icon="AllIcons.Vcs.Branch">

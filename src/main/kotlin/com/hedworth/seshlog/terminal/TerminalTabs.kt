@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.copy.CopyTarget
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.RestoreTabReadiness
 import com.hedworth.seshlog.settings.SessionOrganisation
@@ -99,6 +101,7 @@ object TerminalTabs {
 
     internal fun classic(widget: TerminalWidget, content: Content?): TerminalHandle = object : TerminalHandle {
         override val content = content
+        override val diagnosticEngine = "classic"
         override fun shellPid() = TerminalTabs.shellPid(widget)
         override fun state() = TerminalTabs.state(widget)
         override fun execute(command: String) = widget.sendCommandToExecute(command)
@@ -127,16 +130,22 @@ object TerminalTabs {
     fun resume(project: Project, session: Session, command: String): TerminalHandle {
         val owned = OwnedTerminalTabs.getInstance(project)
         val title = SessionOrganisation.getInstance().title(session)
+        val trace = SessionDiagnostics.trace("resume", "project" to DiagnosticRef.of(project.basePath), "session" to DiagnosticRef.of(session.id))
         return ResumeTerminal.resume(
             session.id, owned.terminalFor(session.id),
             contents(project).filter { it.displayName == title || it.displayName == session.title }.mapNotNull { terminalOf(project, it) },
             owns = { it.content?.let(owned::ownsTab) == true },
-            idle = { TerminalCommands.state(it) == TerminalState.IDLE },
+            idle = { terminal ->
+                val state = TerminalCommands.state(terminal)
+                trace.event("resume_terminal_state", "tab" to DiagnosticRef.tab(terminal.content), "engine" to terminal.diagnosticEngine, "state" to state)
+                state == TerminalState.IDLE
+            },
             execute = { TerminalCommands.execute(it, "cd ${ShellQuote.quote(session.cwd.toString())} && $command") },
             launch = { TerminalLauncher.launch(project, session.cwd, title, command) },
             track = { _, terminal -> owned.track(session, terminal) },
             focus = { owned.focus(session.id) },
             ended = contents(project).firstOrNull { owned.lastSessionFor(it) == session.id }?.let { terminalOf(project, it) },
+            trace = trace,
         )
     }
 

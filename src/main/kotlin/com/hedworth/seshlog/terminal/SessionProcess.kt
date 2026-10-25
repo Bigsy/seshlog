@@ -1,6 +1,9 @@
 package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.codex.CodexTranscriptParser
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.DiagnosticTrace
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import java.nio.file.Path
@@ -72,6 +75,7 @@ internal object SessionProcess {
         evidence: ProcessTranscripts.Result,
         isCliTranscript: (Path) -> Boolean = CodexTranscriptParser::isCliTranscript,
         daemonThreads: Map<Long, String> = emptyMap(),
+        trace: DiagnosticTrace = DiagnosticTrace.NONE,
     ): Discovery {
         val writableFiles = evidence.files
         val codex = executables[AgentKind.CODEX]
@@ -100,14 +104,21 @@ internal object SessionProcess {
         val matched = codexProcesses.mapNotNull { process -> daemonThreads[process.pid]?.let { it to process.pid } }.toMap()
         val owners = if (paths.isEmpty() && !unknown && matched.isEmpty()) identified
             else identified.filterKeys { it !in codexIds } + written + matched.filterKeys { it in codexIds }
+        trace.event("identity_evidence", "argumentOrMarker" to DiagnosticRef.ids(identified.keys), "writers" to DiagnosticRef.ids(written.keys),
+            "daemon" to DiagnosticRef.ids(matched.keys), "daemonMissingFromIndex" to DiagnosticRef.ids(matched.keys - codexIds),
+            "rolloutCount" to paths.size, "descriptorOrHeaderUnknown" to unknown, "selected" to DiagnosticRef.ids(owners.keys))
         return Discovery(owners.keys, processes.any { p -> executables.values.any { isAgent(p, it) } } || owners.isNotEmpty(), owners, unknown && paths.isEmpty(), codexIds)
     }
 
     /** Discover fresh or resumed agents under one shell, entirely off the EDT, as polling does. */
-    fun inspect(shell: Long, sessions: List<Session>, executables: Map<AgentKind, String>, codexHome: Path? = null): Discovery = try {
-        ProcessBatchInspector().inspect(setOf(shell), sessions, executables, codexHome).discoveries.getValue(shell).discovery
-    } catch (_: Exception) {
-        Discovery(emptySet(), true, unknown = true) // Preserve association when evidence is unavailable.
+    fun inspect(shell: Long, sessions: List<Session>, executables: Map<AgentKind, String>, codexHome: Path? = null): Discovery {
+        val trace = SessionDiagnostics.trace("copy_inspection", "poll" to SessionDiagnostics.nextId())
+        return try {
+            ProcessBatchInspector().inspect(setOf(shell), sessions, executables, codexHome, trace).discoveries.getValue(shell).discovery
+        } catch (e: Exception) {
+            trace.failure("inspection_failed", e)
+            Discovery(emptySet(), true, unknown = true) // Preserve association when evidence is unavailable.
+        }
     }
 
     fun discover(shell: Long, sessions: List<Session>, executables: Map<AgentKind, String>): Set<String> =

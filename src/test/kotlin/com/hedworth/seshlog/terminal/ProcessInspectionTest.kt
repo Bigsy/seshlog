@@ -17,13 +17,15 @@ class ProcessInspectionTest {
 
     @Test fun `only one tick runs until delivery finishes including failing delivery`() {
         val deliveries = mutableListOf<() -> Unit>()
-        val inspection = ProcessInspection({ it() }, { deliveries.add(it) }, {})
+        val failures = mutableListOf<Throwable>()
+        val inspection = ProcessInspection({ it() }, { deliveries.add(it) }, { failures.add(it) })
         var inspections = 0
         inspection.run({ inspections++; 1 }, { throw AssertionError("delivery") })
         inspection.run({ inspections++; 2 }, {})
         assertEquals(1, inspections)
         assertTrue(inspection.isRunning)
         org.junit.Assert.assertThrows(AssertionError::class.java) { deliveries.removeAt(0)() }
+        assertEquals("delivery", failures.single().message)
         assertFalse(inspection.isRunning)
         inspection.run({ inspections++; 3 }, {})
         deliveries.removeAt(0)()

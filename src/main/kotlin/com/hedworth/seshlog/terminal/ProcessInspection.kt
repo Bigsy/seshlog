@@ -20,6 +20,7 @@ internal class ProcessInspection(
                     val result = inspect()
                     ui {
                         try { apply(result) }
+                        catch (t: Throwable) { failure(t); throw t }
                         finally { checking.set(false) }
                     }
                     delivered = true

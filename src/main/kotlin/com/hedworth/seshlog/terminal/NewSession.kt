@@ -25,6 +25,7 @@ internal object NewSessionCommand {
 internal class PendingSessionAssociations<T : Any>(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
     private val timeoutMillis: Long = 60_000,
+    private val onExpired: (T) -> Unit = {},
 ) {
     private data class Entry(val existingIds: Set<String>, val startedAt: Long)
     private val pending = LinkedHashMap<T, Entry>()
@@ -35,7 +36,8 @@ internal class PendingSessionAssociations<T : Any>(
 
     private fun purgeExpired() {
         val now = clock()
-        pending.entries.removeIf { now - it.value.startedAt >= timeoutMillis }
+        val expired = pending.filterValues { now - it.startedAt >= timeoutMillis }.keys.toList()
+        expired.forEach { pending.remove(it); onExpired(it) }
     }
 
     val tabs: List<T> get() {

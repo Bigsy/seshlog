@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.ProcessTree
@@ -32,9 +34,13 @@ import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 @Service(Service.Level.PROJECT)
 class OwnedTerminalTabs(private val project: Project) : Disposable {
     private val LOG = logger<OwnedTerminalTabs>()
+    private val trace = SessionDiagnostics.trace("tabs", "project" to DiagnosticRef.of(project.basePath), "tracker" to SessionDiagnostics.nextId())
+    private var inspectionTrace = trace
 
     private val registry = TabRegistry<Content>()
-    private val pendingSessions = PendingSessionAssociations<Content>()
+    private val pendingSessions = PendingSessionAssociations<Content>(onExpired = {
+        trace.event("pending_expired", "tab" to DiagnosticRef.tab(it))
+    })
     private val agents = ObservedAgents<ProcessHandle>()
     // A tab's session after its agent exited: no longer attached, but copy/fork still act on it.
     private val endedSessions = EndedSessions<Content>()
@@ -49,7 +55,10 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.getContentManagerIfCreated() },
         openContents = { TerminalTabs.contents(project) },
         selectionChanged = { content -> updateActiveSession(content) },
-        tabClosed = { content -> registry.forget(content); endedSessions.remove(content); pendingSessions.forget(content) },
+        tabClosed = { content ->
+            trace.event("tab_closed", "tab" to DiagnosticRef.tab(content), "session" to DiagnosticRef.of(registry.sessionFor(content)))
+            registry.forget(content); endedSessions.remove(content); pendingSessions.forget(content)
+        },
     )
 
     val sessionIds: Set<String> get() = registry.sessionIds
@@ -58,6 +67,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** Dispose just this session's terminal tab. Must run on the EDT. */
     fun close(sessionId: String): Boolean {
+        trace.event("close_requested", "session" to DiagnosticRef.of(sessionId))
         val content = undisposedContent(sessionId) ?: return true
         // A drag is in flight: do not claim the tab was closed or discard its association.
         val manager = content.manager ?: return false
@@ -73,11 +83,15 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     internal fun ownsTab(content: Content): Boolean = sessionFor(content) != null || pendingSessions.isPending(content)
 
     internal fun trackPending(terminal: TerminalHandle, existingIds: Set<String>) {
+        trace.event("pending_launch", "tab" to DiagnosticRef.tab(terminal.content), "engine" to terminal.diagnosticEngine, "existingSessions" to existingIds.size)
         terminal.content?.let { pendingSessions.mark(it, existingIds) }
         tabObserver.refresh()
     }
 
-    internal fun cancelPending(terminal: TerminalHandle) { terminal.content?.let(pendingSessions::forget) }
+    internal fun cancelPending(terminal: TerminalHandle) {
+        trace.event("pending_cancelled", "tab" to DiagnosticRef.tab(terminal.content))
+        terminal.content?.let(pendingSessions::forget)
+    }
 
     /** The attached session, else the one whose agent last exited in [content]. EDT only. */
     fun lastSessionFor(content: Content): String? = sessionFor(content) ?: endedSessions[content]
@@ -112,6 +126,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             val index = SessionIndex.getInstance()
             val id = if (shell == null) last else SessionProcess.copySession(last, index.sessions,
                 inspect = { SessionProcess.inspect(shell, it, executables, codexHome) }, rescan = { index.scanNow() })
+            trace.event("copy_resolved", "tab" to DiagnosticRef.tab(content), "shell" to shell,
+                "previous" to DiagnosticRef.of(previous), "ended" to DiagnosticRef.of(last), "session" to DiagnosticRef.of(id))
             // Copying from an agent that already exited must not re-attach it to the tab.
             if (id != null && shell != null && (id == previous || id != last)) ApplicationManager.getApplication().invokeLater {
                 if (!disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
@@ -134,6 +150,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private fun undisposedContent(sessionId: String): Content? {
         val content = registry.tabFor(sessionId) ?: return null
         if (!Disposer.isDisposed(content)) return content
+        trace.event("disposed_tab_forgotten", "tab" to DiagnosticRef.tab(content), "session" to DiagnosticRef.of(sessionId))
         registry.forget(content)
         return null
     }
@@ -142,7 +159,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private val processInspection = ProcessInspection(
         background = { ApplicationManager.getApplication().executeOnPooledThread(it) },
         ui = { ApplicationManager.getApplication().invokeLater(it) },
-        failure = { LOG.debug("Terminal process inspection failed", it) },
+        failure = { inspectionTrace.failure("poll_failed", it); LOG.debug("Terminal process inspection failed", it) },
     )
     private var disposed = false
     private var pollingState = ProcessPollingPolicy.State()
@@ -166,14 +183,26 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             val shell = terminalFor(id)?.shellPid() ?: return@mapNotNull null
             Triple(id, shell, session)
         }
-        val inspected = TerminalTabs.tabsWithShellPids(project).filterValues { it != null }
+        val poll = trace.with("poll" to SessionDiagnostics.nextId())
+        val pollStart = System.nanoTime()
+        inspectionTrace = poll
+        val tabs = TerminalTabs.tabsWithShellPids(project)
+        val inspected = tabs.filterValues { it != null }
+        poll.event("poll_started", "indexedSessions" to snapshot.size, "tabs" to tabs.size, "owned" to registry.sessionIds.size, "delayMs" to processClock.delay)
+        (tabs.keys + knownContents()).distinct().forEach { tab ->
+            val terminal = TerminalTabs.terminalOf(project, tab)
+            poll.event("tab_snapshot", "tab" to DiagnosticRef.tab(tab), "enumerated" to tabs.containsKey(tab),
+                "attached" to (tab.manager != null), "disposed" to Disposer.isDisposed(tab), "adapter" to (terminal != null),
+                "engine" to terminal?.diagnosticEngine, "shell" to tabs[tab], "session" to DiagnosticRef.of(registry.sessionFor(tab)),
+                "generation" to registry.generation(tab), "pending" to pendingSessions.isPending(tab), "ended" to DiagnosticRef.of(endedSessions[tab]))
+        }
         val previousOwners = inspected.keys.associateWith(registry::sessionFor)
         val previousGenerations = registry.generations(inspected.keys)
         val executables = executables()
         val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val watched = agents.snapshot()
         processInspection.run(inspect = {
-            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables, codexHome)
+            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables, codexHome, poll)
             val found = candidates.mapNotNull { (id, shell, _) ->
                 val discovery = batch.discoveries[shell]?.discovery ?: return@mapNotNull null
                 val handle = discovery.processes[id]?.let(batch.handles::get)
@@ -198,6 +227,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                     !Disposer.isDisposed(tab) &&
                         TerminalTabs.terminalOf(project, tab)?.shellPid() == shell
                 }.keys
+                (inspected.keys - stableTabs).forEach { poll.event("tab_result_rejected", "tab" to DiagnosticRef.tab(it), "reason" to "disposed_or_shell_changed") }
                 val validFound = found.filter { (id, _) ->
                     val candidate = candidates.firstOrNull { it.first == id } ?: return@filter false
                     val tab = ownershipBefore[id] ?: return@filter false
@@ -211,8 +241,10 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 // A pending launch may resolve only when its tab has exactly one fresh identity.
                 // Do this before the pure reconciler so ambiguity cannot be consumed one id at a time.
                 val usableDiscoveries = allDiscoveries.filter { discovery ->
-                    !pendingSessions.isPending(discovery.tab) ||
+                    val usable = !pendingSessions.isPending(discovery.tab) ||
                         pendingSessions.candidate(discovery.tab, idsByTab[discovery.tab].orEmpty()) != null
+                    if (!usable) poll.event("tab_result_rejected", "tab" to DiagnosticRef.tab(discovery.tab), "reason" to "pending_requires_fresh_identity")
+                    usable
                 }
                 val reconciliation = TerminalReconciler.reconcile(
                     TerminalReconcileInput(
@@ -229,7 +261,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         generationsAtInspection = previousGenerations,
                         generationsNow = generationNow,
                         runningProcesses = validFound,
-                    ),
+                    ), poll,
                 )
                 for ((id, tab) in reconciliation.adopt) {
                     if (Disposer.isDisposed(tab)) continue
@@ -240,7 +272,12 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                     // injected expiry clock may have advanced while the worker result was
                     // waiting for the EDT; never leave a registry entry without resolving it.
                     if (pending && pendingSessions.candidate(tab, candidateIds) != id) continue
-                    if (!registry.adoptDiscovered(id, tab, previousOwners[tab], previousGenerations[tab])) continue
+                    if (!registry.adoptDiscovered(id, tab, previousOwners[tab], previousGenerations[tab])) {
+                        poll.event("adoption_rejected", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id), "reason" to "ownership_or_generation_changed")
+                        continue
+                    }
+                    poll.event("tab_adopted", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id),
+                        "previous" to DiagnosticRef.of(previousOwners[tab]), "generation" to registry.generation(tab), "pending" to pending)
                     if (pending) {
                         pendingSessions.resolve(tab, candidateIds)
                         SessionIndex.getInstance().sessionById(id)?.let {
@@ -251,7 +288,10 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 for ((id, tab) in reconciliation.releaseTabs) {
                     if (Disposer.isDisposed(tab)) continue
                     if (TerminalTabs.terminalOf(project, tab)?.shellPid() != inspected[tab]) continue
-                    if (registry.release(id, tab, previousGenerations[tab])) endedSessions[tab] = id
+                    if (registry.release(id, tab, previousGenerations[tab])) {
+                        endedSessions[tab] = id
+                        poll.event("tab_released", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id), "reason" to "observed_process_exited")
+                    }
                 }
                 for ((id, process) in reconciliation.observe) {
                     val tab = registry.tabFor(id) ?: continue
@@ -263,7 +303,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 for ((content, title) in reconciliation.retitle) {
                     if (Disposer.isDisposed(content)) continue
                     if (TerminalTabs.terminalOf(project, content)?.shellPid() != inspected[content]) continue
-                    LOG.debug("Retitling terminal tab '${content.displayName}' -> '$title'")
+                    poll.event("tab_retitled", "tab" to DiagnosticRef.tab(content))
                     TerminalTabs.terminalOf(project, content)?.rename(title)
                 }
                 agents.retainOnly(registry.sessionIds)
@@ -278,11 +318,16 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 val cadence = ProcessPollingPolicy.next(pollingState, active, changed)
                 pollingState = cadence.state
                 processClock.delay = cadence.delayMillis.toInt()
+                poll.event("poll_applied", "runningBefore" to DiagnosticRef.ids(running), "runningAfter" to DiagnosticRef.ids(valid),
+                    "elapsedMs" to (System.nanoTime() - pollStart) / 1_000_000,
+                    "exited" to DiagnosticRef.ids(exited), "found" to validFound.mapKeys { DiagnosticRef.of(it.key)!! }.mapValues { it.value.pid() },
+                    "owned" to registry.snapshot().mapKeys { DiagnosticRef.of(it.key)!! }.mapValues { DiagnosticRef.tab(it.value) },
+                    "nextDelayMs" to cadence.delayMillis)
                 if (running != valid) {
                     running = valid
                     project.messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningSessionIds())
                 }
-            }
+            } else poll.event("poll_discarded", "reason" to "project_disposed")
         })
     }
 
@@ -296,9 +341,12 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** Remember that [widget]'s tab runs [session]. Must be called on the EDT. */
     fun track(session: Session, widget: TerminalHandle) {
         val content = widget.content ?: run {
+            trace.event("tracking_failed", "session" to DiagnosticRef.of(session.id), "reason" to "no_content")
             LOG.debug("No tab content for session ${session.id}; not tracking")
             return
         }
+        trace.event("tab_tracked", "tab" to DiagnosticRef.tab(content), "session" to DiagnosticRef.of(session.id), "kind" to session.kind,
+            "previous" to DiagnosticRef.of(registry.sessionFor(content)), "engine" to widget.diagnosticEngine)
         registry.register(session.id, content)
         agents.forget(session.id)
         tabObserver.refresh()
@@ -307,11 +355,12 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** Bring the tab running [sessionId] to the front. Returns false when we do not own one. */
     fun focus(sessionId: String): Boolean {
-        val content = undisposedContent(sessionId) ?: return false
+        val content = undisposedContent(sessionId) ?: return false.also { trace.event("focus_failed", "session" to DiagnosticRef.of(sessionId), "reason" to "no_owned_tab") }
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
             ?: return false
         val manager = content.manager
-        if (manager == null || manager.isDisposed) return false
+        if (manager == null || manager.isDisposed) return false.also { trace.event("focus_failed", "session" to DiagnosticRef.of(sessionId), "reason" to "manager_unavailable") }
+        trace.event("tab_focused", "session" to DiagnosticRef.of(sessionId), "tab" to DiagnosticRef.tab(content))
         toolWindow.activate({ manager.setSelectedContent(content, true) }, true)
         return true
     }
@@ -319,6 +368,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** Subscribe to index updates; idempotent. */
     fun start() {
         if (!started.compareAndSet(false, true)) return
+        trace.event("tracking_started")
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
             override fun sessionsUpdated(sessions: List<Session>) = sync(sessions)
         })
@@ -370,6 +420,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 
     override fun dispose() {
+        trace.event("tracking_stopped", "owned" to DiagnosticRef.ids(registry.sessionIds), "running" to DiagnosticRef.ids(running))
         disposed = true
         processClock.stop()
         tabObserver.dispose()

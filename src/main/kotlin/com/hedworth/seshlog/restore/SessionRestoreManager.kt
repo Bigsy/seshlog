@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.restore
 
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.RestoreMode
 import com.hedworth.seshlog.settings.SeshlogSettings
@@ -37,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Service(Service.Level.PROJECT)
 class SessionRestoreManager(private val project: Project) : Disposable {
     private val LOG = logger<SessionRestoreManager>()
+    private val trace = SessionDiagnostics.trace("restore", "project" to DiagnosticRef.of(project.basePath))
 
     private val settings get() = SeshlogSettings.getInstance()
     private val organisation get() = SessionOrganisation.getInstance()
@@ -74,6 +77,8 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     private val offered = HashSet<String>()
 
     fun recordLaunch(session: Session) {
+        trace.event("restore_launch_recorded", "session" to DiagnosticRef.of(session.id), "kind" to session.kind,
+            "detectsLive" to index.providerFor(session).detectsLiveSessions)
         // Without a liveness signal the session would sit in awaitingLive for good and be offered
         // for restoring whether or not it was still running when the IDE closed.
         if (!index.providerFor(session).detectsLiveSessions) return
@@ -85,6 +90,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     }
 
     fun recordStop(sessionId: String) {
+        trace.event("restore_stop_recorded", "session" to DiagnosticRef.of(sessionId))
         snapshots.invalidate()
         launched.remove(sessionId)
         awaitingLive.remove(sessionId)
@@ -97,6 +103,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         if (!started.compareAndSet(false, true)) return
         // Take the shutdown snapshot out before any new scan overwrites it.
         loadPending()
+        trace.event("restore_started", "pending" to DiagnosticRef.ids(pending), "mode" to settings.restoreMode)
         LOG.debug("Pending restore for ${project.name}: $pending")
 
         val connection = ApplicationManager.getApplication().messageBus.connect(this)
@@ -140,6 +147,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
     }
 
     internal fun dismissRestore(ids: Collection<String>) {
+        trace.event("restore_dismissed", "sessions" to DiagnosticRef.ids(ids))
         if (ids.isEmpty()) return
         snapshots.invalidate()
         pending = pending.filterNot { it in ids }
@@ -165,6 +173,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
 
     /** Teardown must not query terminal processes or wait for a worker while holding UI locks. */
     internal fun snapshotAtClose(sessions: List<Session>) {
+        trace.event("restore_closing")
         closing = true
         snapshots.dispose()
         preserveAtClose(sessions)
@@ -180,6 +189,7 @@ class SessionRestoreManager(private val project: Project) : Disposable {
 
     private fun remember(ids: List<String>) {
         if (ids == state.liveSessionIds) return
+        trace.event("restore_checkpoint", "sessions" to DiagnosticRef.ids(ids))
         LOG.debug("Live sessions for ${project.name}: $ids")
         state.liveSessionIds = ids
     }
@@ -191,6 +201,8 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         val resolved = ids.filter { it in available }
         if (resolved.isEmpty()) return // keep them for a later scan instead of losing them
         val plan = captureOrphans(RestoreCandidates.plan(resolved, sessions, ProcessTree.System) { index.providerFor(it).detectsLiveSessions })
+        trace.event("restore_plan", "restore" to DiagnosticRef.ids(plan.restore.map { it.id }),
+            "orphans" to DiagnosticRef.ids(plan.orphans.map { it.id }), "running" to DiagnosticRef.ids(plan.running.map { it.id }))
         LOG.debug("Restore plan for ${project.name}: restore=${plan.restore.map { it.id }} orphans=${plan.orphans.map { it.id }} running=${plan.running.map { it.id }}")
         // Keep unresolved, offered and queued sessions durable until launch or dismissal.
         val restorableIds = plan.restore.map { it.id }

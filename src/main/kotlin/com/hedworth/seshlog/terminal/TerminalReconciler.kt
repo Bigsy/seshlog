@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.DiagnosticTrace
 
 /** One uniquely identified session discovered in a tab during a process snapshot. */
 internal data class TabProcessDiscovery<T : Any, P : Any>(
@@ -56,17 +58,24 @@ internal data class TerminalReconcileResult<T : Any, P : Any>(
  * callers apply [TerminalReconcileResult] on the EDT only after checking their generation.
  */
 internal object TerminalReconciler {
-    fun <T : Any, P : Any> reconcile(input: TerminalReconcileInput<T, P>): TerminalReconcileResult<T, P> {
+    fun <T : Any, P : Any> reconcile(input: TerminalReconcileInput<T, P>, trace: DiagnosticTrace = DiagnosticTrace.NONE): TerminalReconcileResult<T, P> {
         val sessions = input.sessions.associateBy { it.id }
         val ownershipByTab = input.ownership.entries.associate { it.value to it.key }.toMutableMap()
         val adopt = LinkedHashMap<String, T>()
         val observe = LinkedHashMap<String, P>()
+        fun reject(tab: T, reason: String, id: String? = null) = trace.event("reconcile_rejected",
+            "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id), "reason" to reason,
+            "inspectedGeneration" to input.generationsAtInspection[tab], "currentGeneration" to input.generationsNow[tab])
 
         fun unchanged(tab: T): Boolean {
             val inspectedOwner = input.ownershipAtInspection[tab]
-            if (input.ownershipAtInspection.containsKey(tab) && ownershipByTab[tab] != inspectedOwner) return false
+            if (input.ownershipAtInspection.containsKey(tab) && ownershipByTab[tab] != inspectedOwner) {
+                reject(tab, "owner_changed"); return false
+            }
             if (input.generationsAtInspection.isNotEmpty() &&
-                input.generationsNow[tab] != input.generationsAtInspection[tab]) return false
+                input.generationsNow[tab] != input.generationsAtInspection[tab]) {
+                reject(tab, "generation_changed"); return false
+            }
             return true
         }
 
@@ -79,17 +88,19 @@ internal object TerminalReconciler {
             tabsByDiscovery.getValue(discovery.tab).size == 1 &&
                 tabsBySession.getValue(discovery.sessionId).map { it.tab }.distinct().size == 1
         }
+        (uniqueDiscoveries - unambiguous.toSet()).forEach { reject(it.tab, "ambiguous_discovery", it.sessionId) }
 
         for (discovery in unambiguous) {
-            val session = sessions[discovery.sessionId] ?: continue
+            val session = sessions[discovery.sessionId]
+            if (session == null) { reject(discovery.tab, "session_missing_from_index", discovery.sessionId); continue }
             // Codex and Pi deliberately do not expose a live flag. Exact process or descriptor
             // evidence is sufficient to adopt those sessions.
-            if (!session.isLive && discovery.process == null) continue
+            if (!session.isLive && discovery.process == null) { reject(discovery.tab, "no_live_evidence", discovery.sessionId); continue }
             // A tab may have changed owners while the worker inspected it. The caller's
             // ownership snapshot is the compare-and-set token for this adoption.
             if (!unchanged(discovery.tab)) continue
             val existingTab = input.ownership[discovery.sessionId]
-            if (existingTab != null && existingTab != discovery.tab) continue
+            if (existingTab != null && existingTab != discovery.tab) { reject(discovery.tab, "session_owned_elsewhere", discovery.sessionId); continue }
             val existingSession = ownershipByTab[discovery.tab]
             if (existingSession != null && existingSession != discovery.sessionId) {
                 adopt.remove(existingSession)
@@ -115,11 +126,13 @@ internal object TerminalReconciler {
             val before = input.observedBefore[sessionId] ?: continue
             // A missing current observation means explicit tracking cleared the old evidence (for
             // example a quick Resume); preserve ownership until a newer tick proves an exit.
-            val current = input.observedNow[sessionId] ?: continue
+            val current = input.observedNow[sessionId]
             // Identity comparison is intentional: a new process in the same tab must survive an
             // old process's exit result. Both values come from the same captured handle store.
-            if (current !== before) continue
-            if (incomingObservations[sessionId]?.let { it !== before } == true) continue
+            if (current !== before || incomingObservations[sessionId]?.let { it !== before } == true) {
+                trace.event("exit_ignored", "session" to DiagnosticRef.of(sessionId), "reason" to "observation_replaced_or_cleared")
+                continue
+            }
             val tab = input.ownership[sessionId] ?: continue
             if (!unchanged(tab)) continue
             release += sessionId

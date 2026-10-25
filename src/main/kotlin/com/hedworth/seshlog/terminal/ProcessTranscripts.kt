@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.terminal
 
+import com.hedworth.seshlog.diagnostics.DiagnosticTrace
 import com.intellij.openapi.diagnostic.logger
 import java.nio.file.Files
 import java.nio.file.Path
@@ -15,9 +16,10 @@ internal object ProcessTranscripts {
      */
     data class Result(val files: Map<Long, Set<Path>>, val unknown: Set<Long> = emptySet(), val cwds: Map<Long, Path> = emptyMap())
 
-    fun writableFiles(pids: Set<Long>): Result {
+    fun writableFiles(pids: Set<Long>, trace: DiagnosticTrace = DiagnosticTrace.NONE): Result {
         if (pids.isEmpty()) return Result(emptyMap())
-        if (!Files.isDirectory(Path.of("/proc/self/fd"))) return lsofFiles(pids)
+        if (!Files.isDirectory(Path.of("/proc/self/fd"))) return lsofFiles(pids, trace)
+        trace.event("descriptor_query", "backend" to "proc", "pids" to pids.sorted())
         val files = linkedMapOf<Long, Set<Path>>()
         val unknown = mutableSetOf<Long>()
         val cwds = linkedMapOf<Long, Path>()
@@ -43,24 +45,31 @@ internal object ProcessTranscripts {
     private fun procCwd(pid: Long): Path? = try { Files.readSymbolicLink(Path.of("/proc/$pid/cwd")) }
     catch (e: Exception) { log.debug("Cannot read process working directory", e); null }
 
-    private fun lsofFiles(pids: Set<Long>): Result {
+    private fun lsofFiles(pids: Set<Long>, trace: DiagnosticTrace): Result {
+        val started = System.nanoTime()
+        trace.event("descriptor_query", "backend" to "lsof", "pids" to pids.sorted())
         val unknown = Result(emptyMap(), pids)
         val output = try { Files.createTempFile("seshlog-open-files-", ".tmp") }
-        catch (e: Exception) { log.debug("Cannot create lsof output", e); return unknown }
+        catch (e: Exception) { trace.failure("lsof_temp_failed", e); log.debug("Cannot create lsof output", e); return unknown }
         var process: Process? = null
         return try {
             val executable = listOf("/usr/sbin/lsof", "/usr/bin/lsof").firstOrNull { Files.isExecutable(Path.of(it)) }
-                ?: return unknown.also { log.debug("lsof unavailable") }
+                ?: return unknown.also { trace.event("lsof_unavailable"); log.debug("lsof unavailable") }
             process = ProcessBuilder(executable, "-nP", "-a", "-p", pids.joinToString(","), "-F0pafn")
                 .redirectError(ProcessBuilder.Redirect.DISCARD).redirectOutput(output.toFile()).start()
             if (!process.waitFor(1, TimeUnit.SECONDS)) {
                 log.debug("lsof timed out")
+                trace.event("lsof_timeout")
                 unknown
             } else if (Files.size(output) > 4 * 1024 * 1024) {
                 log.debug("lsof exceeded output limit")
+                trace.event("lsof_output_limit")
                 unknown
-            } else resultFromLsof(pids, process.exitValue(), Files.readString(output))
-        } catch (e: Exception) { log.debug("Cannot inspect writable files with lsof", e); unknown }
+            } else {
+                trace.event("lsof_finished", "exit" to process.exitValue(), "bytes" to Files.size(output), "elapsedMs" to (System.nanoTime() - started) / 1_000_000)
+                resultFromLsof(pids, process.exitValue(), Files.readString(output))
+            }
+        } catch (e: Exception) { trace.failure("lsof_failed", e); log.debug("Cannot inspect writable files with lsof", e); unknown }
         finally {
             process?.destroyForcibly()
             try { Files.deleteIfExists(output) } catch (e: Exception) { log.debug("Cannot remove lsof output", e) }

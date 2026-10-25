@@ -153,6 +153,25 @@ their existing session behaviour.
   a file reference copies that file's current contents. See the [format notes](docs/clipboard-format-evidence.md)
   for details.
 
+## Troubleshooting session tracking
+
+If a terminal loses its session association, run **Seshlog: Open Session Diagnostics** from
+**Find Action**, or use **Settings → Tools → Seshlog → Session Diagnostics**. The session context
+menu also offers it. This marks the incident and reveals the log file; when invoked from a session
+or its terminal, the marker includes its reference when available.
+
+Diagnostics are always on and stay in the running IDE's log directory under `seshlog/`.
+`sessions.jsonl` and three rotated backups retain **at most 20 MiB** in total. Copy all four after
+the problem occurs and note the time and agent version. Sandbox `make run` IDEs and normal installed
+IDEs have separate logs; the action finds the correct directory in either one.
+
+Records cover process inspection, Codex daemon matching and uncertainty, index health, terminal
+ownership, launches, exits, copy resolution and restore decisions. Paths and session IDs are hashed;
+conversation text, titles, raw commands, environment variables and exception messages are excluded.
+Writes run in the background; disk failure or a full queue cannot block terminal tracking. Lost
+records are reported when writing recovers. See [AGENTS.md](AGENTS.md#reading-session-management-diagnostics)
+for locations and instructions for reading both sandbox and daily-IDE logs.
+
 ## Privacy
 
 Seshlog runs locally and makes **no network requests**. There is no telemetry or analytics.

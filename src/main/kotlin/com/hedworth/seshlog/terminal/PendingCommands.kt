@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.terminal
 
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import java.util.WeakHashMap
 
 /** Bridges the interval between sending a command and observing its agent process. */
@@ -24,9 +26,11 @@ internal object TerminalCommands {
 
     fun execute(terminal: TerminalHandle, command: String) {
         val key = key(terminal)
+        val trace = SessionDiagnostics.trace("command", "tab" to DiagnosticRef.tab(terminal.content), "engine" to terminal.diagnosticEngine)
+        trace.event("command_submitted")
         pending.mark(key)
         try { terminal.execute(command) }
-        catch (t: Throwable) { pending.observed(key); throw t }
+        catch (t: Throwable) { trace.failure("command_failed", t); pending.observed(key); throw t }
     }
 
     fun observed(tab: Any) = pending.observed(tab)

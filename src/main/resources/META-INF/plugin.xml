@@ -9,7 +9,8 @@
     <br><br>
     <ul>
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
-        <li>Recorded Claude Code and Codex worktree paths and observed Git branches, including detached HEAD; open eligible checkouts in a new window or focus an existing one. New project opening under protected agent data roots is disabled.</li>
+        <li>Follow Claude Code and Codex sessions across recorded worktree changes, with checkout paths, observed Git branches and detached-HEAD labels</li>
+        <li>Open a session's verified worktree in a new IntelliJ window or focus it if already open, keeping the original window and terminal available. Opening is disabled for missing or uncertain checkouts and for new projects inside protected agent data directories.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Full-text search across prompts and replies, not just titles</li>
         <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>
@@ -34,6 +35,13 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.6.10</b>
+    <ul>
+        <li>Show Claude Code and Codex session worktrees with checkout details, the observed Git branch or detached HEAD, and the full recorded path in tooltips.</li>
+        <li>Follow recorded working-directory changes as sessions move between checkouts. Project filtering and the Sibling worktrees option use the updated location in both browsing and search.</li>
+        <li>Open a session's verified worktree in a new IntelliJ window, or focus the window already using it. The original project window and its agent terminals stay open.</li>
+        <li>Keep missing or uncertain worktrees visible while disabling opening. New project opening inside protected agent data directories remains disabled; an already-open project there can still be focused.</li>
+    </ul>
     <b>0.6.9</b>
     <ul>
         <li>Track Codex terminals again from codex-cli 0.158, which runs sessions through a shared background server rather than the terminal's own process. Seshlog matches each Codex terminal to the session that server has open for the same directory, so new Codex sessions attach to their tab, relaunching Codex in a tab attaches it again, and copying a reply or plan works in tabs started with a plain codex command.</li>
@@ -54,18 +62,6 @@
     <ul>
         <li>Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.</li>
         <li>Make session rows easier to scan with titles above agent, time and branch details. Keep activity and unread badges aligned on the right, truncate long text to fit, and show full details in tooltips.</li>
-    </ul>
-    <b>0.6.4</b>
-    <ul>
-        <li>Pick up new and updated sessions as agents write them. The agent data directories, and folders created later such as Codex's daily folder, are now covered by the IDE's file watcher, so fresh Claude Code and Codex sessions appear, show activity and attach to their terminal without a manual refresh.</li>
-        <li>Copy from a terminal straight after an agent's first reply. When a running agent's session has not been indexed yet, Seshlog rescans once before reporting that no session is known.</li>
-        <li>Detach a terminal tab from its session when the agent process exits, so an ended Claude Code session is no longer highlighted while Codex starts in the same tab. Copy and Fork from that tab keep using its last session until another agent is identified.</li>
-    </ul>
-    <b>0.6.2</b>
-    <ul>
-        <li>Keep terminal tracking when switching from Claude Code to a fresh Codex session in the same tab. On macOS and Linux, identify the session from the transcript held open for writing by the Codex process.</li>
-        <li>Recheck the invoking terminal's current agent in the background before copying a reply or plan, so a shortcut does not use the previous agent's session while the new session is still unidentified.</li>
-        <li>Exclude Codex subagent and approval transcripts from terminal discovery. Follow the current CLI transcript when resume arguments refer to an older session, and leave ambiguous matches unresolved.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

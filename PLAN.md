@@ -414,6 +414,24 @@ and confirm the revealed directory and incident/poll correlation. No live agent 
 automated tests. Diagnostic logging does not itself change matching policy or promise to fix the
 underlying intermittent association loss.
 
+## Follow-up: worktree release packaging
+
+Requested 2026-10-25:
+
+- [x] Package as 0.6.10 with the worktree feature in the plugin description and new release notes.
+  Do not mention diagnostic logging in the packaged feature description or changelog. Keep five
+  recent release entries and preserve older entries in `docs/changelog-archive.md`. Rebuild and
+  inspect the actual ZIP's descriptor, run `make check` / `make release` and verify compatibility.
+
+Validated: `make release` passed (440 tests passed, two opt-in checks skipped), ZIP integrity
+passed, and the descriptor extracted from the actual packaged JAR reports version 0.6.10 with
+worktree feature text, worktree-only new release notes and five release entries. Neither the
+description nor changelog mentions logging. Plugin Verifier passed on IU-262.10968.63; compatible
+with deprecated/experimental API notices and no internal API violations. Artifact:
+`build/distributions/seshlog-0.6.10.zip`; SHA-256
+`6b982b3ffe9b930177ba2935eddced18dd7ac59b77b3a799af604b9e49f88257`.
+No publication or Marketplace upload was performed. Interactive acceptance below remains owed.
+
 ## Manual acceptance matrix
 
 Use `make run` with a disposable local repository and synthetic/test sessions where possible.

@@ -3,6 +3,18 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.6.4
+
+- Pick up new and updated sessions as agents write them. The agent data directories, and folders created later such as Codex's daily folder, are now covered by the IDE's file watcher, so fresh Claude Code and Codex sessions appear, show activity and attach to their terminal without a manual refresh.
+- Copy from a terminal straight after an agent's first reply. When a running agent's session has not been indexed yet, Seshlog rescans once before reporting that no session is known.
+- Detach a terminal tab from its session when the agent process exits, so an ended Claude Code session is no longer highlighted while Codex starts in the same tab. Copy and Fork from that tab keep using its last session until another agent is identified.
+
+## 0.6.2
+
+- Keep terminal tracking when switching from Claude Code to a fresh Codex session in the same tab. On macOS and Linux, identify the session from the transcript held open for writing by the Codex process.
+- Recheck the invoking terminal's current agent in the background before copying a reply or plan, so a shortcut does not use the previous agent's session while the new session is still unidentified.
+- Exclude Codex subagent and approval transcripts from terminal discovery. Follow the current CLI transcript when resume arguments refer to an older session, and leave ambiguous matches unresolved.
+
 ## 0.6.1
 
 - Improve terminal session tracking across split panes and tab moves by remembering the exact reworked terminal view on the IntelliJ IDEA 2026.2 terminal platform.

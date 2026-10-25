@@ -11,6 +11,7 @@
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
         <li>Follow Claude Code and Codex sessions across recorded worktree changes, with checkout paths, observed Git branches and detached-HEAD labels</li>
         <li>Open a session's verified worktree in a new IntelliJ window or focus it if already open, keeping the original window and terminal available. Opening is disabled for missing or uncertain checkouts and for new projects inside protected agent data directories.</li>
+        <li>Open Worktree and Fork Session starts an independent conversation fork in the worktree window's terminal, keeping the original session running.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Full-text search across prompts and replies, not just titles</li>
         <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>
@@ -35,6 +36,11 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.6.11</b>
+    <ul>
+        <li>Add Open Worktree and Fork Session: open or focus the session's worktree window and start a separate conversation fork in a new terminal there. Preserve the recorded subdirectory and leave the original session running.</li>
+        <li>Recheck the checkout and session location before launching the fork. Cancelled opens, closed windows and missing or changed directories do not start a session in the wrong place.</li>
+    </ul>
     <b>0.6.10</b>
     <ul>
         <li>Show Claude Code and Codex session worktrees with checkout details, the observed Git branch or detached HEAD, and the full recorded path in tooltips.</li>
@@ -57,11 +63,6 @@
     <b>0.6.7</b>
     <ul>
         <li>Collapse the message preview to its header row by clicking the header. Collapsed or expanded is remembered across restarts, and a collapsed preview does not read transcripts.</li>
-    </ul>
-    <b>0.6.6</b>
-    <ul>
-        <li>Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.</li>
-        <li>Make session rows easier to scan with titles above agent, time and branch details. Keep activity and unread badges aligned on the right, truncate long text to fit, and show full details in tooltips.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>
@@ -101,6 +102,7 @@
                     text="Kill Session" description="Stop this session and close its terminal tab"/>
             <separator/>
             <action id="Seshlog.OpenWorktree" class="com.hedworth.seshlog.ui.actions.OpenWorktreeAction" text="Open Worktree in IntelliJ"/>
+            <action id="Seshlog.OpenWorktreeAndFork" class="com.hedworth.seshlog.ui.actions.OpenWorktreeAndForkAction" text="Open Worktree and Fork Session"/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
             <action id="Seshlog.OpenContinuation" class="com.hedworth.seshlog.ui.actions.OpenContinuationAction" text="Open Continuation"/>
             <group id="Seshlog.EarlierSessions" class="com.hedworth.seshlog.ui.actions.EarlierSessionsAction" text="Earlier Sessions" popup="true"/>

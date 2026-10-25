@@ -101,6 +101,9 @@ How to interpret the records:
 - `pending_expired`, `tab_tracked`, `tab_adopted`, `tab_released`, `tab_closed`, command/resume,
   copy and restore events explain lifecycle changes. `tab_snapshot` includes missing adapters,
   shells and detached tabs. `scan_*`/`provider_scanned` show index freshness and provider health.
+- `worktree_*` events correlate opening/focusing and fork launches by `request`. The source
+  `project` and parent `session` remain on the request; `worktree_fork_requested.destination`
+  identifies the receiving project. Follow its `launch` and pending-tab events to the new ID.
 - `diagnostic_gap` reports lost records after queue saturation or write failure; truncated fields
   are marked. Missing evidence during a gap is not proof that an event did not happen. Logging
   is asynchronous and bounded; an abrupt IDE kill can lose the final queued records.

@@ -1,7 +1,7 @@
 # Plan: agent worktree tracking and opening in IntelliJ
 
 Prepared 2026-10-24; implementation and automated validation recorded 2026-10-25.
-Interactive acceptance checks remain outstanding as detailed below.
+Interactive acceptance checks are partially complete as detailed below.
 Read `AGENTS.md` first. Work through the numbered items in order, one commit per item, with no
 co-authorship or generated-by trailers. Tick an item only after its regression tests pass under
 `make check`; leave any outstanding `make run` checks explicitly recorded. References below use
@@ -432,6 +432,44 @@ with deprecated/experimental API notices and no internal API violations. Artifac
 `6b982b3ffe9b930177ba2935eddced18dd7ac59b77b3a799af604b9e49f88257`.
 No publication or Marketplace upload was performed. Interactive acceptance below remains owed.
 
+## Follow-up: open worktree and fork session
+
+Requested 2026-10-25 after the user verified opening a Codex worktree in the sandbox.
+
+- [x] Add **Open Worktree and Fork Session** alongside the navigation-only action. Open or
+  focus the verified checkout, then launch an independent conversation fork in that project's
+  terminal using the session's recorded subdirectory. Keep the original process running.
+  Revalidate after opening, reject missing/moved directories, cancel without launching on open
+  failure, and coalesce repeated clicks until the fork is launched. Reuse existing provider fork
+  commands and pending-terminal identification; never attach the parent ID to the new tab.
+  Cover new/existing windows, cancellation, stale targets, disposal, launch failure and action
+  registration. Update README and the packaged worktree features/release notes; run `make check`,
+  `make release` and Plugin Verifier. Manual fork/session independence checks remain owed.
+
+Implemented: the project-opening controller returns the destination project and keeps repeated
+requests coalesced through post-open validation and terminal launch. Both a newly opened project
+and an existing window receive the provider's fork command, with the recorded cwd preserved and
+the parent ID explicitly excluded from the pending terminal's candidates. Revalidate the session,
+checkout identity, subdirectory and destination before launching. Normal Open/Focus remains
+navigation only. SDK inspection confirmed that the 262 project-open call returns after startup;
+no internal startup API is needed.
+
+`make release` passed: 450 tests (448 passed, two opt-in checks skipped), plugin build and ZIP
+integrity. The 0.6.11 package contains the new action class/registration, feature text and
+worktree-only release notes; five release entries remain, with 0.6.6 moved to the archive.
+Artifact: `build/distributions/seshlog-0.6.11.zip`; SHA-256
+`b9b31441b93815865fb0d8c97f5b9d49a7e2955bd7d5d7069908faf850a2bdb5`.
+Plugin Verifier passed against IU-262.10968.63: compatible, with the existing two scheduled-removal,
+13 deprecated and 65 experimental API notices, and no internal API violations. No publication or
+installation into the daily IDE is part of this change.
+
+Manual follow-up **owed** after restarting the sandbox with this build: resume the test session
+in `main`, choose the new action, and confirm the terminal opens in `worktree-a/subdir` in the
+worktree window. Send a distinct prompt in the fork and check that its session ID differs and
+the original remains usable. Repeat with the worktree window already open (no duplicate window),
+then test a fresh window and Claude Code. A later intentional invocation creates another fork;
+repeated clicks while one invocation is opening/validating must create only one terminal.
+
 ## Manual acceptance matrix
 
 Use `make run` with a disposable local repository and synthetic/test sessions where possible.
@@ -457,8 +495,11 @@ whether the Codex session came from CLI or app. Do not modify real histories to 
 - [ ] Test narrow tool-window display, keyboard action invocation, project trust/cancel/import
   behaviour and the agent-root project-storage approach established in item 1.
 
-All interactive manual checks remain **owed** as of 2026-10-25; sandbox startup alone was observed. Automated checks alone do not establish that IDE
-project opening, focus and terminal lifetime behave correctly in the sandbox IDE.
+User-confirmed 2026-10-25: sandbox IU-262.10968.63 / Codex CLI 0.164.0, disposable repository
+`/private/tmp/seshlog-worktrees-wgo7_wop`. A session launched in `worktree-a/subdir` appeared after
+its first prompt; **Open Worktree in IntelliJ** opened the `worktree-a` root in a new window,
+with the original `main` window and Codex terminal still running. The broader matrix above,
+including Claude, repeated focus, filters, detached HEAD and the new fork action, remains **owed**.
 
 ## Commands and references
 

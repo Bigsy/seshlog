@@ -3,6 +3,11 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.6.6
+
+- Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.
+- Make session rows easier to scan with titles above agent, time and branch details. Keep activity and unread badges aligned on the right, truncate long text to fit, and show full details in tooltips.
+
 ## 0.6.4
 
 - Pick up new and updated sessions as agents write them. The agent data directories, and folders created later such as Codex's daily folder, are now covered by the IDE's file watcher, so fresh Claude Code and Codex sessions appear, show activity and attach to their terminal without a manual refresh.

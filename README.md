@@ -106,6 +106,14 @@ instance, the action becomes **Focus Worktree Window**, including for symlink al
 invoking project itself. IntelliJ's usual trust/import flow applies. Seshlog does not create
 worktrees, switch branches, move changes, or transfer the running agent or its terminal.
 
+Choose **Open Worktree and Fork Session** to also start an independent conversation in a new
+terminal in that window. The fork inherits the selected session's history and gets its own session
+ID; the original can keep running. The IDE opens at the checkout root, while the new terminal uses
+the session's recorded subdirectory. If that directory has disappeared or the session's location
+changes while opening, Seshlog stops the launch and reports the problem. Both conversations use
+the same worktree files; this action does not create another Git worktree. A deliberate later
+invocation creates another fork, while repeated clicks during opening are coalesced.
+
 **Sibling worktrees** includes sessions in related checkouts, both external siblings and nested
 checkouts such as a project's `.claude/worktrees/...`. Turning it off keeps sessions in the
 project's own checkouts and ordinary subdirectories. This applies to browsing and search.

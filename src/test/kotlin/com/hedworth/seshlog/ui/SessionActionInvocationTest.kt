@@ -43,6 +43,28 @@ class SessionActionInvocationTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test Open Worktree and Fork is registered and receives only the selected session`() {
+        assertNotNull(com.intellij.openapi.actionSystem.ActionManager.getInstance().getAction("Seshlog.OpenWorktreeAndFork"))
+        withPanel { panel ->
+            val item = session("worktree-fork", Paths.get(project.basePath!!))
+            panel.render(listOf(item))
+            select(panel, item)
+            var forked: Session? = null
+            var destination: Project? = null
+            val action = com.hedworth.seshlog.ui.actions.OpenWorktreeAndForkAction { source, selected ->
+                destination = source
+                forked = selected
+            }
+            panel.invoke(action)
+            assertEquals(project, destination)
+            assertEquals(item, forked)
+            forked = null
+            panel.tree.clearSelection()
+            panel.invoke(action)
+            assertNull(forked)
+        }
+    }
+
     /** Stands in for ResumeSessionAction: same base class, but touches no terminal. */
     private class ProbeAction : SessionAction("Probe") {
         var performedWith: Session? = null

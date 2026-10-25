@@ -1,10 +1,13 @@
 package com.hedworth.seshlog.worktree
 
+import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.index.GitRepository
 import com.hedworth.seshlog.index.SessionFilter
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SeshlogSettings
+import com.hedworth.seshlog.terminal.TerminalTabs
 import com.intellij.ide.impl.OpenProjectTask
 import com.intellij.ide.impl.ProjectUtil
 import com.intellij.notification.NotificationGroupManager
@@ -12,6 +15,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
@@ -46,9 +50,15 @@ object WorktreeProjects {
             .mapTo(HashSet(), SessionFilter::canonical)
     }
 
-    fun open(source: Project, session: Session) {
+    fun open(source: Project, session: Session) = open(source, session, forkSession = false)
+
+    fun openAndFork(source: Project, session: Session) = open(source, session, forkSession = true)
+
+    private fun open(source: Project, session: Session, forkSession: Boolean) {
         val app = ApplicationManager.getApplication()
         val index = SessionIndex.getInstance()
+        val trace = SessionDiagnostics.trace("worktree", "request" to SessionDiagnostics.nextId(),
+            "project" to DiagnosticRef.of(source.basePath), "session" to DiagnosticRef.of(session.id))
         WorktreeOpening(
             current = index::sessionById,
             refresh = { index.scanNow() },
@@ -64,7 +74,7 @@ object WorktreeProjects {
                 ProjectUtil.openOrImport(root, OpenProjectTask {
                     forceOpenInNewFrame = true
                     // Keep default trust/import handling; never supply the source as projectToClose.
-                }) != null
+                })
             },
             worker = { task -> app.executeOnPooledThread(task) },
             ui = { task -> app.invokeLater(task) },
@@ -74,6 +84,21 @@ object WorktreeProjects {
                     .createNotification(message, NotificationType.WARNING).notify(source)
             },
             pending = pending,
+            fork = if (forkSession) { destination, selected ->
+                trace.event("worktree_fork_requested", "destination" to DiagnosticRef.of(destination.basePath),
+                    "cwd" to DiagnosticRef.path(selected.cwd))
+                TerminalTabs.fork(destination, selected, index.forkCommand(selected),
+                    index.sessions.mapTo(HashSet()) { it.id }.also { it.add(selected.id) })
+                Unit
+            } else null,
+            forkProblem = { selected, checkout ->
+                val directory = SessionFilter.canonical(selected.cwd)
+                if (!Files.isDirectory(directory) || !directory.startsWith(checkout.root) ||
+                    GitRepository.checkout(directory)?.let(checkout::sameIdentity) != true)
+                    "The session's recorded directory is missing or no longer belongs to this worktree"
+                else null
+            },
+            trace = trace,
         ).request(session)
     }
 }

@@ -145,7 +145,7 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   - Validation: synthetic fixtures valid and existing `make check` passes. Manual SDK opening
     and storage checks: **owed** until recorded here.
 
-- [ ] **2. Add a pure worktree resolver and association model.**
+- [x] **2. Add a pure worktree resolver and association model.**
   Extend or compose `GitRepository` / `ResolvedPaths` with an immutable checkout description:
   canonical root, per-worktree Git directory, common repository directory, main/linked kind,
   branch or detached commit, and availability. Add a small location/association type carrying
@@ -315,6 +315,16 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   is unchanged. Enabling new opens there needs a narrowly scoped user decision.
 - Validation: synthetic JSON/JSONL parses; baseline `make check` passed. Manual SDK opening,
   storage, Claude exit/resume/relocation and Codex CLI/app handoff checks remain **owed**.
+
+## Implementation results
+
+- Item 2: immutable `SessionLocation` / `Checkout`, bounded read-only layout inspection with
+  gitdir backlink verification and per-snapshot memoization. Retains unavailable identities;
+  supports symlinks, relative/absolute paths, submodules and detached HEAD. `ResolvedPaths`
+  supports explicit revalidation and checkout-aware scoping. Synthetic layout tests pass.
+  Full test task passed with `./gradlew clean test --offline --no-build-cache
+  -Pkotlin.incremental=false` (401 passed, two opt-in checks skipped). Ordinary incremental
+  compilation reused old Session constructor bytecode; a clean uncached rebuild resolved it.
 
 ## Manual acceptance matrix
 

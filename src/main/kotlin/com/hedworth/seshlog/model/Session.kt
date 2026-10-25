@@ -30,6 +30,10 @@ data class Session(
     val activitySince: Instant? = null,
     /** Claude subagent transcripts belonging to this session; kept as metadata paths only. */
     val subagentTranscriptPaths: List<Path> = emptyList(),
+    /** Latest recorded location provenance; null for providers without location tracking. */
+    val location: SessionLocation? = null,
+    /** Current worker-resolved Git facts; never serialized into the parse cache. */
+    val checkout: Checkout? = null,
     /** Successor session id from a Claude `continued-in` record, when present. */
     val continuationId: String? = null,
 ) {

@@ -1,5 +1,8 @@
 package com.hedworth.seshlog.ui
 
+import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.lexical.validatedPassage
+
 import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.ConversationEntry
@@ -70,6 +73,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog preview", 1)
     private val generation = AtomicLong()
     private var hasShownSession = false
+    private var searchHit: SearchHit? = null
     /** A read was requested while collapsed; it runs when the pane is expanded. */
     private var loadDeferred = false
     /** Number of background preview reads requested; exposed for focused UI regression tests. */
@@ -155,12 +159,13 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     }
 
     /** Called on the EDT whenever the tree selection changes. */
-    fun showSession(nextSession: Session?, query: String = "") {
+    fun showSession(nextSession: Session?, query: String = "", hit: SearchHit? = null) {
         val normalizedQuery = query.trim()
         val previousSession = session
-        val sameContent = hasShownSession && previousSession?.id == nextSession?.id &&
+        val sameContent = hasShownSession && previousSession?.id == nextSession?.id && previousSession?.kind == nextSession?.kind && searchHit == hit &&
             previousSession?.lastActivityAt == nextSession?.lastActivityAt && searchQuery == normalizedQuery
         session = nextSession
+        searchHit=hit
         searchQuery = normalizedQuery
         hasShownSession = true
         tailControls.isVisible = !collapsed && searchQuery.isEmpty()
@@ -201,6 +206,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         val target = session ?: return
         val receipt = SessionAttentionState.getInstance().receipt(target)
         val query = searchQuery
+        val hit=searchHit
         val count = settings.previewMessageCount
         val myGen = generation.incrementAndGet()
         executor.execute {
@@ -214,6 +220,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
                 LOG.debug("Cannot read last messages of ${target.kind} session ${target.id}", e)
                 null
             }
+            val passage=if(result!=null)validatedPassage(hit,result) else null
             if (generation.get() != myGen) return@execute
             val app = ApplicationManager.getApplication()
             if (app == null || app.isDisposed) return@execute
@@ -223,7 +230,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
                     messages = result.orEmpty().filter { !it.isTool }.map { it.message }
                     if (result == null) conversation.clear("Transcript could not be read.")
                     else {
-                        conversation.showEntries(result, query)
+                        conversation.showEntries(result, query, passage, hit?.entryId!=null && passage==null)
                         completionReceipt = receipt
                     }
                     return@invokeLater

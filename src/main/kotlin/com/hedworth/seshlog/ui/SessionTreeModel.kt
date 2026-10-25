@@ -23,10 +23,10 @@ object SessionTreeModel {
      * ([hits] is already ranked best first).
      */
     fun groupRanked(hits: List<SearchHit>, pinned: (Session) -> Boolean = { false }): List<ProjectGroup> {
-        val order = hits.withIndex().associate { (i, h) -> h.session.id to i }
+        val order = hits.withIndex().associate { (i, h) -> h.key to i }
         return hits.groupBy { it.session.cwd }
             .map { (cwd, list) -> ProjectGroup(cwd, list.map { it.session }.sortedByDescending(pinned)) }
-            .sortedWith(compareByDescending<ProjectGroup> { it.sessions.any(pinned) }.thenBy { g -> g.sessions.minOf { order.getValue(it.id) } })
+            .sortedWith(compareByDescending<ProjectGroup> { it.sessions.any(pinned) }.thenBy { g -> g.sessions.minOf { order.getValue(com.hedworth.seshlog.index.lexical.SearchSessionKey(it.kind,it.id)) } })
     }
 
     fun buildRoot(groups: List<ProjectGroup>): DefaultMutableTreeNode {

@@ -41,7 +41,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             isLive = true, activity = com.hedworth.seshlog.model.Activity.WAITING,
             continuationId = "next-session",
         )
-        renderer.hits = mapOf(item.id to SearchHit(item, 1.0, false, "A long matching snippet ".repeat(20), partial = true))
+        renderer.hits = mapOf(com.hedworth.seshlog.index.lexical.SearchSessionKey(item.kind,item.id) to SearchHit(item, 1.0, false, "A long matching snippet ".repeat(20), partial = true))
         renderer.unread = setOf(item.id)
         fun render(value: Any) = renderer.getTreeCellRendererComponent(tree,
             javax.swing.tree.DefaultMutableTreeNode(value), false, false, true, 1, false)

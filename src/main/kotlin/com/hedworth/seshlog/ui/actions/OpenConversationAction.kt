@@ -15,6 +15,7 @@ class OpenConversationAction : DumbAwareAction("Open Conversation", "Read the co
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val session = sessionFrom(e) ?: return
-        ConversationEditorTabs.open(project, session, e.getData(SeshlogDataKeys.PANEL)?.activeQuery.orEmpty())
+        val panel=e.getData(SeshlogDataKeys.PANEL)
+        ConversationEditorTabs.open(project, session, panel?.activeQuery.orEmpty(), hit=panel?.selectedSearchHit())
     }
 }

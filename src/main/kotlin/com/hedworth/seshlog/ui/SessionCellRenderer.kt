@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.lexical.SearchSessionKey
 import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.Session
@@ -27,7 +28,7 @@ import javax.swing.tree.TreeCellRenderer
 class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
 
     /** Content-search hits by session id; empty when not searching. Set by the panel on the EDT. */
-    var hits: Map<String, SearchHit> = emptyMap()
+    var hits: Map<SearchSessionKey, SearchHit> = emptyMap()
     var query: String = ""
     var activeSessionId: String? = null
     /** Sessions of agents without a pid file whose Seshlog-owned tab still runs them. Set by the panel on the EDT. */
@@ -140,7 +141,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         }.joinToString("  ·  ")
         details.border = JBUI.Borders.empty(2, titleLabel.icon.iconWidth + titleLabel.iconTextGap, 0, 0)
         details.isVisible = true
-        val hit = hits[session.id]
+        val hit = hits[SearchSessionKey(session.kind,session.id)]
         if (hit != null) {
             matchLabel.text = buildList {
                 add(if (hit.toolMatch) "Tool match" else if (hit.snippet != null) "Content match" else "Title/path match")

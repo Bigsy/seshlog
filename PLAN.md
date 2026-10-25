@@ -1012,6 +1012,25 @@ production config-path wiring are recorded in items 3–4; release/manual gates 
 - **Done when:** `make check` passes and the BM25 portion of the manual matrix in section 14 is
   checked in `make run`. Record any manual check still owed instead of marking it passed.
 
+Item 3 implementation evidence (2026-10-25): integration tests and `make check` passed.
+The APP worker opens `${PathManager.getConfigDir()}/seshlog/search/lexical.sqlite` lazily off EDT.
+Platform 262 sources were inspected: `PathManager.getConfigDir` is public; Settings Sync initial
+snapshots use registered exportable component storages, and stream-provider writes require a
+roamable storage. This unregistered directory has no `@State`, exportable component or stream-
+provider writes, so IDE Settings Sync/settings export do not include it. User-only POSIX permissions
+are applied where supported. README and Settings disclose sensitive lexical persistence/exports.
+Service delivery carries coverage/request/candidate/corpus revisions, sanitizes failures and removes
+raw-query logging. Per-caller scopes remain independent. Query/candidate/scan/maintenance guards
+reject stale results; title edits invalidate searches. Tree maps and selection use provider-aware
+keys; grouping/pins remain presentation overrides. Preview and editor tabs open the winning source
+range after background entry-hash validation, including collapsed tools. Changed entries show a
+refresh message. Zero-hit partial envelopes, tool navigation and provider-collision selection have
+platform regression tests. Settings provide status/path/size/coverage, refresh/retry/rebuild/clear,
+export/import and reveal. Rebuild preserves one recovery DB; Clear also purges owned recovery files,
+under the process lease. Healthy complete scans prune validated deleted rows; missing roots and
+unresolved imports do not. SQL progress callbacks cancel superseded queries.
+Manual `make run` checks in section 14 are still owed, so this release checkbox remains open.
+
 ### 4. Validate and prepare the BM25 milestone
 
 - [ ] **Deliverable:** expanded held-out relevance report and resource measurements using production

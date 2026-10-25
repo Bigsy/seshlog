@@ -65,7 +65,7 @@ Then choose **Settings → Plugins → ⚙ → Install Plugin from Disk…** and
 The **Filters** menu contains agent, date, hidden-session and sibling-worktree controls.
 Project and date filters apply to both browsing and search; you can include sibling worktrees or show sessions from all projects.
 
-Search matches words in any order. Use `"quoted phrases"` for exact phrases. Select a result and
+Search ranks by relevance; ordinary words are optional signals. Use `"quoted phrases"` to require exact text within a title, path or single conversation entry. Multiple phrases may match different entries. Exact technical identifiers receive priority. Select a result and
 choose **Open Conversation** to read it in a read-only editor tab, then use **F3 / Shift+F3** to jump
 between matches. The editor also supports normal Find; Markdown rendering is available when its
 IDE plugin is enabled. Clear the search to return to the recent-message preview.
@@ -189,7 +189,11 @@ for locations and instructions for reading both sandbox and daily-IDE logs.
 Seshlog runs locally and makes **no network requests**. There is no telemetry or analytics.
 
 Agent transcripts are read-only. Seshlog keeps settings and metadata caches in IDE storage;
-conversation content and the search index stay in memory. SQLite metadata reads use read-only
+raw conversation content and snippets stay in memory. Search terms, positions, source references and index versions persist in a contentless SQLite index under the IDE config directory, `seshlog/search/lexical.sqlite`. These derived words and positions can reveal conversation content; the file is not encrypted. No raw transcript copies or query history are saved. The index survives restart and Invalidate Caches, and is excluded from automatic Settings Sync and settings export.
+
+Settings → Tools → Seshlog → Search shows cache usage and offers Refresh, Rebuild, Clear, Retry, Open cache location and explicit export/import. Refresh revalidates and reuses saved postings; Rebuild/ Clear cause local reindexing on the next search. Exports contain sensitive lexical data, without the original conversations or foreign absolute source paths. Import validates discovered local sources, including relocated files, before using their postings. Missing transcripts cannot be displayed or resumed from the index alone. Unavailable storage falls back to a temporary local index with a coverage message. A second IDE using the same profile must close its saved index before maintenance can proceed.
+
+Agent SQLite metadata reads use read-only
 connections; SQLite can update an existing shared-memory index while leaving stored sessions unchanged.
 
 ## Development

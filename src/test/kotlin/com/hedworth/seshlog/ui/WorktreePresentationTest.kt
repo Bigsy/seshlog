@@ -31,7 +31,7 @@ class WorktreePresentationTest : BasePlatformTestCase() {
             assertTrue(renderer.toolTipText.contains("Session-reported branch: old-branch"))
             assertTrue(renderer.accessibleContext.accessibleDescription.contains(item.cwd.toString()))
             assertFalse(renderer.activityLabel.isVisible)
-            renderer.hits = mapOf(item.id to SearchHit(item, 1.0, false, "a match"))
+            renderer.hits = mapOf(com.hedworth.seshlog.index.lexical.SearchSessionKey(item.kind,item.id) to SearchHit(item, 1.0, false, "a match"))
             render()
             assertEquals(details, renderer.detailsLabel.text)
             assertTrue(renderer.accessibleContext.accessibleName.contains("detached HEAD"))

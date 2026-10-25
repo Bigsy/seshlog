@@ -102,6 +102,10 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                         .columns(4)
                 }.comment("The most recent user prompts and assistant replies of the selected session.")
             }
+            group("Search") {
+                row { comment("Local SQLite BM25 search. Saved terms and positions can reveal conversation content; no raw transcript copies or query history are saved. The index stays in this IDE profile and is excluded from Settings Sync. Exports are sensitive data.") }
+                row { cell(SearchCachePanel()) }
+            }
             group("Session Diagnostics") {
                 row {
                     button("Open session diagnostics") { OpenSessionDiagnosticsAction.show() }

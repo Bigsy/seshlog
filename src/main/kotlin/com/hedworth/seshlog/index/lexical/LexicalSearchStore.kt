@@ -2,6 +2,7 @@ package com.hedworth.seshlog.index.lexical
 
 import com.hedworth.seshlog.model.AgentKind
 import org.sqlite.JDBC
+import org.sqlite.ProgressHandler
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Connection
@@ -24,7 +25,20 @@ class LexicalSearchStore private constructor(private val db: Connection, val pat
         it.executeQuery().use { r -> if (!r.next()) null else SavedSource(r.getString(1), r.getString(2), r.getString(3), r.getBoolean(4)) }
     }
 
-    fun hasRoom(passages: Int): Boolean = passageCount.toLong()+passages <= MAX_PASSAGES && sourceCount < MAX_SOURCES
+    fun hasRoom(passages: Int, key: SearchSessionKey): Boolean {
+        val oldCount=db.prepareStatement("SELECT count(*) FROM associations WHERE kind=? AND session=? AND field='body'").use { s ->
+            s.setString(1,key.kind.name);s.setString(2,key.id);s.executeQuery().use { it.next();it.getInt(1) }
+        }
+        return passageCount.toLong()-oldCount+passages<=MAX_PASSAGES && (source(key)!=null || sourceCount<MAX_SOURCES)
+    }
+
+    /** Only a successful complete provider scan may retire previously validated local rows. */
+    fun pruneMissing(live: Set<SearchSessionKey>, completeKinds: Set<AgentKind>) {
+        val retired=db.createStatement().use { s -> s.executeQuery("SELECT kind,session FROM sources WHERE stamp IS NOT NULL").use { r ->
+            buildList { while(r.next()) { val key=SearchSessionKey(AgentKind.valueOf(r.getString(1)),r.getString(2));if(key.kind in completeKinds && key !in live)add(key) } }
+        } }
+        retired.forEach(::delete)
+    }
 
     fun clear() { transaction {
         FIELDS.forEach { db.createStatement().use { s -> s.execute("DELETE FROM $it") } }
@@ -134,7 +148,8 @@ class LexicalSearchStore private constructor(private val db: Connection, val pat
         db.createStatement().use { it.execute("DELETE FROM scope") }
         db.prepareStatement("INSERT OR IGNORE INTO scope VALUES(?,?)").use { s -> keys.forEach { s.setString(1,it.kind.name);s.setString(2,it.id);s.addBatch() };s.executeBatch() }
         val byField = HashMap<SearchSessionKey, MutableMap<String, LexicalScore>>()
-        for (field in FIELDS) {
+        ProgressHandler.setHandler(db,1000,object:ProgressHandler() { override fun progress():Int=if(cancelled())1 else 0 })
+        try { for (field in FIELDS) {
             if (cancelled()) break
             val sql = """WITH scored AS MATERIALIZED (
                 SELECT rowid,-bm25($field) score FROM $field WHERE $field MATCH ?
@@ -153,6 +168,7 @@ class LexicalSearchStore private constructor(private val db: Connection, val pat
                 } }
             }
         }
+        } finally { ProgressHandler.clearHandler(db) }
         return byField.map { (key, fields) ->
             val best = fields["body"] ?: fields["title"] ?: fields.getValue("path")
             best.copy(key=key, score=(fields["title"]?.score ?: 0.0)*8 + (fields["path"]?.score ?: 0.0)*3 + (fields["body"]?.score ?: 0.0))
@@ -189,6 +205,27 @@ class LexicalSearchStore private constructor(private val db: Connection, val pat
         const val MAX_SOURCES = 50_000
         const val MAX_DISK_BYTES = 256L * 1024 * 1024
         private val FIELDS = listOf("title", "path", "body")
+        fun purge(path: Path) {
+            Files.createDirectories(path.parent)
+            SearchStoreLease.acquire(path).use {
+                val owned=Regex("lexical(?:-recovery-[0-9]+)?\\.sqlite(?:-journal|-wal|-shm)?")
+                Files.newDirectoryStream(path.parent).use { files -> files.filter { owned.matches(it.fileName.toString()) }.forEach { Files.delete(it) } }
+            }
+        }
+        fun reset(path: Path) {
+            Files.createDirectories(path.parent)
+            SearchStoreLease.acquire(path).use {
+                Files.newDirectoryStream(path.parent,"lexical-recovery-*.sqlite").use { require(!it.iterator().hasNext()) { "A recovery index already exists; export or clear saved indexes before another rebuild." } }
+                if(Files.exists(path)) {
+                    val recovery=path.resolveSibling("lexical-recovery-${System.currentTimeMillis()}.sqlite")
+                    Files.move(path,recovery)
+                    listOf("-journal","-wal","-shm").forEach { suffix ->
+                        val sidecar=path.resolveSibling(path.fileName.toString()+suffix)
+                        if(Files.exists(sidecar))Files.move(sidecar,recovery.resolveSibling(recovery.fileName.toString()+suffix))
+                    }
+                }
+            }
+        }
         fun open(path: Path? = null): LexicalSearchStore {
             path?.parent?.let { Files.createDirectories(it) }
             path?.parent?.let { privatePermissions(it,true) }
@@ -196,9 +233,10 @@ class LexicalSearchStore private constructor(private val db: Connection, val pat
             val db = try { JDBC.createConnection("jdbc:sqlite:${path ?: ":memory:"}", Properties()) } catch(t: Throwable) { lease?.close();throw t }
             try {
                 db.createStatement().use { s ->
-                    s.execute("PRAGMA busy_timeout=250");s.execute("PRAGMA cache_size=-8192");s.execute("PRAGMA temp_store=MEMORY");s.execute("PRAGMA synchronous=FULL");s.execute("PRAGMA journal_mode=DELETE");s.execute("PRAGMA max_page_count=28672")
+                    s.execute("PRAGMA busy_timeout=250");s.execute("PRAGMA cache_size=-8192");s.execute("PRAGMA temp_store=MEMORY");s.execute("PRAGMA synchronous=FULL");s.execute("PRAGMA max_page_count=28672")
                     val version = s.executeQuery("PRAGMA user_version").use { it.next();it.getInt(1) }
                     require(version == 0 || version == VERSION) { "Unsupported lexical index version; preserve the file and upgrade Seshlog." }
+                    s.execute("PRAGMA journal_mode=DELETE")
                     if (version == 0) {
                         val existing=s.executeQuery("SELECT count(*) FROM sqlite_master").use { it.next();it.getInt(1) }
                         require(existing==0) { "Unrecognized search database; preserve it and choose explicit rebuild." }

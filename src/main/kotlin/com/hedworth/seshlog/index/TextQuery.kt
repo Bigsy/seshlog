@@ -35,7 +35,7 @@ data class TextQuery(val terms: List<QueryTerm>) {
         terms.flatMap { it.ranges(text) }.distinct().sortedWith(compareBy({ it.first }, { it.last }))
 
     companion object {
-        const val HINT = "All words must match; use \"quoted phrases\" for exact text."
+        const val HINT = "Ranked by relevance; use \"quoted phrases\" to require exact text."
         fun parse(input: String): TextQuery {
             val terms = ArrayList<QueryTerm>()
             var i = 0

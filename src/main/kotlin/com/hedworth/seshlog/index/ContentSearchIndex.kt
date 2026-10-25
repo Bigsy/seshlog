@@ -56,6 +56,7 @@ class ContentSearchIndex(
 
     fun searchSnapshot(query: String, sessions: List<Session>, isCancelled: () -> Boolean = { false }): SearchResultSnapshot {
         return try { searchInStore(query,sessions,isCancelled) } catch (failure: java.sql.SQLException) {
+            if(isCancelled())return SearchResultSnapshot(emptyList(),SearchCoverage(sessions.size,0,sessions.size,0),revision)
             try { storage?.close() } catch (_: Exception) { }
             storage=LexicalSearchStore.open()
             storageFailure="Saved search index could not be updated; using a temporary local index. Retry in Search settings."
@@ -96,12 +97,12 @@ class ContentSearchIndex(
             if(loaded==null || stamp!=stamp(session) || isCancelled()) { buffers.remove(key);continue }
             val passages=passages(loaded.entries,isCancelled)
             if(isCancelled())break
-            val room=store.hasRoom(passages.size) || old!=null && passages.size<=0
+            val room=store.hasRoom(passages.size,key) || old!=null && passages.size<=0
             val limited=loaded.partial || !room || stamp==null
             val fingerprint=sourceFingerprint(paths(session))
             if(stamp!=stamp(session) || isCancelled())continue
             store.replace(key,stamp,fingerprint,metadata,limited,session.title,localTitle(session),session.cwd.toString(),if(room)passages else emptyList()) {
-                check(!isCancelled() && stamp==stamp(session)) { "Source changed during indexing." }
+                check(!isCancelled()) { "Source changed during indexing." }
             }
             revision++
             ready+=key
@@ -119,6 +120,7 @@ class ContentSearchIndex(
             val metadataSignal=plan.tokens.any { token -> (titles+session.cwd.toString()).any { QueryTerm(token,false).matches(it) } }
             if(score==null && !plan.verifyAll && !metadataSignal)continue
             val stamp=stamp(session)
+            if(stamp!=null && key in ready && store.source(key)?.stamp!=stamp) { failed++;continue }
             val needsSource=score?.entry!=null || plan.verifyAll && !(metadataEvidence.allowed && (metadataEvidence.title || plan.literal.terms.any { it.matches(session.cwd.toString()) }))
             val loaded=if(needsSource && key in ready) read(session,stamp) else null
             if(needsSource && key in ready && loaded==null) { failed++;continue }
@@ -179,12 +181,16 @@ class ContentSearchIndex(
         }
     }
     /** Absence from a scan is not proof of deletion (provider roots may be unavailable). */
-    fun retainOnly(live: Collection<SearchSessionKey>) { val keep=live.toSet();buffers.keys.retainAll(keep) }
+    fun retainOnly(live: Collection<SearchSessionKey>, completeKinds: Set<AgentKind> = emptySet()) {
+        val keep=live.toSet();buffers.keys.retainAll(keep)
+        if(completeKinds.isNotEmpty()) { store().pruneMissing(keep,completeKinds);revision++ }
+    }
     fun refresh() { buffers.clear();revision++ }
     fun clear() { store().clear();refresh() }
+    fun rebuildSavedIndex(reset: () -> Unit) { storage?.close();storage=null;reset();storageFailure=null;refresh() }
     fun retry() { storage?.close();storage=null;storageFailure=null;refresh() }
     fun export(path: Path) = store().export(path)
-    fun importSnapshot(path: Path): Int = store().importSnapshot(path).also { refresh() }
+    fun importSnapshot(path: Path, cancelled: () -> Boolean = { false }): Int = store().importSnapshot(path,cancelled).also { refresh() }
     override fun close() { storage?.close();storage=null;buffers.clear() }
     companion object {
         const val DEFAULT_CHARACTER_BUDGET=32_000_000L

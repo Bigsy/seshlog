@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.ui
 
+import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.lexical.validatedPassage
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionIndex
@@ -45,6 +47,7 @@ object ConversationEditorTabs {
         query: String = "",
         startAtLatest: Boolean = false,
         loader: ((Session) -> List<ConversationEntry>)? = null,
+        hit: SearchHit? = null,
     ): VirtualFile {
         val title = SessionOrganisation.getInstance().title(session)
             .replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80).ifBlank { "conversation" }
@@ -60,7 +63,7 @@ object ConversationEditorTabs {
         val opened = manager.openFile(file, true)
         val editor = (manager.selectedEditor as? TextEditor)?.takeIf { it.file == file }?.editor
             ?: opened.filterIsInstance<TextEditor>().firstOrNull()?.editor
-        val controller = Controller(project, session, file, editor, query, startAtLatest, loader)
+        val controller = Controller(project, session, file, editor, query, startAtLatest, loader, hit)
         controllers[file] = controller
         project.messageBus.connect(controller).subscribe(
             FileEditorManagerListener.FILE_EDITOR_MANAGER,
@@ -98,11 +101,15 @@ object ConversationEditorTabs {
         private val query: String,
         private val startAtLatest: Boolean,
         private val loader: ((Session) -> List<ConversationEntry>)?,
+        private val hit: SearchHit?,
+
     ) : Disposable {
         private val scope = SearchRequestScope()
         private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog conversation", 1)
         private var document = MarkdownConversation.placeholder(SessionOrganisation.getInstance().title(session))
         private var latestReplyEnd = -1
+        private var targetOffset: Int? = null
+        private var changedPassage=false
         private var completionReceipt: SessionAttention.Completion? = null
         private val navigationEditors = Collections.newSetFromMap(IdentityHashMap<Editor, Boolean>())
         private val observer = CompletionViewObserver(this) {
@@ -124,14 +131,16 @@ object ConversationEditorTabs {
             val cancelled = scope.begin()
             executor.execute {
                 val result = runCatching {
-                    loader?.invoke(session)
-                        ?: SessionIndex.getInstance().providerFor(session).conversationEntries(session)
+                    val entries=loader?.invoke(session) ?: SessionIndex.getInstance().providerFor(session).conversationEntries(session)
+                    entries to validatedPassage(hit,entries)
                 }
                 ApplicationManager.getApplication().invokeLater {
                     if (cancelled() || project.isDisposed) return@invokeLater
-                    result.onSuccess { entries ->
+                    result.onSuccess { (entries,target) ->
                         val built = MarkdownConversation.build(SessionOrganisation.getInstance().title(session), entries, session)
-                        document = built.text
+                        changedPassage=hit?.entryId!=null && target==null
+                        document = built.text + if(changedPassage) "\n_Source changed; search again to refresh the ranked passage._\n" else ""
+                        targetOffset=target?.let { (i,range) -> built.starts[i]+range.first }
                         latestReplyEnd = built.latestReplyEnd
                         completionReceipt = if (entries.none { it.truncated || !it.searchable }) receipt else null
                         replaceContent(document)
@@ -199,6 +208,8 @@ object ConversationEditorTabs {
             val ranges = TextQuery.parse(query).ranges(editor.document.text)
             val offset = when {
                 startAtLatest -> editor.document.textLength
+                changedPassage -> 0
+                targetOffset!=null -> targetOffset!!
                 else -> ranges.firstOrNull()?.first ?: 0
             }
             editor.caretModel.moveToOffset(offset.coerceIn(0, editor.document.textLength))
@@ -230,7 +241,7 @@ object ConversationEditorTabs {
     }
 }
 
-private data class BuiltMarkdown(val text: String, val latestReplyEnd: Int)
+private data class BuiltMarkdown(val text: String, val latestReplyEnd: Int, val starts: List<Int>)
 
 private object MarkdownConversation {
     fun placeholder(title: String) = "# ${escapeHeading(title)}\n\n_Loading conversation…_\n"
@@ -247,15 +258,17 @@ private object MarkdownConversation {
             it.continuationId?.let { successor -> out.append("_Continues in session `$successor`._\n\n") }
         }
         var latestEnd = -1
+        val starts=ArrayList<Int>()
         entries.forEach { entry ->
             out.append("## ").append(escapeHeading(entry.label)).append("\n\n")
             val start = out.length
+            starts+=start
             out.append(entry.text).append("\n\n")
             if (!entry.isTool && entry.message.role == Role.ASSISTANT && entry.text.isNotBlank()) latestEnd = out.length - 3
             out.append("---\n\n")
             if (start == out.length) out.append('\n')
         }
-        return BuiltMarkdown(out.toString(), latestEnd)
+        return BuiltMarkdown(out.toString(), latestEnd,starts)
     }
 
     private fun escapeHeading(value: String): String = value.replace("\n", " ").replace("\r", " ")

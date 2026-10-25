@@ -51,7 +51,7 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
         next.isEnabled = false
     }
 
-    fun showEntries(entries: List<ConversationEntry>, query: String) {
+    fun showEntries(entries: List<ConversationEntry>, query: String, target: Pair<Int,IntRange>? = null, changed: Boolean = false) {
         editor.highlighter.removeAllHighlights()
         this.query = query
         document = ConversationDocument.buildEntries(entries)
@@ -61,7 +61,14 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
         editor.caretPosition = 0
         previous.isEnabled = matches.isNotEmpty()
         next.isEnabled = matches.isNotEmpty()
-        if (matches.isNotEmpty()) navigate(1)
+        if (changed) { status.text="Source changed; search again to refresh the passage." + coverage(); return }
+        if (target!=null) {
+            val (revealed, range)=document.reveal(EntryMatch(target.first,target.second))
+            document=revealed;editor.text=document.text;editor.caretPosition=range.first
+            editor.highlighter.addHighlight(range.first,range.last+1,DefaultHighlighter.DefaultHighlightPainter(JBColor(0xFFBE62,0x996020)))
+            current=matches.indexOfFirst { it.entryIndex==target.first && it.range==target.second }
+            status.text="Ranked passage"+coverage()
+        } else if (matches.isNotEmpty()) navigate(1)
         else status.text = (if (entries.isEmpty()) "No conversation yet."
             else "No content matches; title or path matched.") + coverage()
     }

@@ -4,6 +4,9 @@ import com.hedworth.seshlog.index.ContentSearchService
 import com.hedworth.seshlog.index.DatePeriod
 import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.SearchCoverage
+import com.hedworth.seshlog.index.SearchResultSnapshot
+import com.hedworth.seshlog.index.lexical.SearchSessionKey
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionContinuations
@@ -146,10 +149,17 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val retryButton = JButton("Retry")
     private var searching = false
     private var searchPartial = false
+    private var searchAvailability: String? = null
+    private var searchLimited = false
+    private var corpusRevision = 0L
+    private var lastSearchRevision = -1L
+    private var searchDeliveryGeneration = 0L
+    private var rankedHits: Map<SearchSessionKey,SearchHit> = emptyMap()
+    fun selectedSearchHit(): SearchHit? = selectedSession()?.let { rankedHits[SearchSessionKey(it.kind,it.id)] }
 
     private val collapsedGroups = mutableSetOf<Path>()
     private var rebuildingTree = false
-    private var rememberedSelection: String? = null
+    private var rememberedSelection: SearchSessionKey? = null
 
     private val treeModel = DefaultTreeModel(DefaultMutableTreeNode())
     val tree: Tree = object : Tree(treeModel) {
@@ -279,7 +289,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         applyPreviewVisibility()
 
         tree.addTreeSelectionListener {
-            selectedSession()?.let { rememberedSelection = it.id }
+            selectedSession()?.let { rememberedSelection = SearchSessionKey(it.kind,it.id) }
             showPreviewIfChanged()
         }
         tree.addTreeExpansionListener(object : TreeExpansionListener {
@@ -295,6 +305,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         project.messageBus.connect(this).subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
             override fun scanStateChanged(scanning: Boolean) { updateLoadingState() }
             override fun sessionsUpdated(sessions: List<Session>) {
+                corpusRevision++
                 updateLoadingState()
                 if (handledPathRefreshGeneration != index.pathRefreshGeneration) {
                     handledPathRefreshGeneration = index.pathRefreshGeneration
@@ -317,6 +328,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             }
         })
 
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(ContentSearchService.TOPIC, object : ContentSearchService.Listener {
+            override fun changed() { lastSearchQuery=null; lastSearchCandidates=null; rerender() }
+        })
         project.messageBus.connect(this).subscribe(
             ModuleRootListener.TOPIC,
             object : ModuleRootListener {
@@ -519,17 +533,21 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) return
         val candidates = baseFilter(index.sessions)
-        if (query == lastSearchQuery && candidates == lastSearchCandidates) return
+        val revision = corpusRevision + ContentSearchService.getInstance().revision
+        if (query == lastSearchQuery && candidates == lastSearchCandidates && revision == lastSearchRevision) return
+        lastSearchRevision=revision
         lastSearchQuery = query
         lastSearchCandidates = candidates
         activeQuery = query
         searching = true
         updateLoadingState()
         val generation = pathResolutionGeneration
-        ContentSearchService.getInstance().search(searchScope, query, candidates) { hits ->
+        val delivery = ++searchDeliveryGeneration
+        ContentSearchService.getInstance().searchSnapshot(searchScope, query, candidates) { snapshot ->
             // Stale delivery guard: the field may have changed since this search was requested.
             if (!project.isDisposed && !Disposer.isDisposed(this) && generation == pathResolutionGeneration &&
-                searchField.text.trim() == query) renderSearchResults(query, hits)
+                searchField.text.trim() == query && delivery == searchDeliveryGeneration &&
+                revision == corpusRevision + ContentSearchService.getInstance().revision && candidates == baseFilter(index.sessions)) renderSearchResults(query, snapshot)
         }
     }
 
@@ -560,12 +578,19 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         all.asSequence().filter { organisation.metadata(it.id).hidden }.map { it.id }.toSet()
 
     /** Show only the sessions in [hits], ranked best first within their project groups. */
-    fun renderSearchResults(query: String, hits: List<SearchHit>) {
+    fun renderSearchResults(query: String, hits: List<SearchHit>) = renderSearchResults(query,
+        SearchResultSnapshot(hits,SearchCoverage(hits.size,hits.size,0,hits.count { it.partial }),0))
+
+    fun renderSearchResults(query: String, snapshot: SearchResultSnapshot) {
+        val hits=snapshot.hits
         activeQuery = query
         searching = false
-        searchPartial = hits.any { it.partial }
+        searchPartial = snapshot.coverage.partial
+        searchAvailability = snapshot.availability
+        searchLimited = snapshot.resultLimited
         updateLoadingState()
-        val byId = hits.associateBy { it.session.id }
+        val byId = hits.associateBy { it.key }
+        rankedHits=byId
         visibleSessions = hits.map { it.session }
         renderer.hits = byId
         renderer.query = query
@@ -576,7 +601,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         val text: StatusText = tree.emptyText
         text.clear()
-        if (hits.isEmpty()) text.appendText("No sessions match \"$query\"" +
+        if (hits.isEmpty()) text.appendText(snapshot.availability ?: if(searchPartial) "No matches in indexed content · Limited coverage" else "No sessions match this query" +
             if (dateFilter.period != DatePeriod.ALL) " · ${dateFilter.label}" else "")
     }
 
@@ -611,6 +636,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         ) { organisation.metadata(it.id).pinned }
         visibleSessions = result.visible
         searchPartial = false
+        searchAvailability=null
+        searchLimited=false
+        rankedHits=emptyMap()
         updateLoadingState()
         renderer.hits = emptyMap()
         renderer.query = ""
@@ -646,7 +674,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             return
         }
         renderedGroups = groups.toList()
-        val selection = selectedSession()?.id ?: rememberedSelection
+        val selection = selectedSession()?.let { SearchSessionKey(it.kind,it.id) } ?: rememberedSelection
+        val scroll=tree.visibleRect
         rebuildingTree = true
         try {
             val root = SessionTreeModel.buildRoot(groups)
@@ -657,13 +686,14 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 if (group.cwd !in collapsedGroups) tree.expandPath(TreePath(node.path))
             }
             selection?.let { id ->
-                val previous = latestSessions.firstOrNull { it.id == id }
-                val current = previous?.let { SessionContinuations(latestSessions).latest(it) }
-                reselect(current?.id ?: id)
+                val previous = latestSessions.firstOrNull { it.kind == id.kind && it.id == id.id }
+                val current = previous?.let { SessionContinuations(latestSessions.filter { s -> s.kind==it.kind }).latest(it) }
+                reselect(current?.let { SearchSessionKey(it.kind,it.id) } ?: id)
             }
         } finally {
             rebuildingTree = false
         }
+        tree.scrollRectToVisible(scroll)
     }
 
     private fun invalidateResolvedPaths() {
@@ -677,27 +707,29 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private fun showPreviewIfChanged() {
         val session = selectedSession()
         val key = PreviewKey(
-            session?.id,
+            session?.let { SearchSessionKey(it.kind,it.id) },
             session?.lastActivityAt,
             activeQuery,
             session?.let { organisation.title(it) },
+            selectedSearchHit(),
         )
         if (key == previewKey) return
         previewKey = key
-        preview.showSession(session, activeQuery)
+        preview.showSession(session, activeQuery, selectedSearchHit())
     }
 
     private data class PreviewKey(
-        val sessionId: String?,
+        val sessionId: SearchSessionKey?,
         val lastActivityAt: Instant?,
         val query: String,
         val localTitle: String?,
+        val hit: SearchHit?,
     )
 
     /** Re-select the session with [id] if it is still in the tree; a vanished session just loses selection. */
-    private fun reselect(id: String) {
+    private fun reselect(id: SearchSessionKey) {
         val path = TreeUtil.treePathTraverser(tree).filter { p ->
-            ((p.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? Session)?.id == id
+            ((p.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? Session)?.let { it.kind == id.kind && it.id == id.id } == true
         }.firstOrNull() ?: return
         if (tree.isExpanded(path.parentPath)) tree.selectionPath = path
     }
@@ -708,6 +740,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         if (index.isScanning) parts += "Scanning…"
         if (searching) parts += "Searching…"
         if (searchPartial) parts += "Limited coverage"
+        if (searchLimited) parts += "First 100 results"
+        searchAvailability?.let { parts += it }
         errors.forEach { (kind, _) -> parts += "${kind.displayName}: storage could not be read" }
         statusLabel.text = parts.joinToString(" · ")
         statusLabel.toolTipText = when {
@@ -715,7 +749,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             searchPartial -> ConversationLimits.NOTICE
             else -> null
         }
-        retryButton.isVisible = errors.isNotEmpty()
+        retryButton.isVisible = errors.isNotEmpty() || searchAvailability!=null
     }
 
     private fun updateEmptyText(all: List<Session>, model: SessionListViewModel.Result? = null) {

@@ -55,8 +55,8 @@ class MarketplaceScreenshotTest : BasePlatformTestCase() {
             capture(treeView, output.resolve("worktree-sessions.png"), 700, 510)
 
             val hits = listOf(
-                SearchHit(sessions[0], 5, false, "Keep checkout validation next to the payment request."),
-                SearchHit(sessions[1], 3, false, "The checkout validation now covers missing billing details."),
+                SearchHit(sessions[0], 5.0, false, "Keep checkout validation next to the payment request."),
+                SearchHit(sessions[1], 3.0, false, "The checkout validation now covers missing billing details."),
             )
             panel.searchField.text = "checkout validation"
             panel.renderSearchResults("checkout validation", hits)

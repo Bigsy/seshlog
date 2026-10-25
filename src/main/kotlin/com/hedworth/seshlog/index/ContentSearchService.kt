@@ -34,7 +34,7 @@ class ContentSearchService : Disposable {
         executor.execute {
             val start = System.currentTimeMillis()
             val hits = try {
-                index.retainOnly(SessionIndex.getInstance().sessions.map { it.id })
+                index.retainOnly(SessionIndex.getInstance().sessions.map { com.hedworth.seshlog.index.lexical.SearchSessionKey(it.kind,it.id) })
                 index.search(query, sessions, isCancelled)
             } catch (e: Exception) {
                 LOG.warn("Content search failed", e)

@@ -973,6 +973,23 @@ These constants are the specified defaults; no evaluation-partition tuning was p
 - **Done when:** `make check` passes and reproducible cold-build/warm-query/reopen/incremental/import
   benchmarks prove durable reuse. The SQLite store is usable without any semantic settings or server.
 
+Item 2 implementation evidence (2026-10-25): `make check` passed. Schema v1 persists only source
+hashes/references and contentless title/path/body indexes. 2048-character passages overlap by 128,
+with original entry hashes and UTF-16 ranges. Source buffers are capped at 32M characters; disk
+postings survive eviction. Compatible stamps reuse postings; moved imports validate bounded hashes
+of discovered local files without transcript extraction. Null stamps and read failures are explicit
+coverage states. Missing candidates/roots do not mass-delete saved data; only scoped validated rows
+are searched. A lifetime file lease prevents a second IDE from mutating or purging an active DB;
+it uses a temporary SQLite fallback. DELETE/FULL journaling, 250ms busy timeout, 8MiB page cache,
+in-memory SQL scratch, 100k passages/50k sources and a conservative 112MiB main-file ceiling reserve
+room within the 256MiB policy for rollback/maintenance. Explicit clear compacts owned data.
+Snapshots use VACUUM INTO; import checks exact schema, integrity, row/string limits and versions,
+reconstructs normalized postings in memory and transactionally merges missing sources. Existing
+sources win; imported stamps are invalidated. Tests cover moved-root zero-extraction metadata reuse,
+rollback, competing leases, unsafe schema, corruption/newer schema preservation, provider collisions,
+no stored text/query markers and verification beyond 100 candidates. Resource benchmarks and the
+production config-path wiring are recorded in items 3–4; release/manual gates remain unchecked.
+
 ### 3. Wire BM25 into the service, tree and passage navigation
 
 - [ ] **Deliverable:** BM25 is the normal session search with the new hint, correct snippets and

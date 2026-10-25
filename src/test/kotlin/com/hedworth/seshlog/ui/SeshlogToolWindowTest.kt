@@ -41,7 +41,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             isLive = true, activity = com.hedworth.seshlog.model.Activity.WAITING,
             continuationId = "next-session",
         )
-        renderer.hits = mapOf(item.id to SearchHit(item, 1, false, "A long matching snippet ".repeat(20), partial = true))
+        renderer.hits = mapOf(item.id to SearchHit(item, 1.0, false, "A long matching snippet ".repeat(20), partial = true))
         renderer.unread = setOf(item.id)
         fun render(value: Any) = renderer.getTreeCellRendererComponent(tree,
             javax.swing.tree.DefaultMutableTreeNode(value), false, false, true, 1, false)
@@ -223,8 +223,8 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             assertEquals(listOf("a", "c", "b"), SessionTreeModel.group(panel.visibleSessions).flatMap { g -> g.sessions.map { it.id } })
 
             panel.renderSearchResults("needle", listOf(
-                SearchHit(c, score = 5, titleMatch = false, snippet = "…the needle…"),
-                SearchHit(b, score = 2, titleMatch = false, snippet = null),
+                SearchHit(c, score = 5.0, titleMatch = false, snippet = "…the needle…"),
+                SearchHit(b, score = 2.0, titleMatch = false, snippet = null),
             ))
             assertEquals("needle", panel.activeQuery)
             assertEquals(listOf("c", "b"), panel.visibleSessions.map { it.id })
@@ -421,7 +421,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             panel.render(listOf(a.copy(title = "Updated"), b))
             assertFalse(panel.tree.isExpanded(groupPath(base)))
             assertEquals(b.id, panel.selectedSession()?.id)
-            panel.renderSearchResults("needle", listOf(SearchHit(b, 1, false, "needle")))
+            panel.renderSearchResults("needle", listOf(SearchHit(b, 1.0, false, "needle")))
             panel.render(listOf(a, b))
             assertFalse(panel.tree.isExpanded(groupPath(base)))
             assertEquals(b.id, panel.selectedSession()?.id)
@@ -528,10 +528,10 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             val node = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(
                 panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode, s)!!
             panel.tree.selectionPath = javax.swing.tree.TreePath(node.path)
-            panel.renderSearchResults("needle", listOf(SearchHit(s, 1, false, "needle")))
+            panel.renderSearchResults("needle", listOf(SearchHit(s, 1.0, false, "needle")))
             assertEquals(s.id, panel.preview.session?.id)
             assertEquals("needle", panel.preview.searchQuery)
-            panel.renderSearchResults("changed", listOf(SearchHit(s, 1, false, "changed")))
+            panel.renderSearchResults("changed", listOf(SearchHit(s, 1.0, false, "changed")))
             assertEquals("changed", panel.preview.searchQuery)
             panel.searchField.text = "changed"
             panel.searchField.text = ""

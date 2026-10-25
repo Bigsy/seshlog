@@ -104,7 +104,7 @@ class SessionAttentionUiTest : BasePlatformTestCase() {
             assertEquals(newer.id, panel.selectedSession()?.id)
             assertEquals(pinned.id, panel.nextAttentionSession()?.id)
             assertEquals(3, attention.unreadIds.size) // selection/loading alone never acknowledges
-            panel.renderSearchResults("newer", listOf(com.hedworth.seshlog.index.SearchHit(newer, 1, false, null)))
+            panel.renderSearchResults("newer", listOf(com.hedworth.seshlog.index.SearchHit(newer, 1.0, false, null)))
             assertEquals(newer.id, panel.nextAttentionSession()?.id)
             attention.viewed(newer.id, attention.receipt(newer))
             assertNull(panel.nextAttentionSession())

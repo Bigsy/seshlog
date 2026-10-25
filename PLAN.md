@@ -444,7 +444,8 @@ Requested 2026-10-25 after the user verified opening a Codex worktree in the san
   commands and pending-terminal identification; never attach the parent ID to the new tab.
   Cover new/existing windows, cancellation, stale targets, disposal, launch failure and action
   registration. Update README and the packaged worktree features/release notes; run `make check`,
-  `make release` and Plugin Verifier. Manual fork/session independence checks remain owed.
+  `make release` and Plugin Verifier. Codex sandbox acceptance passed below; Claude and installed-IDE
+  smoke checks remain owed.
 
 Implemented: the project-opening controller returns the destination project and keeps repeated
 requests coalesced through post-open validation and terminal launch. Both a newly opened project
@@ -463,12 +464,22 @@ Plugin Verifier passed against IU-262.10968.63: compatible, with the existing tw
 13 deprecated and 65 experimental API notices, and no internal API violations. No publication or
 installation into the daily IDE is part of this change.
 
-Manual follow-up **owed** after restarting the sandbox with this build: resume the test session
-in `main`, choose the new action, and confirm the terminal opens in `worktree-a/subdir` in the
-worktree window. Send a distinct prompt in the fork and check that its session ID differs and
-the original remains usable. Repeat with the worktree window already open (no duplicate window),
-then test a fresh window and Claude Code. A later intentional invocation creates another fork;
-repeated clicks while one invocation is opening/validating must create only one terminal.
+Manual acceptance on 2026-10-25:
+
+- [x] Codex CLI 0.164.0 in sandbox IU-262.10968.63, plugin 0.6.11: open a fresh worktree window
+  and launch a fork in `worktree-a/subdir`; the fork gets its own session ID. Invoke again with
+  the window already open: reuse that window and create one additional terminal. Exit the fork
+  and confirm the original remains usable and tracked. The user confirmed these checks.
+- Diagnostics corroborate both opening paths in run `0771798a-3df2-4657-9541-2c83ec34caae`
+  (IDE PID 58444): request 14 at 12:26:15 UTC opened a new window; request 186 at 12:33:26 UTC
+  reused the existing window. Both launched into the recorded subdirectory. Parent reference
+  `df027583ce92938f5ba5cc04` and first fork `1b3e289f5e0ecf92f3b05950` were tracked separately;
+  the parent remained running after that fork exited. Logs are in the sandbox location documented
+  in AGENTS.md and will rotate; these references contain no conversation content.
+- [ ] Repeat the new-window/existing-window fork and independence checks with Claude Code.
+- [ ] Smoke-test the installed package in the normal daily IDE.
+- [ ] Manually check rapid repeated clicks during opening/validation create only one terminal
+  (automated coalescing coverage passed). A later intentional invocation creates another fork.
 
 ## Manual acceptance matrix
 
@@ -498,8 +509,9 @@ whether the Codex session came from CLI or app. Do not modify real histories to 
 User-confirmed 2026-10-25: sandbox IU-262.10968.63 / Codex CLI 0.164.0, disposable repository
 `/private/tmp/seshlog-worktrees-wgo7_wop`. A session launched in `worktree-a/subdir` appeared after
 its first prompt; **Open Worktree in IntelliJ** opened the `worktree-a` root in a new window,
-with the original `main` window and Codex terminal still running. The broader matrix above,
-including Claude, repeated focus, filters, detached HEAD and the new fork action, remains **owed**.
+with the original `main` window and Codex terminal still running. The new fork action's Codex
+new-window, existing-window and independence checks also passed, as recorded above. The broader
+matrix remains **owed**, including Claude, symlink aliases, filters, detached HEAD and transitions.
 
 ## Commands and references
 

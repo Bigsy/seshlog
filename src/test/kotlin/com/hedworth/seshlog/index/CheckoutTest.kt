@@ -28,6 +28,7 @@ class CheckoutTest {
         val topic = GitRepository.checkout(Files.createDirectories(root.resolve("topic space ü/src")))!!
         assertEquals(root.resolve("topic space ü"), topic.root)
         assertTrue(topic.linked)
+        assertTrue(GitRepository.checkout(topic.root.resolve("removed/subdirectory"), topic)!!.available)
         assertEquals(main.commonDir, topic.commonDir)
         assertEquals("detached HEAD (12345678)", topic.branchLabel)
         assertFalse(GitRepository.checkout(root.resolve("main/sub"))!!.linked)
@@ -62,6 +63,15 @@ class CheckoutTest {
         Files.writeString(gitDir.resolve("gitdir"), "/unrelated/.git")
         assertFalse(GitRepository.checkout(nested, old)!!.available)
         assertNull(GitRepository.checkout(nested))
+    }
+
+    @Test fun `bare repository inside a linked checkout is not the enclosing working tree`() {
+        val root = layout()
+        val bare = Files.createDirectories(root.resolve("topic space ü/bare.git"))
+        Files.createDirectory(bare.resolve("objects"))
+        Files.createDirectory(bare.resolve("refs"))
+        Files.writeString(bare.resolve("HEAD"), "ref: refs/heads/main")
+        assertNull(GitRepository.checkout(bare))
     }
 
     @Test fun `snapshot refresh revalidates negative results and filters nested worktrees by identity`() {

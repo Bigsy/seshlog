@@ -8,6 +8,7 @@ object WorktreePresentation {
     fun details(session: Session): String? {
         val checkout = session.checkout
         if (checkout?.linked != true) {
+            if (session.recordedDirectoryAvailable == false) return "recorded directory unavailable"
             if (session.location?.uncertain == true) return "location uncertain"
             return checkout?.branchLabel ?: session.displayBranch
         }
@@ -28,6 +29,7 @@ object WorktreePresentation {
             if (!checkout.available) add("Unavailable: ${checkout.problem ?: "checkout is no longer available"}")
             session.displayBranch?.takeIf { it != checkout.branch }?.let { add("Session-reported branch: $it") }
         }
+        if (session.recordedDirectoryAvailable == false) add("Reported directory unavailable: ${session.cwd}")
         val evidence = session.location
         if (evidence != null) {
             add(when (evidence.source) {

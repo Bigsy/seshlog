@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.index
 
+import com.hedworth.seshlog.worktree.WorktreeProjects
+import com.intellij.openapi.project.Project
 import com.hedworth.seshlog.claude.ClaudeCodeSessionProvider
 import com.hedworth.seshlog.codex.CodexSessionProvider
 import com.hedworth.seshlog.model.AgentKind
@@ -82,6 +84,10 @@ class SessionIndex : Disposable {
     private val pathRevision = AtomicLong()
     val pathRefreshGeneration: Long get() = pathRevision.get()
     @Volatile var resolvedPaths: ResolvedPaths = ResolvedPaths.EMPTY
+        private set
+    @Volatile var openProjectRoots: Map<Project, Path> = emptyMap()
+        private set
+    @Volatile var protectedDataRoots: Set<Path> = emptySet()
         private set
     private val configurationGeneration = AtomicLong()
     private val disposed = AtomicBoolean(false)
@@ -169,10 +175,15 @@ class SessionIndex : Disposable {
         }
         val inputs = result.mapTo(HashSet()) { it.cwd }
         val paths = ResolvedPaths.resolve(inputs, previous = resolvedPaths, refresh = true).retain(inputs)
+        val availability = inputs.associateWith { java.nio.file.Files.isDirectory(it) }
         val associated = result.map { session ->
-            if (session.location == null) session else session.copy(checkout = paths.checkout(session.cwd))
+            if (session.location == null) session else session.copy(checkout = paths.checkout(session.cwd), recordedDirectoryAvailable = availability[session.cwd])
         }.sortedByDescending { it.lastActivityAt }
+        val openProjects = WorktreeProjects.capture()
+        val protectedRoots = WorktreeProjects.protectedRoots()
         if (disposed.get() || configurationGeneration.get() != generation) return
+        openProjectRoots = openProjects.roots
+        protectedDataRoots = protectedRoots
         providerDiagnostics = diagnostics
         resolvedPaths = paths
         pathRevision.incrementAndGet()

@@ -36,6 +36,8 @@ data class Session(
     val checkout: Checkout? = null,
     /** Successor session id from a Claude `continued-in` record, when present. */
     val continuationId: String? = null,
+    /** Worker observation of the reported directory, including cold-start missing locations. */
+    val recordedDirectoryAvailable: Boolean? = null,
 ) {
     /** Branch worth showing: not empty and not a detached `HEAD`. */
     val displayBranch: String?

@@ -15,7 +15,9 @@ object GitRepository {
         fun resolve(path: Path, previous: Checkout? = null): Checkout? {
             val found = try {
                 val canonical = SessionFilter.canonical(path)
-                if (Files.isDirectory(canonical)) find(canonical)?.takeUnless { canonical.startsWith(it.gitDir) } else null
+                val lookup = if (Files.isDirectory(canonical)) canonical else previous?.root
+                    ?.takeIf { canonical.startsWith(it) && Files.isDirectory(it) }
+                lookup?.let(::find)?.takeUnless { canonical.startsWith(it.gitDir) }
             } catch (_: Exception) { null }
             // Do not reinterpret a removed nested worktree as its enclosing main checkout, or
             // silently retarget a directory replaced with a different repository.
@@ -30,6 +32,8 @@ object GitRepository {
             val marker = path.resolve(".git")
             val result = when {
                 Files.exists(marker) -> roots.getOrPut(path) { inspect(path, marker) }
+                Files.isRegularFile(path.resolve("HEAD")) && Files.isDirectory(path.resolve("objects")) &&
+                    Files.isDirectory(path.resolve("refs")) -> null // bare repository: stop at this boundary
                 path.parent != null -> find(path.parent)
                 else -> null
             }

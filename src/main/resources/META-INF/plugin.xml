@@ -101,6 +101,7 @@
             <action id="Seshlog.Kill" class="com.hedworth.seshlog.ui.actions.KillSessionAction"
                     text="Kill Session" description="Stop this session and close its terminal tab"/>
             <separator/>
+            <action id="Seshlog.OpenWorktree" class="com.hedworth.seshlog.ui.actions.OpenWorktreeAction" text="Open Worktree in IntelliJ"/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
             <action id="Seshlog.OpenContinuation" class="com.hedworth.seshlog.ui.actions.OpenContinuationAction" text="Open Continuation"/>
             <group id="Seshlog.EarlierSessions" class="com.hedworth.seshlog.ui.actions.EarlierSessionsAction" text="Earlier Sessions" popup="true"/>

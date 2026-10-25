@@ -245,7 +245,7 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
     and no filesystem calls while rendering.
   - Validation: `make check`. Manual narrow tool-window and tooltip check: **owed**.
 
-- [ ] **7. Add Open Worktree / Focus Worktree Window.**
+- [x] **7. Add Open Worktree / Focus Worktree Window.**
   Register a session action in `Seshlog.ContextMenu`, using `SessionAction` / `sessionFrom`.
   Presentation reads cached association state; no synchronous disk/Git work in `update`.
   Hide it for sessions without a linked-worktree association; expose unavailable/uncertain
@@ -355,6 +355,26 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   observed branch/detached HEAD is separated from historical session branch. Unavailable and
   uncertain states are explicit and do not affect activity badges. `make check`: 422 tests,
   zero failures, two skipped. Narrow-window/tooltip inspection in `make run` remains **owed**.
+
+- Item 7: registered Open Worktree / Focus Worktree Window action. Presentation uses cached
+  metadata; a worker rescans evidence, validates identity and canonical open-project roots.
+  Repeated requests coalesce, changed sessions/projects are rechecked, and failure/cancellation
+  clears pending state. The public 262 SDK new-frame path leaves projectToClose unset.
+  Protected agent roots permit focus only; new opens are disabled with the storage explanation.
+  `make check`: 432 tests, zero failures, two skipped. Plugin Verifier passed against installed
+  IU-262.10968.63; existing experimental/deprecated terminal API warnings remain. Default
+  recommended verification could not resolve uncached 263.7307.44 in offline mode.
+  Availability refinements: a missing reported subdirectory does not invalidate an intact known
+  checkout; cold-start missing directories are labelled unavailable; bare metadata directories
+  stop upward checkout discovery.
+- Sandbox attempt: `runIde` opened a disposable local repository on 262.10968.63/JBR 25.
+  The system JDK 27 first failed compiling the temporary Gradle init script (major version 71);
+  using bundled JBR 25 resolved that. Computer-use inventory exposed the sandbox as a Java
+  process, but refused attachment by its bundle ID, display name and JBR bundle path. Consequently
+  no interactive acceptance result is claimed. The disposable JVM was stopped. The temporary
+  init script's config-path properties were overridden by Gradle's sandbox provider, so it also
+  did not establish a run using only the synthetic settings. No real agent was launched and no
+  agent-owned history was modified. Project opening/focus/trust and terminal survival remain **owed**.
 
 ## Manual acceptance matrix
 

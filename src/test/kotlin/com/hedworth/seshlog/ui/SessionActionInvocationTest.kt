@@ -26,6 +26,23 @@ import javax.swing.tree.TreePath
  */
 class SessionActionInvocationTest : BasePlatformTestCase() {
 
+    fun `test Open Worktree is registered and receives the selected session`() {
+        assertNotNull(com.intellij.openapi.actionSystem.ActionManager.getInstance().getAction("Seshlog.OpenWorktree"))
+        withPanel { panel ->
+            val item = session("worktree", Paths.get(project.basePath!!))
+            panel.render(listOf(item))
+            select(panel, item)
+            var opened: Session? = null
+            val action = com.hedworth.seshlog.ui.actions.OpenWorktreeAction { _, selected -> opened = selected }
+            panel.invoke(action)
+            assertEquals(item, opened)
+            opened = null
+            panel.tree.clearSelection()
+            panel.invoke(action)
+            assertNull(opened)
+        }
+    }
+
     /** Stands in for ResumeSessionAction: same base class, but touches no terminal. */
     private class ProbeAction : SessionAction("Probe") {
         var performedWith: Session? = null

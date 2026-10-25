@@ -26,6 +26,7 @@ internal object AttentionProjectFilter {
         dateBounds: DateBounds? = null,
         canonical: (Path) -> Path = SessionFilter::canonical,
         repository: (Path) -> Path? = GitRepository::commonDir,
+        inScope: ((Path) -> Boolean)? = null,
     ): List<Session> {
         val canonicalRoots = roots.map(canonical)
         val repositories = if (includeWorktrees && !showAllProjects) {
@@ -35,8 +36,8 @@ internal object AttentionProjectFilter {
             .filter { showHidden || it.id !in hiddenIds }
             .filter { SessionFilter.isWorthShowing(it, minPrompts) }
             .filter { session ->
-                showAllProjects || canonical(session.cwd).startsWithAny(canonicalRoots) ||
-                    (includeWorktrees && repository(session.cwd) in repositories)
+                showAllProjects || (inScope?.invoke(session.cwd) ?: (canonical(session.cwd).startsWithAny(canonicalRoots) ||
+                    (includeWorktrees && repository(session.cwd) in repositories)))
             }
             .toList()
         return AgentSessionFilter.apply(scoped, agentMode).filter { dateBounds == null || dateBounds.contains(it.lastActivityAt) }

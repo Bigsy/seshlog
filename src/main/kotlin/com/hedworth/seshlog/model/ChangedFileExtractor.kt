@@ -6,13 +6,13 @@ import java.nio.file.Path
 
 /** Extracts changed-file operations from the structured tool-call entries already read on demand. */
 object ChangedFileExtractor {
-    fun fromEntries(entries: List<ConversationEntry>, cwd: Path): List<ChangedFile> =
+    fun fromEntries(entries: List<ConversationEntry>, cwd: Path?): List<ChangedFile> =
         entries.asSequence()
             .filter { it.kind == EntryKind.TOOL_CALL }
-            .flatMap { parseToolCall(it, cwd).asSequence() }
+            .flatMap { parseToolCall(it, if (it.hasDirectoryContext) it.recordedCwd else cwd).asSequence() }
             .toList()
 
-    private fun parseToolCall(entry: ConversationEntry, cwd: Path): List<ChangedFile> {
+    private fun parseToolCall(entry: ConversationEntry, cwd: Path?): List<ChangedFile> {
         val tool = entry.toolName?.trim().orEmpty()
         val normalized = tool.substringAfterLast('.').lowercase().replace("_", "").replace("-", "")
         val payload = entry.text.substringAfter('\n', "").trim()
@@ -26,14 +26,14 @@ object ChangedFileExtractor {
         }
     }
 
-    private fun write(entry: ConversationEntry, tool: String, obj: JsonObject?, cwd: Path): List<ChangedFile> {
+    private fun write(entry: ConversationEntry, tool: String, obj: JsonObject?, cwd: Path?): List<ChangedFile> {
         val path = obj?.path() ?: return emptyList()
         val content = obj.stringAny("content") ?: return emptyList()
         val resolved = resolve(cwd, path) ?: return emptyList()
         return listOf(ChangedFile(resolved, ChangedFileOperation.WRITE, content, content, entry.sourceId, tool))
     }
 
-    private fun edit(entry: ConversationEntry, tool: String, obj: JsonObject?, cwd: Path): List<ChangedFile> {
+    private fun edit(entry: ConversationEntry, tool: String, obj: JsonObject?, cwd: Path?): List<ChangedFile> {
         val path = obj?.path() ?: return emptyList()
         val resolved = resolve(cwd, path) ?: return emptyList()
         val edits = obj.get("edits")?.takeIf { it.isJsonArray }
@@ -41,7 +41,7 @@ object ChangedFileExtractor {
         return listOf(ChangedFile(resolved, ChangedFileOperation.EDIT, null, payload, entry.sourceId, tool))
     }
 
-    private fun patch(entry: ConversationEntry, tool: String, payload: String, obj: JsonObject?, cwd: Path): List<ChangedFile> {
+    private fun patch(entry: ConversationEntry, tool: String, payload: String, obj: JsonObject?, cwd: Path?): List<ChangedFile> {
         val raw = obj?.firstString("patch", "diff", "patchText", "patch_text") ?: payload
         val headers = PATCH_PATH.findAll(raw).toList()
         return headers.mapIndexedNotNull { index, match ->
@@ -62,7 +62,7 @@ object ChangedFileExtractor {
         }.distinctBy { it.path to it.operation }
     }
 
-    private fun move(entry: ConversationEntry, tool: String, obj: JsonObject?, cwd: Path): List<ChangedFile> {
+    private fun move(entry: ConversationEntry, tool: String, obj: JsonObject?, cwd: Path?): List<ChangedFile> {
         val source = obj?.firstString("source", "from", "old_path", "oldPath", "file_path", "filePath") ?: return emptyList()
         val target = obj?.firstString("target", "destination", "to", "new_path", "newPath") ?: return emptyList()
         val old = resolve(cwd, source) ?: return emptyList()
@@ -70,11 +70,11 @@ object ChangedFileExtractor {
         return listOf(ChangedFile(next, ChangedFileOperation.MOVE, null, "${old} -> ${next}", entry.sourceId, tool, old))
     }
 
-    private fun resolve(cwd: Path, raw: String): Path? {
+    private fun resolve(cwd: Path?, raw: String): Path? {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return null
         val path = runCatching { Path.of(trimmed) }.getOrNull() ?: return null
-        return if (path.isAbsolute) path.normalize() else cwd.resolve(path).normalize()
+        return if (path.isAbsolute) path.normalize() else cwd?.resolve(path)?.normalize()
     }
 
     private fun JsonObject.path(): String? = listOf("file_path", "filePath", "path", "filename", "file").firstNotNullOfOrNull { stringAny(it) }

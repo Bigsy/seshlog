@@ -91,7 +91,7 @@ import javax.swing.tree.TreeSelectionModel
 class SessionTreePanel(private val project: Project, parentDisposable: Disposable) :
     JBPanel<SessionTreePanel>(BorderLayout()), DataProvider, Disposable {
 
-    @Volatile private var resolvedPaths = ResolvedPaths.EMPTY
+    @Volatile private var resolvedPaths = index.resolvedPaths
     private var requestedPaths: Set<Path> = emptySet()
     private var pathResolutionGeneration = 0L
     private var latestSessions: List<Session> = emptyList()
@@ -469,6 +469,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     /** Settings may have changed (configurable Apply): re-read preview visibility and count. */
     fun settingsChanged() {
+        invalidateResolvedPaths()
         previewKey = null
         preview.reload()
         applyPreviewVisibility()
@@ -524,9 +525,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         activeQuery = query
         searching = true
         updateLoadingState()
+        val generation = pathResolutionGeneration
         ContentSearchService.getInstance().search(searchScope, query, candidates) { hits ->
             // Stale delivery guard: the field may have changed since this search was requested.
-            if (searchField.text.trim() == query) renderSearchResults(query, hits)
+            if (!project.isDisposed && !Disposer.isDisposed(this) && generation == pathResolutionGeneration &&
+                searchField.text.trim() == query) renderSearchResults(query, hits)
         }
     }
 
@@ -591,6 +594,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val update = Runnable {
             if (!project.isDisposed && !Disposer.isDisposed(this)) {
                 invalidateResolvedPaths()
+                index.refresh(forcePathResolution = true)
                 preparePaths(index.sessions)
                 rerender()
             }
@@ -623,8 +627,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         if (missing.isEmpty()) return
         requestedPaths = requestedPaths + missing
         val generation = pathResolutionGeneration
+        val previous = resolvedPaths
         ApplicationManager.getApplication().executeOnPooledThread {
-            val snapshot = ResolvedPaths.resolve(missing, previous = resolvedPaths)
+            val snapshot = ResolvedPaths.resolve(missing, previous = previous)
             ApplicationManager.getApplication().invokeLater {
                 if (generation == pathResolutionGeneration) requestedPaths = requestedPaths - missing
                 if (!project.isDisposed && !Disposer.isDisposed(this) && generation == pathResolutionGeneration) {
@@ -663,7 +668,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     private fun invalidateResolvedPaths() {
         pathResolutionGeneration++
-        resolvedPaths = ResolvedPaths.EMPTY
+        resolvedPaths = index.resolvedPaths
+        lastSearchCandidates = null
+        searchScope.cancel()
         requestedPaths = emptySet()
     }
 

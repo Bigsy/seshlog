@@ -72,7 +72,8 @@ interface SessionProvider {
     /** Changed-file operations, extracted on demand and retained in memory only. */
     fun changedFileScan(session: Session): ChangedFileScan {
         val entries = conversationEntries(session)
-        return ChangedFileScan(ChangedFileExtractor.fromEntries(entries, session.cwd), entries.any { it.kind == EntryKind.COVERAGE || it.truncated })
+        return ChangedFileScan(ChangedFileExtractor.fromEntries(entries, session.cwd), entries.any { it.kind == EntryKind.COVERAGE || it.truncated ||
+            (it.kind == EntryKind.TOOL_CALL && it.hasDirectoryContext && it.recordedCwd == null) })
     }
 
     fun changedFiles(session: Session): List<ChangedFile> = changedFileScan(session).files

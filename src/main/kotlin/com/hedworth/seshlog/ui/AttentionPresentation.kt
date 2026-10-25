@@ -77,7 +77,7 @@ class AttentionPresentation(private val project: Project) : Disposable {
         val filter = filterSnapshot()
         executor.execute {
             if (filter.roots != resolvedRoots || filter.pathRefreshGeneration != resolvedRefreshGeneration) {
-                resolvedPaths = ResolvedPaths.EMPTY
+                resolvedPaths = SessionIndex.getInstance().resolvedPaths
                 resolvedRoots = filter.roots
                 resolvedRefreshGeneration = filter.pathRefreshGeneration
             }
@@ -95,6 +95,7 @@ class AttentionPresentation(private val project: Project) : Disposable {
                 dateBounds = filter.dateBounds,
                 canonical = resolvedPaths::canonical,
                 repository = resolvedPaths::repository,
+                inScope = { resolvedPaths.inScope(it, filter.roots, filter.includeWorktrees) },
             )
             val next = SessionAttention.counts(scoped, running, unread)
             ApplicationManager.getApplication().invokeLater {

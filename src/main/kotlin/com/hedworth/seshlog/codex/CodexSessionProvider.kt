@@ -152,7 +152,7 @@ class CodexSessionProvider(
         session.transcriptPath?.let { TranscriptTextExtractor.messages(it, parseLine = CodexConversationMessages::parseLine) } ?: emptyList()
 
     override fun conversationEntries(session: Session): List<ConversationEntry> =
-        session.transcriptPath?.let { ConversationLimits.read(it, CodexConversationEntries::parse) } ?: emptyList()
+        session.transcriptPath?.let { ConversationLimits.read(it, CodexConversationEntries.withDirectories()) } ?: emptyList()
 
     override fun latestPlan(session: Session) = CodexPlanReader.read(session)
 

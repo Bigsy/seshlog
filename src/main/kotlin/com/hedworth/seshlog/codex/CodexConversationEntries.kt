@@ -6,6 +6,14 @@ import com.hedworth.seshlog.codex.CodexTranscriptParser.string
 import com.hedworth.seshlog.model.*
 
 object CodexConversationEntries {
+    fun withDirectories(): (String, String) -> List<ConversationEntry> = DirectoryContextEntries(::parse) { line, old ->
+        val obj = CodexTranscriptParser.parseObject(line)
+        if (obj?.string("type") in setOf("session_meta", "turn_context")) {
+            com.hedworth.seshlog.claude.TranscriptParser.absoluteDirectory(obj?.objectValue("payload")?.string("cwd"))
+                ?.let(java.nio.file.Path::of) ?: old
+        } else old
+    }::parse
+
     fun parse(line: String, source: String): List<ConversationEntry> {
         val obj = CodexTranscriptParser.parseObject(line) ?: return emptyList()
         if (obj.string("type") != "response_item") return emptyList()

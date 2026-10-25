@@ -11,6 +11,28 @@ import java.time.Instant
 
 class SeshlogToolWindowTest : BasePlatformTestCase() {
 
+    fun `test selection follows a session moving to a different checkout group`() {
+        val disposable = Disposer.newDisposable()
+        val settings = SeshlogSettings.getInstance()
+        val old = settings.showAllProjects
+        try {
+            settings.showAllProjects = true
+            val panel = SessionTreePanel(project, disposable)
+            val item = session("moving", Paths.get("/synthetic/main"), Instant.EPOCH)
+            panel.render(listOf(item))
+            val root = panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode
+            val node = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(root, item)!!
+            panel.tree.selectionPath = javax.swing.tree.TreePath(node.path)
+            val moved = item.copy(cwd = Paths.get("/synthetic/topic"))
+            panel.render(listOf(moved))
+            assertEquals(moved.id, panel.selectedSession()?.id)
+            assertEquals(moved.cwd, panel.selectedSession()?.cwd)
+        } finally {
+            settings.showAllProjects = old
+            Disposer.dispose(disposable)
+        }
+    }
+
     fun `test session rows reserve space for activity and reset reused details`() {
         val renderer = SessionCellRenderer()
         val tree = com.intellij.ui.treeStructure.Tree()

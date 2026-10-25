@@ -6,6 +6,9 @@ import com.hedworth.seshlog.model.Checkout
 /** Immutable per-scan snapshot. Build on a worker; all lookups are filesystem-free. */
 class ResolvedPaths private constructor(private val paths: Map<Path, Path>, private val repositories: Map<Path, Path?>,
     private val checkouts: Map<Path, Checkout?> = emptyMap()) {
+    fun retain(inputs: Set<Path>): ResolvedPaths = ResolvedPaths(paths.filterKeys { it in inputs },
+        repositories.filterKeys { it in inputs }, checkouts.filterKeys { it in inputs })
+
     /** True when this snapshot has an entry for [path], including entries that resolved to itself. */
     fun contains(path: Path): Boolean = path in paths
 

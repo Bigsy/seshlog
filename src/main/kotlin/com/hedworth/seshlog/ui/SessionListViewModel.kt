@@ -54,8 +54,7 @@ object SessionListViewModel {
             .filter { filters.showHidden || it.id !in hiddenIds }
             .filter { SessionFilter.isWorthShowing(it, filters.minPrompts) }
             .filter {
-                filters.showAllProjects || resolved.isUnderAny(it.cwd, roots) ||
-                    (filters.includeWorktrees && resolved.belongsToRepository(it.cwd, roots))
+                filters.showAllProjects || resolved.inScope(it.cwd, roots, filters.includeWorktrees)
             }
             .toList()
         val bounds = filters.dateFilter.bounds()

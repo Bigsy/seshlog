@@ -21,6 +21,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Application-level cache of all known sessions. Scans run on a pooled background thread; the
@@ -78,13 +79,23 @@ class SessionIndex : Disposable {
     @Volatile var providerDiagnostics: Map<AgentKind, ProviderScan> = emptyMap()
         private set
     /** Incremented for an explicit user refresh so UI caches can invalidate filesystem-derived data. */
-    @Volatile var pathRefreshGeneration: Long = 0
+    private val pathRevision = AtomicLong()
+    val pathRefreshGeneration: Long get() = pathRevision.get()
+    @Volatile var resolvedPaths: ResolvedPaths = ResolvedPaths.EMPTY
         private set
+    private val configurationGeneration = AtomicLong()
+    private val disposed = AtomicBoolean(false)
     val isScanning: Boolean get() = scanning.get()
     private val scanning = AtomicBoolean(false)
     private val rescanRequested = AtomicBoolean(false)
     private val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("Seshlog scanner", 1)
     private val watcher = SessionWatcher(this) { refresh() }
+
+    // A bounded poll also notices HEAD switches, deleted checkouts and WAL creation without
+    // recursively watching checkout contents. Idle sessions are revalidated within 30s + scan time.
+    private val revalidation = if (ApplicationManager.getApplication().isUnitTestMode) null else
+        AppExecutorUtil.getAppScheduledExecutorService().scheduleWithFixedDelay(
+            { refresh(forcePathResolution = true) }, REVALIDATE_SECONDS, REVALIDATE_SECONDS, TimeUnit.SECONDS)
 
     init {
         Disposer.register(this, watcher)
@@ -106,13 +117,15 @@ class SessionIndex : Disposable {
 
     /** Settings may have moved the data dir: re-watch and rescan. */
     fun settingsChanged() {
+        configurationGeneration.incrementAndGet()
         watcher.start(watchRoots())
         refresh()
     }
 
     /** Request a rescan. Coalesces: at most one scan runs at a time, one more can be queued. */
     fun refresh(forcePathResolution: Boolean = false) {
-        if (forcePathResolution) pathRefreshGeneration++
+        if (disposed.get()) return
+        if (forcePathResolution) pathRevision.incrementAndGet()
         if (!scanning.compareAndSet(false, true)) {
             rescanRequested.set(true)
             return
@@ -143,6 +156,8 @@ class SessionIndex : Disposable {
     }
 
     private fun scanOnce() {
+        if (disposed.get()) return
+        val generation = configurationGeneration.get()
         val start = System.currentTimeMillis()
         val previous = sessions.associateBy { it.id }
         val result = ArrayList<Session>()
@@ -152,15 +167,23 @@ class SessionIndex : Disposable {
             diagnostics[provider.kind] = scan
             result += scan.sessions
         }
+        val inputs = result.mapTo(HashSet()) { it.cwd }
+        val paths = ResolvedPaths.resolve(inputs, previous = resolvedPaths, refresh = true).retain(inputs)
+        val associated = result.map { session ->
+            if (session.location == null) session else session.copy(checkout = paths.checkout(session.cwd))
+        }.sortedByDescending { it.lastActivityAt }
+        if (disposed.get() || configurationGeneration.get() != generation) return
         providerDiagnostics = diagnostics
-        result.sortByDescending { it.lastActivityAt }
-        sessions = result
+        resolvedPaths = paths
+        pathRevision.incrementAndGet()
+        sessions = associated
         lastScanMillis = System.currentTimeMillis() - start
         LOG.debug("Scanned ${result.size} sessions in ${lastScanMillis} ms")
         val app = ApplicationManager.getApplication()
         if (app != null && !app.isDisposed) {
             app.invokeLater({
-                if (!app.isDisposed) app.messageBus.syncPublisher(TOPIC).sessionsUpdated(result)
+                if (!app.isDisposed && !disposed.get() && configurationGeneration.get() == generation && sessions === associated)
+                    app.messageBus.syncPublisher(TOPIC).sessionsUpdated(associated)
             })
         }
     }
@@ -168,11 +191,14 @@ class SessionIndex : Disposable {
     private fun publishScanState(scanning: Boolean) {
         val app = ApplicationManager.getApplication()
         if (!app.isDisposed) app.invokeLater {
-            if (!app.isDisposed) app.messageBus.syncPublisher(TOPIC).scanStateChanged(scanning)
+            if (!app.isDisposed && !disposed.get()) app.messageBus.syncPublisher(TOPIC).scanStateChanged(scanning)
         }
     }
 
     override fun dispose() {
+        disposed.set(true)
+        configurationGeneration.incrementAndGet()
+        revalidation?.cancel(false)
         providers.forEach { provider ->
             runCatching { provider.flush() }.onFailure { LOG.debug("Could not flush ${provider.kind} cache", it) }
         }
@@ -180,6 +206,7 @@ class SessionIndex : Disposable {
     }
 
     companion object {
+        const val REVALIDATE_SECONDS = 30L
         @JvmField
         val TOPIC: Topic<SessionIndexListener> =
             Topic.create("Seshlog session index", SessionIndexListener::class.java)

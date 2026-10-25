@@ -11,6 +11,20 @@ import com.hedworth.seshlog.model.*
 import java.time.Instant
 
 object ClaudeConversationEntries {
+    fun withDirectories(): (String, String) -> List<ConversationEntry> = DirectoryContextEntries(::parse) { line, old ->
+        val envelope = ClaudeEnvelope.read(line)
+        when {
+            envelope == null || envelope.bool("isSidechain") -> old
+            envelope.string("type") == "worktree-state" && envelope.get("worktreeSession")?.isJsonNull == true -> null
+            envelope.string("type") == "worktree-state" ->
+                TranscriptParser.absoluteDirectory(envelope.getAsJsonObjectOrNull("worktreeSession")?.string("worktreePath"))
+                    ?.let(java.nio.file.Path::of) ?: old
+            envelope.string("type") in setOf("user", "assistant", "attachment") ->
+                TranscriptParser.absoluteDirectory(envelope.string("cwd"))?.let(java.nio.file.Path::of) ?: old
+            else -> old
+        }
+    }::parse
+
     fun parse(line: String, source: String): List<ConversationEntry> {
         val obj = TranscriptParser.parseObject(line) ?: return emptyList()
         if (obj.bool("isSidechain") || obj.bool("isMeta")) return emptyList()

@@ -204,7 +204,7 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   - Validation: `make check`. Manual Codex CLI and app-origin transition checks: **owed**;
     document any supported-format limits rather than inferring current cwd from a daemon PID.
 
-- [ ] **5. Refresh associations without blocking the UI or regressing filters.**
+- [x] **5. Refresh associations without blocking the UI or regressing filters.**
   Integrate location evidence and Git snapshots with `SessionIndex`, `ResolvedPaths` and
   `SessionTreePanel.preparePaths`. Resolve distinct paths/repositories once per relevant refresh.
   Refresh when session location changes, on explicit Refresh, on project roots/settings changes,
@@ -336,6 +336,20 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   WAL watch. Launch headers and CodexDaemon matching remain unchanged. The new context regression
   failed before implementation; all 414 tests completed successfully (two opt-in checks skipped)
   in the full clean test task. CLI/app handoff checks remain **owed**.
+
+- Item 5: SessionIndex revalidates distinct paths on every scan and at **30-second intervals
+  plus scan/queue time**, including negative entries. Git observations stay in memory; the UI
+  and attention surfaces consume snapshots. Settings/disposal and search generations reject stale
+  delivery; checkout changes alter Session equality. Sibling filtering now treats nested and
+  external linked checkouts alike, including multi-root projects. Selection survives moves.
+  Three regressions failed with the prior filter/changed-file implementations. `make check`:
+  420 tests, zero failures, two opt-in checks skipped. Manual automatic refresh remains **owed**.
+- Cwd audit: resume/fork/copy/restore intentionally use latest recorded cwd, and remembered
+  replacement paths remain invocation-only copies. Codex terminal identity still reads the launch
+  header. Changed Files now carries in-memory per-record directory context for Claude and Codex;
+  unknown/skipped context omits relative targets rather than moving old edits into the latest cwd.
+  Missing checkout identities survive refresh in memory, but a checkout deleted before this IDE
+  run may have no verifiable association; no live Git identity is persisted across restarts.
 
 ## Manual acceptance matrix
 

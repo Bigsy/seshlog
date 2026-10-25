@@ -17,6 +17,8 @@ data class ConversationEntry(
     val callId: String? = null,
     val toolName: String? = null,
     val truncated: Boolean = false,
+    val recordedCwd: java.nio.file.Path? = null,
+    val hasDirectoryContext: Boolean = false,
 ) {
     val text: String get() = message.text
     val isTool: Boolean get() = kind == EntryKind.TOOL_CALL || kind == EntryKind.TOOL_RESULT

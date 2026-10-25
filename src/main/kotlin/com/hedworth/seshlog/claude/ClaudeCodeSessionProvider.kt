@@ -137,10 +137,11 @@ class ClaudeCodeSessionProvider(
     override fun conversationEntries(session: Session): List<ConversationEntry> =
         session.transcriptPath?.let { main ->
             val collector = ConversationLimits.Collector()
-            ConversationLimits.readInto(main, ClaudeConversationEntries::parse, collector)
+            ConversationLimits.readInto(main, ClaudeConversationEntries.withDirectories(), collector)
             for (path in subagentPaths(session)) {
+                val parse = ClaudeConversationEntries.withDirectories()
                 ConversationLimits.readInto(path, { line, sourceId ->
-                    ClaudeConversationEntries.parse(line, sourceId).map { entry ->
+                    parse(line, sourceId).map { entry ->
                         val source = "subagent:${path.fileName}:${entry.sourceId}"
                         if (entry.kind == EntryKind.DIALOGUE) {
                             entry.copy(sourceId = source, kind = EntryKind.TOOL_RESULT, toolName = "Claude subagent")

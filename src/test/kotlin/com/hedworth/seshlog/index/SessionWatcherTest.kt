@@ -11,6 +11,12 @@ import java.util.concurrent.TimeUnit
 class SessionWatcherTest {
     private val roots = listOf("/home/u/.claude/projects", "/home/u/.local/share/opencode/opencode.db")
 
+    @Test fun `Codex WAL is relevant but reader SHM writes never rescan`() {
+        val roots = listOf("/codex/state_5.sqlite", "/codex/state_5.sqlite-wal", "/codex/sessions")
+        assertTrue(SessionWatcher.isRelevantPath("/codex/state_5.sqlite-wal", roots))
+        assertFalse(SessionWatcher.isRelevantPath("/codex/state_5.sqlite-shm", roots))
+    }
+
     @Test
     fun `a watched file and anything inside a watched directory is a match`() {
         assertTrue(SessionWatcher.isUnderRoots("/home/u/.claude/projects", roots))

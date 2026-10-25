@@ -131,12 +131,21 @@ writer failure requiring it; it has a broader and potentially more sensitive sco
   bundles the Kotlin 2.4 stdlib. Check the API level before using anything newer than 2.3.
 - **Agent data is read-only.** Never write into `~/.claude`, `~/.codex`, `~/.pi/agent` or the opencode data dir.
   Seshlog-side state (settings, caches, any organisation metadata) lives in IDE storage only.
-- **Local session processing.** No telemetry or remote inference; never send session data to
-  external services. Development may use the network for documentation, dependencies and explicit
-  model downloads. Benchmarks use local model files and offline inference; the plugin must not
-  silently download models or require a remote service.
-- **No session content on disk.** The parse cache holds metadata only (title, cwd, branch,
-  timestamps, prompt count). The content search index is in memory only. Keep it that way.
+- **Local by default; explicit embedding-server opt-in.** No telemetry. Default BM25 needs no
+  network. Optional semantic search may send disclosed query text, titles and conversation passages
+  only to the user's configured, reviewed and enabled embedding endpoint. Credentials belong in
+  IDE secure storage. Connection tests use synthetic inputs; development/benchmark access to an
+  endpoint alone does not authorize uploading private histories. See PLAN.md for scope, transport,
+  cancellation and disclosure requirements. Development may fetch documentation/dependencies;
+  the first semantic release does not install or manage local models/runtimes.
+- **No raw session content on disk.** The parse cache remains metadata-only (title, cwd, branch,
+  timestamps, prompt count); raw text, snippets, lexical postings and query caches remain in memory.
+  The user explicitly requires a persistent SQLite embedding cache in the first semantic release:
+  vectors, input hashes, model/profile identity and minimal source references may be saved in
+  Seshlog-managed durable IDE storage and explicit portable exports. No transcripts, query history,
+  API keys or transmission authorization in the cache/export. Load relevant vectors into memory;
+  reuse unchanged inputs across restarts/imports. Do not silently sync/upload the cache, store it
+  in agent roots/project files, or erase it on restart. PLAN.md defines validation and ownership.
 - **Fixtures are synthetic.** Never commit a real transcript. New parsing behaviour needs a fixture
   in `src/test/resources/fixtures/`.
 - **Session readers never throw for malformed data.** Unknown record types are skipped, missing

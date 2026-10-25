@@ -36,7 +36,7 @@
     </dependencies>
 
     <change-notes><![CDATA[
-    <b>0.6.11</b>
+    <b>0.7.1</b>
     <ul>
         <li>Add Open Worktree and Fork Session: open or focus the session's worktree window and start a separate conversation fork in a new terminal there. Preserve the recorded subdirectory and leave the original session running.</li>
         <li>Recheck the checkout and session location before launching the fork. Cancelled opens, closed windows and missing or changed directories do not start a session in the wrong place.</li>

@@ -86,10 +86,11 @@ internal object SemanticPrototype {
         return scores.keys.sortedByDescending { scores.getValue(it) }
     }
 
+    private val stop = "a an the and or of to for in on at with from by is are was were be been it its that this i my we our how when where which about".split(' ').toSet()
+    fun tokens(text: String) = Regex("[\\p{L}\\p{N}_]+").findAll(text.lowercase()).map { it.value }.filter { it !in stop }.toList()
+
     /** A model-free lexical baseline, so gains over strict AND aren't all attributed to AI. */
     fun bm25(chunks: List<Chunk>, query: String): List<String> {
-        val stop = "a an the and or of to for in on at with from by is are was were be been it its that this i my we our how when where which about".split(' ').toSet()
-        fun tokens(text: String) = Regex("[\\p{L}\\p{N}_]+").findAll(text.lowercase()).map { it.value }.filter { it !in stop }.toList()
         val documents = chunks.map { tokens(it.prompt.removePrefix("title: ").replace(" | text: ", " ")) }
         val terms = tokens(query).toSet()
         if (documents.isEmpty() || terms.isEmpty()) return emptyList()

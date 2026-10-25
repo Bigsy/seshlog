@@ -22,6 +22,10 @@ make release  # test + buildPlugin + verify the zip
   local GGUF (`SESHLOG_EMBED_MODEL`), performs offline inference, and normally uses synthetic data.
   `SESHLOG_SEMANTIC_REAL=1` adds bounded read-only history timings with aggregate output only.
   See `docs/semantic-search-prototype.md`; no model download or inference runs in normal CI.
+- `make sqlite-bench` compares SQLite FTS5 BM25 with the original synthetic search benchmark and
+  10,000 repeated synthetic sessions. `SESHLOG_SQLITE_REAL=1` adds bounded read-only history costs
+  with private FTS indexes in RAM only. Persistence tests use synthetic data and clean up temporary
+  databases. See `docs/sqlite-bm25-benchmark.md`; benchmarks are opt-in and skipped in normal CI.
 - Marketplace media: follow `docs/marketplace/README.md`. The opt-in `MarketplaceScreenshotTest`
   renders real UI components from synthetic in-memory sessions; `gen.js` / `render.sh` compose
   the cards. Never substitute real conversation content. Updating the files does not upload them.
@@ -138,14 +142,17 @@ writer failure requiring it; it has a broader and potentially more sensitive sco
   endpoint alone does not authorize uploading private histories. See PLAN.md for scope, transport,
   cancellation and disclosure requirements. Development may fetch documentation/dependencies;
   the first semantic release does not install or manage local models/runtimes.
-- **No raw session content on disk.** The parse cache remains metadata-only (title, cwd, branch,
-  timestamps, prompt count); raw text, snippets, lexical postings and query caches remain in memory.
-  The user explicitly requires a persistent SQLite embedding cache in the first semantic release:
-  vectors, input hashes, model/profile identity and minimal source references may be saved in
-  Seshlog-managed durable IDE storage and explicit portable exports. No transcripts, query history,
-  API keys or transmission authorization in the cache/export. Load relevant vectors into memory;
-  reuse unchanged inputs across restarts/imports. Do not silently sync/upload the cache, store it
-  in agent roots/project files, or erase it on restart. PLAN.md defines validation and ownership.
+- **Persistent search indexes; no raw transcript copies.** Phase 1 is SQLite FTS5 BM25, explicitly
+  approved by the user: persist lexical terms/positions/frequencies/lengths, versions and source
+  references in contentless indexes. Phase 2 adds embedding vectors, input hashes and model/profile
+  metadata. Raw transcript copies, snippets and query history remain off disk; parse caches stay
+  metadata-only. Contentless indexes still expose words/order and can reveal content; they are
+  sensitive data, not anonymization. Keep stores in durable Seshlog-managed IDE storage, with
+  explicit portable export/import and no automatic sync/upload or agent-root/project-file storage.
+  Reuse compatible unchanged indexes across restart; query lexical data in SQLite and load relevant
+  vectors into memory. Keep lexical/semantic stores separate for failure and purge isolation.
+  Cache exports contain no API keys or transmission authorization. PLAN.md specifies lifecycle,
+  source validation, bounds and allowed persistence; do not revert to an in-memory-only BM25 plan.
 - **Fixtures are synthetic.** Never commit a real transcript. New parsing behaviour needs a fixture
   in `src/test/resources/fixtures/`.
 - **Session readers never throw for malformed data.** Unknown record types are skipped, missing

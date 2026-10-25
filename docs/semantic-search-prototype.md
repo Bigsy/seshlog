@@ -141,3 +141,9 @@ cancellation and memory budgets remain unimplemented. Persisting embeddings woul
 the in-memory-content-index constraint; this prototype keeps them in memory. Rebuilding a full
 history after every restart could be expensive. No `make run` acceptance check applies yet because
 this experiment has no UI integration.
+
+## Follow-up: SQLite BM25
+
+The [SQLite comparison](sqlite-bm25-benchmark.md) reruns these labels and model results, compares
+native FTS5 against prepared in-memory BM25, and measures durable reopen. The user approved
+SQLite BM25 as Phase 1; PLAN.md supersedes the historical in-memory-only direction above.

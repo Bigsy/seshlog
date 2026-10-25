@@ -1,7 +1,13 @@
-.PHONY: check codex-check semantic-bench release run
+.PHONY: check codex-check semantic-bench sqlite-bench release run
 
 check:
 	./gradlew test
+
+# Same synthetic corpus as semantic-bench, plus 10k synthetic sessions; no model required.
+sqlite-bench:
+	@mkdir -p build
+	@SESHLOG_SQLITE_BENCH=1 ./gradlew test --offline --tests '*SqliteSearchBenchmark*' --rerun -i > build/sqlite-bench.log 2>&1; status=$$?; \
+	grep -E 'SESHLOG_SQLITE |SqliteSearchBenchmark.*(SKIPPED|FAILED)|^\* What went wrong:|^[[:space:]]+java\..*Exception:' build/sqlite-bench.log | grep -v '"event":"case"'; exit $$status
 
 # Local GGUF required. Add SESHLOG_SEMANTIC_REAL=1 for bounded read-only history timings.
 # Opt-in only; never downloads a model or runs in CI. See docs/semantic-search-prototype.md.

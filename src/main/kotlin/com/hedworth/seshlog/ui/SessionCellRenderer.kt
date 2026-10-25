@@ -83,6 +83,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         matchLabel.isVisible = false
         details.isVisible = false
         toolTipText = null
+        getAccessibleContext().accessibleDescription = null
         border = JBUI.Borders.empty(4, 0, 4, 8)
 
         when (val item = (value as? DefaultMutableTreeNode)?.userObject) {
@@ -135,7 +136,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             if (session.forkedFromId != null) add("fork")
             if (metadata.hidden) add("hidden")
             if (session.continuationId != null) add("continued")
-            session.displayBranch?.let { add(it) }
+            WorktreePresentation.details(session)?.let { add(it) }
         }.joinToString("  ·  ")
         details.border = JBUI.Borders.empty(2, titleLabel.icon.iconWidth + titleLabel.iconTextGap, 0, 0)
         details.isVisible = true
@@ -150,13 +151,14 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             matchLabel.isVisible = true
         }
         toolTipText = tooltip(session, hit)
+        getAccessibleContext().accessibleDescription = WorktreePresentation.description(session).joinToString(" ")
     }
 
     override fun toString(): String = listOf(titleLabel.text, activityLabel.text, detailsLabel.text, matchLabel.text)
         .filter { it.isNotEmpty() }.joinToString(" ")
 
     private fun tooltip(session: Session, hit: SearchHit? = null): String {
-        val esc = { s: String -> s.replace("&", "&amp;").replace("<", "&lt;") }
+        val esc = { s: String -> s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;") }
         val fmt = { i: Instant? -> i?.let { TS.format(it.atZone(ZoneId.systemDefault())) } ?: "–" }
         val localTitle = SessionOrganisation.getInstance().title(session)
         return buildString {
@@ -165,7 +167,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             if (session.id == activeSessionId) append("Active terminal<br>")
             if (session.id in unread) append("Finished turn not yet viewed<br>")
             append("Agent: ").append(session.kind.displayName).append("<br>")
-            append("Session: ").append(session.id).append("<br>")
+            append("Session: ").append(esc(session.id)).append("<br>")
             session.forkedFromId?.let { append("Forked from: ").append(esc(it)).append("<br>") }
             if (session.subagentTranscriptPaths.isNotEmpty()) {
                 append("Subagent activity: ").append(session.subagentTranscriptPaths.size).append(" transcript")
@@ -174,7 +176,8 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             }
             session.continuationId?.let { append("Continues in: ").append(esc(it)).append("<br>") }
             append("Directory: ").append(esc(session.cwd.toString())).append("<br>")
-            session.displayBranch?.let { append("Branch: ").append(esc(it)).append("<br>") }
+            if (session.checkout == null) session.displayBranch?.let { append("Session-reported branch: ").append(esc(it)).append("<br>") }
+            WorktreePresentation.description(session).forEach { append(esc(it)).append("<br>") }
             append("Started: ").append(fmt(session.startedAt)).append("<br>")
             append("Last activity: ").append(fmt(session.lastActivityAt)).append("<br>")
             append("Prompts: ").append(session.promptCount).append("<br>")

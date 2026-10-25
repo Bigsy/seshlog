@@ -230,7 +230,7 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
     resolver calls on a large synthetic history; existing resume/restore/terminal tests pass.
   - Validation: `make check`. Manual automatic refresh check: **owed**.
 
-- [ ] **6. Show worktree details and uncertainty in session rows.**
+- [x] **6. Show worktree details and uncertainty in session rows.**
   Add a compact worktree label and branch/detached HEAD to session details, with full canonical
   path, reported subdirectory when different, and last-recorded/uncertain/unavailable explanation
   in the tooltip. Avoid duplicate branch text. Keep labels literal and escape tooltip HTML.
@@ -350,6 +350,11 @@ Existing fixtures include `worktree-gitdir.txt`, `worktree-commondir.txt`,
   unknown/skipped context omits relative targets rather than moving old edits into the latest cwd.
   Missing checkout identities survive refresh in memory, but a checkout deleted before this IDE
   run may have no verifiable association; no live Git identity is persisted across restarts.
+
+- Item 6: shared, filesystem-free row/tooltip/accessibility presentation for both agents;
+  observed branch/detached HEAD is separated from historical session branch. Unavailable and
+  uncertain states are explicit and do not affect activity badges. `make check`: 422 tests,
+  zero failures, two skipped. Narrow-window/tooltip inspection in `make run` remains **owed**.
 
 ## Manual acceptance matrix
 

@@ -3,6 +3,10 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.6.7
+
+- Collapse the message preview to its header row by clicking the header. Collapsed or expanded is remembered across restarts, and a collapsed preview does not read transcripts.
+
 ## 0.6.6
 
 - Keep the toolbar on one row with overflow for narrow windows, move filters into a menu, and give search its own full-width row.

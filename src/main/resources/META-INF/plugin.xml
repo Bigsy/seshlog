@@ -13,7 +13,8 @@
         <li>Open a session's verified worktree in a new IntelliJ window or focus it if already open, keeping the original window and terminal available. Opening is disabled for missing or uncertain checkouts and for new projects inside protected agent data directories.</li>
         <li>Open Worktree and Fork Session starts an independent conversation fork in the worktree window's terminal, keeping the original session running.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
-        <li>Full-text search across prompts and replies, not just titles</li>
+        <li>Search titles, working directories and conversations by relevance, with quoted phrases for exact matches</li>
+        <li>Reuse the local search index across restarts, with controls to rebuild, clear, export and import it</li>
         <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>
         <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
         <li>Copy the latest assistant reply from Claude Code, Codex, opencode or Pi, preserving Markdown and code blocks without selecting terminal output</li>
@@ -27,6 +28,8 @@
     </ul>
     Entirely local: Seshlog reads the agent's transcripts read-only, never writes to them, and makes
     no network requests — no telemetry, no analytics, nothing leaves your machine.
+    The saved search index contains sensitive lexical terms and positions, without raw conversation
+    copies or query history. Export and import are explicit; indexes are never uploaded automatically.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -36,6 +39,14 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.8.0</b>
+    <ul>
+        <li>Rank search results by relevance across session titles, local title overrides, working directories and conversation passages. Ordinary query terms can match independently; quoted phrases require exact text.</li>
+        <li>Keep a local search index across IDE restarts and update changed sessions incrementally. Search runs entirely on your machine without a model or network connection.</li>
+        <li>Open search results at the supporting conversation passage, expand matching tool entries, and reject stale passage locations when the source changes. Show partial search coverage even when there are no matches.</li>
+        <li>Manage the search index under Settings → Tools → Seshlog → Search: refresh, retry, rebuild, clear, export or import it. Saved indexes contain sensitive lexical terms and positions, without raw conversation copies or query history.</li>
+        <li>Fix importing valid search indexes with many dense passages, preserving existing local entries.</li>
+    </ul>
     <b>0.7.1</b>
     <ul>
         <li>Add Open Worktree and Fork Session: open or focus the session's worktree window and start a separate conversation fork in a new terminal there. Preserve the recorded subdirectory and leave the original session running.</li>
@@ -59,10 +70,6 @@
     <b>0.6.8</b>
     <ul>
         <li>Show a resumed Claude Code session as one row for its latest continuation in the session list, search and attention views. Earlier transcripts stay searchable and open from Earlier Sessions in the context menu. Branch and working directory follow the resumed session, and forks and still-running earlier sessions keep their own rows.</li>
-    </ul>
-    <b>0.6.7</b>
-    <ul>
-        <li>Collapse the message preview to its header row by clicking the header. Collapsed or expanded is remembered across restarts, and a collapsed preview does not read transcripts.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

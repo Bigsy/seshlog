@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "entries": [
+    {"id":"user","role":"USER","kind":"DIALOGUE","text":"Review the orchard retry policy and database locked response."},
+    {"id":"assistant","role":"ASSISTANT","kind":"DIALOGUE","text":"The kestrel timeout solution uses bounded exponential backoff."},
+    {"id":"call","role":"ASSISTANT","kind":"TOOL_CALL","text":"shell --inspect amber_call C++ C# /tmp/amber_call.kt"},
+    {"id":"result","role":"USER","kind":"TOOL_RESULT","text":"amber_result database locked İSTANBUL the and of"},
+    {"id":"subagent","role":"USER","kind":"TOOL_RESULT","tool":"Claude subagent","text":"subagent_marker recommends orchard validation."},
+    {"id":"coverage","role":"ASSISTANT","kind":"COVERAGE","text":"coverage_marker"}
+  ],
+  "cases": [
+    {"query":"orchard","sources":"conversation","entries":["user"],"primary":"USER"},
+    {"query":"kestrel","sources":"conversation","entries":["assistant"],"primary":"ASSISTANT"},
+    {"query":"amber_call","sources":"conversation","entries":[]},
+    {"query":"amber_call","sources":"all","entries":["call"],"primary":"TOOL_CALL"},
+    {"query":"amber_result","sources":"all","entries":["result"],"primary":"TOOL_RESULT"},
+    {"query":"subagent_marker","sources":"user","entries":[]},
+    {"query":"subagent_marker","sources":"all","entries":["subagent"],"primary":"TOOL_RESULT"},
+    {"query":"coverage_marker","sources":"all","entries":[]},
+    {"query":"kestrel","sources":"metadata","entries":[]}
+  ]
+}

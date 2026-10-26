@@ -99,6 +99,53 @@ class RankedPassageTest : BasePlatformTestCase() {
         assertEquals(0, panel.editor.caretPosition)
     }
 
+    fun `test next and previous start at a multi term exact passage including expanded tools`() {
+        for (tool in listOf(false, true)) {
+            val text = (if (tool) "x".repeat(130) else "opening") + " 😺 ERR_42 fix ending"
+            val entries = listOf(
+                ConversationEntry(ConversationMessage(Role.USER, "fix earlier", null), "earlier"),
+                ConversationEntry(ConversationMessage(Role.USER, text, null), "target",
+                    if (tool) EntryKind.TOOL_RESULT else EntryKind.DIALOGUE),
+                ConversationEntry(ConversationMessage(Role.ASSISTANT, "ERR_42 later", null), "later"),
+            )
+            val start = text.indexOf("ERR_42 fix")
+            val target = 1 to (start until start + "ERR_42 fix".length)
+            val panel = ConversationSearchPanel()
+            panel.showEntries(entries, "ERR_42 fix", target, sources = SearchSources.ALL)
+            assertEquals(panel.editor.text.indexOf("ERR_42 fix"), panel.editor.caretPosition)
+            if (tool) assertTrue(panel.editor.text.contains("[expanded]"))
+
+            panel.actionMap.get("F3").actionPerformed(null)
+            assertEquals(panel.editor.text.indexOf("fix ending"), panel.editor.caretPosition)
+            assertTrue(panel.status.text.contains("3 of 4"))
+
+            panel.showEntries(entries, "ERR_42 fix", target, sources = SearchSources.ALL)
+            panel.actionMap.get("shift F3").actionPerformed(null)
+            assertEquals(panel.editor.text.indexOf("fix earlier"), panel.editor.caretPosition)
+            panel.previous.doClick(0)
+            assertEquals(panel.editor.text.indexOf("ERR_42 later"), panel.editor.caretPosition)
+            assertTrue(panel.status.text.contains("4 of 4"))
+        }
+    }
+
+    fun `test navigation uses the target position when no literal term overlaps`() {
+        val entries = listOf(
+            ConversationEntry(ConversationMessage(Role.USER, "earlier rock&roll", null), "earlier"),
+            ConversationEntry(ConversationMessage(Role.USER, "rock garden", null), "target"),
+            ConversationEntry(ConversationMessage(Role.USER, "later rock&roll", null), "later"),
+        )
+        val panel = ConversationSearchPanel()
+        val target = 1 to (0..3) // The normalized token "rock" can be ranked as evidence.
+        panel.showEntries(entries, "rock&roll", target)
+        panel.next.doClick(0)
+        assertEquals(panel.editor.text.indexOf("rock&roll", panel.editor.text.indexOf("later")),
+            panel.editor.caretPosition)
+
+        panel.showEntries(entries, "rock&roll", target)
+        panel.previous.doClick(0)
+        assertEquals(panel.editor.text.indexOf("rock&roll"), panel.editor.caretPosition)
+    }
+
     fun `test zero hit partial envelope and provider aware selection`() {
         val disposable = Disposer.newDisposable()
         try {

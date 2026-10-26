@@ -639,6 +639,14 @@ identified by exact cached Java executable, sandbox arguments and temporary proj
 stopped. The daily IDE was not changed. Complete section 11 in a verified synthetic profile;
 this is implementation completion with manual/performance release acceptance still open.
 
+**Review corrections:** protected technical/quoted body evidence is now verified even when a
+partial metadata match wins the weighted score. A failed verification read keeps metadata evidence
+with partial coverage. Preview Next/Previous now starts from the opened passage, including a full
+query or a normalized-token passage with no literal navigation match. Regression tests and a new
+synthetic scale run are recorded in [the report](docs/search-source-filters.md#review-fixes-and-remeasurement).
+`./gradlew test buildPlugin verifyPlugin --offline` passed with 536 tests and 10 opt-in skips; the
+rebuilt ZIP passed integrity verification. The 10k warm p95 target and the physical UI checks remain open.
+
 Commands (adjust test names to actual new classes):
 
 ```sh

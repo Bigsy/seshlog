@@ -23,6 +23,7 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
     private var query = ""
     private var sources = SearchSources.DEFAULT
     private var current = -1
+    private var anchor: EntryMatch? = null
     val isLatestReplyVisible: Boolean get() = CompletionViewObserver.isLatestReplyVisible(document, editor)
 
     init {
@@ -47,6 +48,7 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
         document = ConversationDocument("", emptyList())
         matches = emptyList()
         current = -1
+        anchor = null
         editor.text = ""
         editor.highlighter.removeAllHighlights()
         status.text = message
@@ -63,16 +65,25 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
         document = ConversationDocument.buildEntries(entries)
         matches = document.sourceMatches(query, sources)
         current = -1
+        anchor = null
         editor.text = document.text
         editor.caretPosition = 0
         previous.isEnabled = matches.isNotEmpty()
         next.isEnabled = matches.isNotEmpty()
         if (changed) { status.text="Source changed; search again to refresh the passage." + coverage(); return }
         if (target!=null) {
-            val (revealed, range)=document.reveal(EntryMatch(target.first,target.second))
+            val targetMatch = EntryMatch(target.first, target.second)
+            val (revealed, range)=document.reveal(targetMatch)
             document=revealed;editor.text=document.text;editor.caretPosition=range.first
             editor.highlighter.addHighlight(range.first,range.last+1,DefaultHighlighter.DefaultHighlightPainter(JBColor(0xFFBE62,0x996020)))
             current=matches.indexOfFirst { it.entryIndex==target.first && it.range==target.second }
+            if (current < 0) current = matches.indexOfFirst {
+                it.entryIndex == target.first && it.range.first in target.second
+            }
+            if (current < 0) current = matches.indexOfFirst {
+                it.entryIndex == target.first && target.second.first in it.range
+            }
+            if (current < 0) anchor = targetMatch
             status.text="${primary?.label ?: "Ranked passage"} · ${matches.size} matches"+coverage()
         } else if (primary == SearchMatchSource.TITLE || primary == SearchMatchSource.PROJECT_PATH) {
             status.text = (if (primary == SearchMatchSource.TITLE) "Matched session title" else "Matched project path") + " · ${matches.size} body matches" + coverage()
@@ -83,7 +94,20 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
 
     fun navigate(delta: Int) {
         if (matches.isEmpty()) return
-        current = if (current < 0 && delta < 0) matches.lastIndex else Math.floorMod(current + delta, matches.size)
+        val target = anchor
+        current = if (target != null) {
+            // A ranked normalized token may have no literal navigation match. Find the next or
+            // previous occurrence relative to its original entry and offset before wrapping.
+            if (delta > 0) matches.indexOfFirst {
+                it.entryIndex > target.entryIndex ||
+                    it.entryIndex == target.entryIndex && it.range.first > target.range.first
+            }.takeIf { it >= 0 } ?: 0
+            else matches.indexOfLast {
+                it.entryIndex < target.entryIndex ||
+                    it.entryIndex == target.entryIndex && it.range.first < target.range.first
+            }.takeIf { it >= 0 } ?: matches.lastIndex
+        } else if (current < 0 && delta < 0) matches.lastIndex else Math.floorMod(current + delta, matches.size)
+        anchor = null
         val (revealed, range) = document.reveal(matches[current])
         document = revealed
         if (editor.text != document.text) editor.text = document.text

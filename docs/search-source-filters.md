@@ -134,10 +134,46 @@ These samples include the test JVM and are not SQLite-only/search-only allocatio
 prove the 128 MiB logical search budget, worst-case native scratch, lower-memory performance,
 or long real-history behavior. Those broader PLAN.md gates remain open.
 
+## Review fixes and remeasurement
+
+The review found that a partial metadata match could suppress protected technical or quoted-query
+evidence in a selected body, and that preview navigation could start at the wrong occurrence after
+opening a full-query range. Both now have regression coverage, including selected-source exclusion,
+ranking beyond 100 results, failed-read coverage, expanded tools and both navigation directions.
+
+The source-scale benchmark was rerun after the fixes, using the same synthetic corpus and three
+independent builds. The [new JSONL](benchmarks/search-source-filters-review-fixes-2026-10-26.jsonl)
+contains the aggregate measurements. Run this focused benchmark with:
+
+```sh
+SESHLOG_LEXICAL_BENCH=1 ./gradlew test --offline \
+  --tests '*SourceLexicalSearchBenchmark.classifiedScaleAndReuse' --rerun -i
+```
+
+| Scale/mode | Warm p50, range over 3 builds | Warm p95, range over 3 builds |
+| --- | --- | --- |
+| 1k Conversation | 9.07–14.15 ms | 11.38–16.73 ms |
+| 1k All activity | 23.33–28.98 ms | 45.77–49.56 ms |
+| 1k Titles & paths | 4.72–6.59 ms | 5.27–9.20 ms |
+| 10k Conversation | 90.85–92.42 ms | **108.60–131.93 ms** |
+| 10k All activity | 233.45–235.74 ms | **439.99–449.13 ms** |
+| 10k Titles & paths | 42.15–42.53 ms | 51.49–52.64 ms |
+
+Warm searches made zero source extractions and zero tokenizations in this retained-source workload.
+It does not measure the cost of verifying evicted sources. The 10k p95 target remains unmet for
+Conversation and All activity, and uncontrolled background activity limits before/after comparison.
+The physical UI and broader release-acceptance checks below remain outstanding.
+
+Final fix validation: `./gradlew test buildPlugin verifyPlugin --offline` passed with 536 tests,
+zero failures/errors and 10 opt-in skips. Plugin Verifier 1.411 reports compatibility with
+IU-262.10968.63 and IU-263.7307.44, with the same scheduled-for-removal, deprecated and experimental
+API counts recorded below. The rebuilt ZIP passed `unzip -tq`; its SHA-256 is
+`24b2ea6a46723ddaa2a18d578dc6f8e43a840a278b9ea5a59d70f5451cce58e5`.
+
 ## Acceptance and handoff
 
-Automated checks pass: `make check`, `make lexical-bench`, `make release`, and offline Plugin
-Verifier on IU-262.10968.63 / IU-263.7307.44. The verifier reports compatibility, with 2 scheduled-
+At the original implementation validation, automated checks passed: `make check`, `make lexical-bench`,
+`make release`, and offline Plugin Verifier on IU-262.10968.63 / IU-263.7307.44. The verifier reports compatibility, with 2 scheduled-
 for-removal usages per IDE, 14/17 deprecated usages and 65/58 experimental usages respectively.
 The ZIP contains the production plugin, SQLite JDBC and searchable-options jars; inspection found
 no tests, evaluation/benchmark classes, fixtures or transcript resources. The final counts and

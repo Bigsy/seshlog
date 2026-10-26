@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.index.lexical
 
+import com.hedworth.seshlog.index.*
 import com.hedworth.seshlog.model.AgentKind
 import java.nio.file.Files
 import java.nio.file.Path
@@ -20,6 +21,7 @@ data class LexicalPassage(
     val end: Int,
     val hash: String,
     val text: String,
+    val source: SearchEntrySource = SearchEntrySource.ASSISTANT,
 )
 
 data class LexicalScore(
@@ -29,6 +31,8 @@ data class LexicalScore(
     val start: Int,
     val end: Int,
     val hash: String?,
+    val source: SearchMatchSource,
+    val variant: SearchMetadataVariant?,
 )
 
 data class SavedSource(
@@ -74,7 +78,7 @@ private constructor(
     fun hasRoom(passages: Int, key: SearchSessionKey): Boolean {
         val oldCount =
             db.prepareStatement(
-                    "SELECT count(*) FROM associations WHERE kind=? AND session=? AND field='body'"
+                    "SELECT count(*) FROM associations WHERE kind=? AND session=? AND field IN ($BODY_FIELDS_SQL)"
                 )
                 .use { s ->
                     s.setString(1, key.kind.name)
@@ -187,13 +191,13 @@ private constructor(
                                 buildMap { while (r.next()) put(r.getString(1), r.getString(2)) }
                             }
                     }
-                require(schema(input) == schema(db)) {
-                    "Unsupported or unsafe search snapshot schema."
-                }
                 input.createStatement().use { s ->
                     s.executeQuery("PRAGMA user_version").use {
-                        require(it.next() && it.getInt(1) == VERSION)
+                        require(it.next() && it.getInt(1) == VERSION) {
+                            "Search snapshot format is incompatible. Rebuild and export again in the original IDE."
+                        }
                     }
+                    require(schema(input) == schema(db)) { "Unsupported or unsafe search snapshot schema." }
                     s.executeQuery("PRAGMA integrity_check").use {
                         require(it.next() && it.getString(1) == "ok")
                     }
@@ -206,12 +210,36 @@ private constructor(
                         require(it.getInt(1) <= MAX_PASSAGES + MAX_SOURCES * 3)
                     }
                     s.executeQuery(
-                            "SELECT count(*) FROM associations a LEFT JOIN sources s ON a.kind=s.kind AND a.session=s.session WHERE a.id<=0 OR s.kind IS NULL OR a.field NOT IN ('title','path','body') OR a.start<0 OR a.finish<a.start OR a.finish>500000"
+                            """SELECT count(*) FROM associations a LEFT JOIN sources s ON a.kind=s.kind AND a.session=s.session
+                            WHERE a.id<=0 OR s.kind IS NULL OR a.start<0 OR a.finish<a.start OR a.finish>500000
+                            OR (a.field IN ('title','path') AND a.variant IS NULL)
+                            OR NOT (
+                                (a.field='title' AND a.category='TITLE' AND a.variant IN ('PROVIDER_TITLE','LOCAL_TITLE') AND a.entry IS NULL AND a.hash IS NULL AND a.start=0 AND a.finish=0)
+                                OR (a.field='path' AND a.category='PROJECT_PATH' AND a.variant='PROJECT_PATH' AND a.entry IS NULL AND a.hash IS NULL AND a.start=0 AND a.finish=0)
+                                OR (a.field='user_body' AND a.category='USER' AND a.variant IS NULL AND a.entry IS NOT NULL AND a.hash IS NOT NULL AND a.finish>a.start)
+                                OR (a.field='assistant_body' AND a.category='ASSISTANT' AND a.variant IS NULL AND a.entry IS NOT NULL AND a.hash IS NOT NULL AND a.finish>a.start)
+                                OR (a.field='tool_body' AND a.category IN ('TOOL_CALL','TOOL_RESULT') AND a.variant IS NULL AND a.entry IS NOT NULL AND a.hash IS NOT NULL AND a.finish>a.start)
+                            )"""
                         )
                         .use {
                             it.next()
                             require(it.getInt(1) == 0)
                         }
+                    s.executeQuery("SELECT count(*) FROM associations WHERE field IN ($BODY_FIELDS_SQL)").use {
+                        it.next()
+                        require(it.getInt(1) <= MAX_PASSAGES)
+                    }
+                    // Each posting belongs to exactly one association in its own fixed field.
+                    FIELDS.forEach { field ->
+                        s.executeQuery("SELECT count(*) FROM $field f LEFT JOIN associations a ON a.id=f.rowid WHERE a.id IS NULL OR a.field!='$field'").use {
+                            it.next()
+                            require(it.getInt(1) == 0)
+                        }
+                        s.executeQuery("SELECT count(*) FROM associations a LEFT JOIN $field f ON f.rowid=a.id WHERE a.field='$field' AND f.rowid IS NULL").use {
+                            it.next()
+                            require(it.getInt(1) == 0)
+                        }
+                    }
                     // These TEMP virtual tables use our fixed SQL and the validated FTS schema.
                     s.execute("PRAGMA query_only=OFF")
                     FIELDS.forEach { field ->
@@ -230,6 +258,8 @@ private constructor(
                     val start: Int,
                     val end: Int,
                     val hash: String?,
+                    val category: SearchMatchSource,
+                    val variant: SearchMetadataVariant?,
                 )
                 transaction {
                     input.createStatement().use { statement ->
@@ -286,7 +316,7 @@ private constructor(
                             val batch =
                                 input
                                     .prepareStatement(
-                                        "SELECT id,kind,session,entry,start,finish,hash FROM associations WHERE field=? AND id>? ORDER BY id LIMIT ?"
+                                        "SELECT id,kind,session,entry,start,finish,hash,category,variant FROM associations WHERE field=? AND id>? ORDER BY id LIMIT ?"
                                     )
                                     .use { q ->
                                         q.setString(1, field)
@@ -308,6 +338,8 @@ private constructor(
                                                             rows.getInt(5),
                                                             rows.getInt(6),
                                                             rows.getString(7),
+                                                            SearchMatchSource.valueOf(rows.getString(8)),
+                                                            rows.getString(9)?.let(SearchMetadataVariant::valueOf),
                                                         )
                                                     require(
                                                         row.id > after &&
@@ -347,7 +379,7 @@ private constructor(
                                 // written.
                             }
                             for (row in wanted.values) {
-                                if (field == "body") {
+                                if (field in BODY_FIELDS) {
                                     bodies++
                                     require(bodies <= MAX_PASSAGES)
                                 }
@@ -365,6 +397,8 @@ private constructor(
                                     row.end,
                                     row.hash,
                                     words.values.joinToString(" "),
+                                    row.category,
+                                    row.variant,
                                     normalized = true,
                                 )
                             }
@@ -434,7 +468,7 @@ private constructor(
             if (passages == null) 0
             else
                 db.prepareStatement(
-                        "SELECT count(*) FROM associations WHERE kind=? AND session=? AND field='body'"
+                        "SELECT count(*) FROM associations WHERE kind=? AND session=? AND field IN ($BODY_FIELDS_SQL)"
                     )
                     .use { statement ->
                         statement.setString(1, key.kind.name)
@@ -447,7 +481,7 @@ private constructor(
         val previousBodyCount = passageCount
         val previousSourceCount = sourceCount
         transaction {
-            if (passages != null) deleteFields(key, listOf("body"))
+            if (passages != null) deleteFields(key, BODY_FIELDS)
             deleteFields(key, listOf("title", "path"))
             db.prepareStatement(
                     "INSERT INTO sources(kind,session,stamp,fingerprint,metadata,partial) VALUES(?,?,?,?,?,?) ON CONFLICT(kind,session) DO UPDATE SET stamp=excluded.stamp,fingerprint=excluded.fingerprint,metadata=excluded.metadata,partial=excluded.partial"
@@ -461,11 +495,11 @@ private constructor(
                     it.setBoolean(6, partial)
                     it.executeUpdate()
                 }
-            insert(key, "title", null, 0, 0, null, title)
+            insert(key, "title", null, 0, 0, null, title, SearchMatchSource.TITLE, SearchMetadataVariant.PROVIDER_TITLE)
             if (localTitle.isNotBlank() && localTitle != title)
-                insert(key, "title", null, 0, 0, null, localTitle)
-            insert(key, "path", null, 0, 0, null, pathText)
-            passages?.forEach { insert(key, "body", it.entry, it.start, it.end, it.hash, it.text) }
+                insert(key, "title", null, 0, 0, null, localTitle, SearchMatchSource.TITLE, SearchMetadataVariant.LOCAL_TITLE)
+            insert(key, "path", null, 0, 0, null, pathText, SearchMatchSource.PROJECT_PATH, SearchMetadataVariant.PROJECT_PATH)
+            passages?.forEach { insert(key, field(it.source), it.entry, it.start, it.end, it.hash, it.text, it.source.matchSource) }
             beforeCommit()
         }
         sourceSnapshot?.put(key, SavedSource(stamp, fingerprint, metadata, partial))
@@ -486,7 +520,7 @@ private constructor(
         }
 
     fun delete(key: SearchSessionKey) = transaction {
-        deleteFields(key, listOf("title", "path", "body"))
+        deleteFields(key, FIELDS)
         db.prepareStatement("DELETE FROM sources WHERE kind=? AND session=?").use {
             it.setString(1, key.kind.name)
             it.setString(2, key.id)
@@ -501,9 +535,9 @@ private constructor(
     fun scores(
         query: RetrievalQuery,
         keys: Collection<SearchSessionKey>,
+        sources: SearchSources = SearchSources.DEFAULT,
         cancelled: () -> Boolean = { false },
     ): List<LexicalScore> {
-        if (query.tokens.isEmpty()) return emptyList()
         if (keys.isEmpty()) {
             db.createStatement().use { it.execute("DELETE FROM scope") }
             return emptyList()
@@ -519,24 +553,32 @@ private constructor(
                 statement.executeBatch()
             }
         }
-        val sql =
-            """WITH
-            titles AS MATERIALIZED (SELECT rowid,-bm25(title) score FROM title WHERE title MATCH ?),
-            paths AS MATERIALIZED (SELECT rowid,-bm25(path) score FROM path WHERE path MATCH ?),
-            bodies AS MATERIALIZED (SELECT rowid,-bm25(body) score FROM body WHERE body MATCH ?),
-            scores AS (
-                SELECT * FROM titles UNION ALL SELECT * FROM paths UNION ALL SELECT * FROM bodies
-            ),
+        if (query.tokens.isEmpty()) return emptyList()
+        val fields = selectedFields(sources)
+        // Each MATCH/BM25 cursor must materialize before window aggregation (FTS5 contract).
+        val cursors = fields.joinToString(",\n") { field ->
+            "${field}_matches AS MATERIALIZED (SELECT rowid,-bm25($field) score FROM $field WHERE $field MATCH ?)"
+        }
+        val union = fields.joinToString(" UNION ALL ") { "SELECT * FROM ${it}_matches" }
+        val sourceOrder = "CASE category WHEN 'TITLE' THEN 0 WHEN 'PROJECT_PATH' THEN 1 WHEN 'USER' THEN 2 WHEN 'ASSISTANT' THEN 3 WHEN 'TOOL_CALL' THEN 4 ELSE 5 END"
+        val sql = """WITH $cursors,
+            scores AS ($union),
             ranked AS (
-                SELECT a.*,s.score,ROW_NUMBER() OVER (PARTITION BY a.kind,a.session,a.field ORDER BY s.score DESC,a.id) ordinal
+                SELECT a.*,s.score,ROW_NUMBER() OVER (
+                    PARTITION BY a.kind,a.session,CASE a.field WHEN 'title' THEN 'title' WHEN 'path' THEN 'path' ELSE 'body' END
+                    ORDER BY s.score DESC,$sourceOrder,a.entry,a.start,a.finish,a.variant,a.id
+                ) ordinal
                 FROM scores s JOIN associations a ON a.id=s.rowid
                 JOIN scope c ON c.kind=a.kind AND c.session=a.session
-            ) SELECT kind,session,SUM(score*CASE field WHEN 'title' THEN 8 WHEN 'path' THEN 3 ELSE 1 END) relevance,
-                MAX(CASE WHEN field='body' THEN entry END),
-                MAX(CASE WHEN field='body' THEN start ELSE 0 END),
-                MAX(CASE WHEN field='body' THEN finish ELSE 0 END),
-                MAX(CASE WHEN field='body' THEN hash END)
-              FROM ranked WHERE ordinal=1 GROUP BY kind,session ORDER BY relevance DESC,kind,session"""
+            ), weighted AS (
+                SELECT *,score*CASE field WHEN 'title' THEN 8 WHEN 'path' THEN 3 ELSE 1 END contribution
+                FROM ranked WHERE ordinal=1
+            ), primary_matches AS (
+                SELECT *,SUM(contribution) OVER (PARTITION BY kind,session) relevance,
+                    ROW_NUMBER() OVER (PARTITION BY kind,session ORDER BY contribution DESC,$sourceOrder,entry,start,finish,variant,id) primary_ordinal
+                FROM weighted
+            ) SELECT kind,session,relevance,entry,start,finish,hash,category,variant
+              FROM primary_matches WHERE primary_ordinal=1 ORDER BY relevance DESC,kind,session"""
         ProgressHandler.setHandler(
             db,
             1000,
@@ -546,7 +588,7 @@ private constructor(
         )
         return try {
             db.prepareStatement(sql).use { statement ->
-                (1..3).forEach { statement.setString(it, query.match) }
+                fields.indices.forEach { statement.setString(it + 1, query.match) }
                 statement.executeQuery().use { rows ->
                     buildList {
                         while (rows.next()) {
@@ -564,6 +606,8 @@ private constructor(
                                         rows.getInt(5),
                                         rows.getInt(6),
                                         rows.getString(7),
+                                        SearchMatchSource.valueOf(rows.getString(8)),
+                                        rows.getString(9)?.let(SearchMetadataVariant::valueOf),
                                     )
                                 )
                         }
@@ -578,13 +622,16 @@ private constructor(
     /** A bounded literal lane for plain substrings inside stored identifier tokens. */
     fun substringCandidates(
         query: RetrievalQuery,
+        sources: SearchSources = SearchSources.DEFAULT,
         cancelled: () -> Boolean,
     ): Set<SearchSessionKey> {
         if (query.verifyAll || query.tokens.isEmpty()) return emptySet()
         val predicates =
             query.tokens.joinToString(" OR ") { "(length(v.term)>? AND v.term LIKE ? ESCAPE '\\')" }
-        val sql =
-            "SELECT DISTINCT a.kind,a.session FROM body_vocabulary v JOIN associations a ON a.id=v.doc JOIN scope s ON s.kind=a.kind AND s.session=a.session WHERE $predicates"
+        val fields = selectedFields(sources)
+        val sql = fields.joinToString(" UNION ") { field ->
+            "SELECT DISTINCT a.kind,a.session FROM ${field}_vocabulary v JOIN associations a ON a.id=v.doc JOIN scope s ON s.kind=a.kind AND s.session=a.session WHERE $predicates"
+        }
         ProgressHandler.setHandler(
             db,
             1000,
@@ -594,14 +641,17 @@ private constructor(
         )
         return try {
             db.prepareStatement(sql).use { statement ->
+                fields.forEachIndexed { fieldIndex, _ ->
                 query.tokens.forEachIndexed { index, term ->
-                    statement.setInt(index * 2 + 1, term.length)
+                    val offset = fieldIndex * query.tokens.size * 2 + index * 2
+                    statement.setInt(offset + 1, term.length)
                     statement.setString(
-                        index * 2 + 2,
+                        offset + 2,
                         "%" +
                             term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") +
                             "%",
                     )
+                }
                 }
                 statement.executeQuery().use { rows ->
                     buildSet {
@@ -659,7 +709,7 @@ private constructor(
             bodyCountCache
                 ?: db.createStatement()
                     .use {
-                        it.executeQuery("SELECT count(*) FROM associations WHERE field='body'")
+                        it.executeQuery("SELECT count(*) FROM associations WHERE field IN ($BODY_FIELDS_SQL)")
                             .use { r ->
                                 r.next()
                                 r.getInt(1)
@@ -687,10 +737,12 @@ private constructor(
         end: Int,
         hash: String?,
         text: String,
+        category: SearchMatchSource,
+        variant: SearchMetadataVariant? = null,
         normalized: Boolean = false,
     ) {
         db.prepareStatement(
-                "INSERT INTO associations(kind,session,field,entry,start,finish,hash) VALUES(?,?,?,?,?,?,?)"
+                "INSERT INTO associations(kind,session,field,entry,start,finish,hash,category,variant) VALUES(?,?,?,?,?,?,?,?,?)"
             )
             .use {
                 it.setString(1, key.kind.name)
@@ -700,6 +752,8 @@ private constructor(
                 it.setInt(5, start)
                 it.setInt(6, end)
                 it.setString(7, hash)
+                it.setString(8, category.name)
+                it.setString(9, variant?.name)
                 it.executeUpdate()
             }
         val id =
@@ -762,11 +816,23 @@ private constructor(
     }
 
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
+        const val CLASSIFICATION_VERSION = 1
         const val MAX_PASSAGES = 100_000
         const val MAX_SOURCES = 50_000
         const val MAX_DISK_BYTES = 256L * 1024 * 1024
-        private val FIELDS = listOf("title", "path", "body")
+        private val BODY_FIELDS = listOf("user_body", "assistant_body", "tool_body")
+        private val FIELDS = listOf("title", "path") + BODY_FIELDS
+        private val BODY_FIELDS_SQL = BODY_FIELDS.joinToString(",") { "'$it'" }
+
+        private fun field(source: SearchEntrySource): String = when (source) {
+            SearchEntrySource.USER -> "user_body"
+            SearchEntrySource.ASSISTANT -> "assistant_body"
+            SearchEntrySource.TOOL_CALL, SearchEntrySource.TOOL_RESULT -> "tool_body"
+        }
+
+        private fun selectedFields(sources: SearchSources): List<String> = listOf("title", "path") +
+            listOfNotNull("user_body".takeIf { sources.userMessages }, "assistant_body".takeIf { sources.assistantReplies }, "tool_body".takeIf { sources.toolActivity })
 
         fun purge(path: Path) {
             Files.createDirectories(path.parent)
@@ -854,9 +920,7 @@ private constructor(
                             it.next()
                             it.getInt(1)
                         }
-                    require(version == 0 || version == VERSION) {
-                        "Unsupported lexical index version; preserve the file and upgrade Seshlog."
-                    }
+                    if (version != 0 && version != VERSION) throw IncompatibleLexicalSchema(version)
                     s.execute("PRAGMA journal_mode=DELETE")
                     if (version == 0) {
                         val existing =
@@ -872,7 +936,7 @@ private constructor(
                             "CREATE TABLE sources(kind TEXT NOT NULL,session TEXT NOT NULL,stamp TEXT,fingerprint TEXT,metadata TEXT NOT NULL,partial INTEGER NOT NULL,PRIMARY KEY(kind,session))"
                         )
                         s.execute(
-                            "CREATE TABLE associations(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,session TEXT NOT NULL,field TEXT NOT NULL,entry TEXT,start INTEGER NOT NULL,finish INTEGER NOT NULL,hash TEXT)"
+                            "CREATE TABLE associations(id INTEGER PRIMARY KEY,kind TEXT NOT NULL,session TEXT NOT NULL,field TEXT NOT NULL,entry TEXT,start INTEGER NOT NULL,finish INTEGER NOT NULL,hash TEXT,category TEXT NOT NULL,variant TEXT)"
                         )
                         s.execute("CREATE INDEX source_fields ON associations(kind,session,field)")
                         FIELDS.forEach {
@@ -887,9 +951,7 @@ private constructor(
                     s.execute(
                         "CREATE TEMP TABLE scope(kind TEXT,session TEXT,PRIMARY KEY(kind,session))"
                     )
-                    s.execute(
-                        "CREATE VIRTUAL TABLE temp.body_vocabulary USING fts5vocab(main,body,instance)"
-                    )
+                    FIELDS.forEach { field -> s.execute("CREATE VIRTUAL TABLE temp.${field}_vocabulary USING fts5vocab(main,$field,instance)") }
                 }
                 path?.let { privatePermissions(it) }
                 return LexicalSearchStore(db, path, lease)
@@ -900,4 +962,11 @@ private constructor(
             }
         }
     }
+}
+
+/** A recognized older schema has a rebuild remedy; future formats are preserved too. */
+class IncompatibleLexicalSchema(val version: Int) : IllegalArgumentException() {
+    val explanation: String get() = if (version == 2)
+        "Search source filters require a local index rebuild. The old index is preserved; using a temporary index until Rebuild in Search settings."
+    else "Saved search index format is unsupported. The file is preserved; using a temporary index. Upgrade Seshlog or explicitly rebuild in Search settings."
 }

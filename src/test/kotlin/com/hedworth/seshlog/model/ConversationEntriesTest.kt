@@ -3,6 +3,8 @@ package com.hedworth.seshlog.model
 import com.hedworth.seshlog.claude.ClaudeConversationEntries
 import com.hedworth.seshlog.codex.CodexConversationEntries
 import com.hedworth.seshlog.index.ContentSearchIndex
+import com.hedworth.seshlog.index.SearchSources
+import com.hedworth.seshlog.index.SearchMatchSource
 import com.hedworth.seshlog.opencode.OpenCodeConversationEntries
 import com.hedworth.seshlog.ui.ConversationDocument
 import org.junit.Assert.*
@@ -38,10 +40,11 @@ class ConversationEntriesTest {
             assertFalse(entries.any { it.text.contains("HIDDEN_") })
             assertTrue(entries.any { it.text == "orphan output" && it.callId == null })
             val index = ContentSearchIndex({ error("must use structured extractor") }, { 1 }, entryExtractor = { entries })
-            val hit = index.search("TOOL_ONLY \"second line\"", listOf(session())).single()
+            val hit = index.search("TOOL_ONLY \"second line\"", listOf(session()), SearchSources.ALL).single()
             assertTrue(name, hit.toolMatch)
             assertEquals(result.sourceId, hit.entryId)
-            assertTrue(hit.snippet!!.startsWith("Tool result:"))
+            assertEquals(SearchMatchSource.TOOL_RESULT, hit.primary!!.source)
+            assertTrue(hit.snippet!!.contains("TOOL_ONLY"))
             val doc = ConversationDocument.buildEntries(entries)
             assertTrue(doc.expanded.isEmpty())
             val match = doc.sourceMatches("TOOL_ONLY").single()
@@ -64,8 +67,8 @@ class ConversationEntriesTest {
             assertTrue(entries.first().truncated)
             assertEquals(EntryKind.COVERAGE, entries.last().kind)
             val index = ContentSearchIndex({ emptyList() }, { 1 }, entryExtractor = { entries })
-            assertTrue(index.search("START", listOf(session())).single().partial)
-            assertTrue(index.search("UNSEARCHABLE_END", listOf(session())).isEmpty())
+            assertTrue(index.search("START", listOf(session()), SearchSources.ALL).single().partial)
+            assertTrue(index.search("UNSEARCHABLE_END", listOf(session()), SearchSources.ALL).isEmpty())
             val doc = ConversationDocument.buildEntries(entries)
             assertTrue(doc.sourceMatches("UNSEARCHABLE_END").isEmpty())
             assertTrue(doc.sourceMatches("Partial content").isEmpty())
@@ -93,8 +96,8 @@ class ConversationEntriesTest {
             if (attempts++ == 0) throw java.io.IOException("busy")
             listOf(ConversationEntry(ConversationMessage(Role.ASSISTANT, "retryable", null), "result", EntryKind.TOOL_RESULT))
         })
-        assertTrue(index.search("retryable", listOf(session())).isEmpty())
-        assertEquals(1, index.search("retryable", listOf(session())).size)
+        assertTrue(index.search("retryable", listOf(session()), SearchSources.ALL).isEmpty())
+        assertEquals(1, index.search("retryable", listOf(session()), SearchSources.ALL).size)
         assertEquals(2, attempts)
     }
 

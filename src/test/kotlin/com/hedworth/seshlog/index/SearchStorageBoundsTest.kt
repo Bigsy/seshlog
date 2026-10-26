@@ -11,6 +11,27 @@ import org.junit.rules.TemporaryFolder
 class SearchStorageBoundsTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun `passage ceiling is shared by user assistant and tool populations`() {
+        val path = temporary.root.toPath().resolve("shared-cap.sqlite")
+        val key = SearchSessionKey(com.hedworth.seshlog.model.AgentKind.PI, "synthetic")
+        LexicalSearchStore.open(path).use { it.replace(key, "s", null, searchHash("m"), false, "", "", "", emptyList()) }
+        org.sqlite.JDBC.createConnection("jdbc:sqlite:$path", java.util.Properties()).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("""WITH RECURSIVE numbers(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM numbers WHERE n<100000)
+                    INSERT INTO associations(kind,session,field,entry,start,finish,hash,category)
+                    SELECT 'PI','synthetic',CASE n%3 WHEN 0 THEN 'user_body' WHEN 1 THEN 'assistant_body' ELSE 'tool_body' END,
+                        'entry:'||n,0,1,'${searchHash("x")}',CASE n%3 WHEN 0 THEN 'USER' WHEN 1 THEN 'ASSISTANT' ELSE 'TOOL_RESULT' END FROM numbers""")
+            }
+        }
+        LexicalSearchStore.open(path).use { store ->
+            assertEquals(100000, store.passageCount)
+            assertFalse(store.hasRoom(1, key.copy(id = "another")))
+            assertTrue(store.hasRoom(0, key.copy(id = "another")))
+            assertTrue(store.hasRoom(100000, key))
+            assertFalse(store.hasRoom(100001, key))
+        }
+    }
+
     @Test
     fun `fingerprinting bounds the whole source set and honors cancellation`() {
         val paths = (0..2).map { temporary.newFile("source$it").toPath() }

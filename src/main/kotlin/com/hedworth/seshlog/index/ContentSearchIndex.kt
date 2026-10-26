@@ -18,6 +18,8 @@ data class SearchHit(
     val range: IntRange? = null,
     val entryHash: String? = null,
     val exact: Boolean = false,
+    val primary: SearchPrimaryMatch? = null,
+    val sources: SearchSources = SearchSources.DEFAULT,
 ) {
     val key: SearchSessionKey
         get() = SearchSessionKey(session.kind, session.id)
@@ -36,6 +38,7 @@ data class SearchResultSnapshot(
     val resultLimited: Boolean = false,
     val request: Long = 0,
     val candidateRevision: Int = 0,
+    val context: SearchContext? = null,
 )
 
 /** Durable postings with bounded, disposable source buffers. Only workers call this class. */
@@ -79,8 +82,8 @@ class ContentSearchIndex(
         storage
             ?: try {
                 storeFactory().also { storage = it }
-            } catch (_: Exception) {
-                storageFailure =
+            } catch (failure: Exception) {
+                storageFailure = (failure as? IncompatibleLexicalSchema)?.explanation ?:
                     "Saved search index unavailable; using a temporary local index. Retry in Search settings."
                 LexicalSearchStore.open().also { storage = it }
             }
@@ -88,16 +91,18 @@ class ContentSearchIndex(
     fun search(
         query: String,
         sessions: List<Session>,
+        sources: SearchSources = SearchSources.DEFAULT,
         isCancelled: () -> Boolean = { false },
-    ): List<SearchHit> = searchSnapshot(query, sessions, isCancelled).hits
+    ): List<SearchHit> = searchSnapshot(query, sessions, sources, isCancelled).hits
 
     fun searchSnapshot(
         query: String,
         sessions: List<Session>,
+        sources: SearchSources = SearchSources.DEFAULT,
         isCancelled: () -> Boolean = { false },
     ): SearchResultSnapshot {
         return try {
-            searchInStore(query, sessions, isCancelled)
+            searchInStore(query, sessions, sources, isCancelled).copy(context = SearchContext(query, sources))
         } catch (failure: java.sql.SQLException) {
             if (isCancelled())
                 return SearchResultSnapshot(
@@ -111,13 +116,14 @@ class ContentSearchIndex(
             storage = LexicalSearchStore.open()
             storageFailure =
                 "Saved search index could not be updated; using a temporary local index. Retry in Search settings."
-            searchInStore(query, sessions, isCancelled)
+            searchInStore(query, sessions, sources, isCancelled).copy(context = SearchContext(query, sources))
         }
     }
 
     private fun searchInStore(
         query: String,
         sessions: List<Session>,
+        sources: SearchSources,
         isCancelled: () -> Boolean,
     ): SearchResultSnapshot {
         val plan =
@@ -150,6 +156,18 @@ class ContentSearchIndex(
                 searchHash(session.title + "\u0000" + localTitle(session) + "\u0000" + session.cwd)
             val stamp = stamp(session)
             val old = savedSources[key]
+            fun metadataOnly() {
+                if (old == null && store.sourceCount >= LexicalSearchStore.MAX_SOURCES) return
+                if (old == null || old.metadata != metadata) {
+                    store.replace(key, old?.stamp, old?.fingerprint, metadata, old?.partial ?: false,
+                        session.title, localTitle(session), session.cwd.toString(), null)
+                    revision++
+                }
+            }
+            if (sources == SearchSources.METADATA_ONLY) {
+                metadataOnly()
+                continue
+            }
             var reuse = old != null && stamp != null && old.stamp == stamp
             // Import/moved roots: hash only discovered local files; never follow a stored path.
             if (!reuse && old?.fingerprint != null && stamp != null) {
@@ -183,6 +201,7 @@ class ContentSearchIndex(
             val loaded = read(session, stamp)
             if (loaded == null || stamp != stamp(session) || isCancelled()) {
                 buffers.remove(key)
+                if (!isCancelled()) metadataOnly()
                 continue
             }
             val passages = passages(loaded.entries, isCancelled)
@@ -209,126 +228,81 @@ class ContentSearchIndex(
             validatedStamps[key] = stamp
             if (limited) partial += key
         }
-        val scores = store.scores(plan, ready, isCancelled).associateBy { it.key }
-        val substringCandidates = store.substringCandidates(plan, isCancelled)
+        val metadataOnly = sources == SearchSources.METADATA_ONLY
+        val metadataKeys = candidates.map { SearchSessionKey(it.kind, it.id) }.filter { metadataOnly || it !in ready }
+        val metadataScores = if (metadataKeys.isEmpty()) emptyList() else
+            store.scores(plan, metadataKeys, SearchSources.METADATA_ONLY, isCancelled)
+        val scores = (metadataScores + store.scores(plan, ready, sources, isCancelled)).associateBy { it.key }
+        // scores() sets the scope used by the literal candidate lane.
+        val substringCandidates = store.substringCandidates(plan, sources, isCancelled)
         val hits = ArrayList<SearchHit>()
-        var failed = candidates.size - ready.size
-        // Ordinary retrieval has no source-level mandatory constraints. Rank metadata/SQLite
-        // evidence first, then read only the displayed supporting passages. Exact/phrase lanes
-        // still verify the entire scope before top-K.
-        val metadataByKey =
-            candidates.associate { s ->
-                SearchSessionKey(s.kind, s.id) to
-                    LiteralEvidence.verify(
-                        plan,
-                        listOf(s.title, localTitle(s)),
-                        s.cwd.toString(),
-                        emptyList(),
-                    )
-            }
-        val verificationOrder =
-            if (plan.verifyAll) candidates
-            else
-                candidates.sortedWith(
-                    compareByDescending<Session> {
-                            metadataByKey.getValue(SearchSessionKey(it.kind, it.id)).exact
-                        }
-                        .thenByDescending {
-                            scores[SearchSessionKey(it.kind, it.id)]?.score ?: 1e-6
-                        }
-                        .thenByDescending { it.lastActivityAt }
-                        .thenBy { it.kind.name }
-                        .thenBy { it.id }
-                )
+        var failed = if (metadataOnly) 0 else candidates.size - ready.size
+        val metadataByKey = candidates.associate { session ->
+            SearchSessionKey(session.kind, session.id) to LiteralEvidence.verify(plan,
+                listOf(session.title, localTitle(session)), session.cwd.toString(), emptyList(), sources)
+        }
+        val verificationOrder = if (plan.verifyAll) candidates else candidates.sortedWith(
+            compareByDescending<Session> { metadataByKey.getValue(SearchSessionKey(it.kind, it.id)).exact }
+                .thenByDescending { scores[SearchSessionKey(it.kind, it.id)]?.score ?: 1e-6 }
+                .thenByDescending { it.lastActivityAt }.thenBy { it.kind.name }.thenBy { it.id })
         for (session in verificationOrder) {
             if (isCancelled() || !plan.verifyAll && hits.size > 100) break
             val key = SearchSessionKey(session.kind, session.id)
             val score = scores[key]
-            val titles = listOf(session.title, localTitle(session))
             val metadataEvidence = metadataByKey.getValue(key)
-            val metadataSignal =
-                plan.tokens.any { token ->
-                    (titles + session.cwd.toString()).any { QueryTerm(token, false).matches(it) }
-                }
-            if (score == null && !plan.verifyAll && !metadataSignal && key !in substringCandidates)
-                continue
+            val metadataSignal = plan.tokens.any { token ->
+                listOf(session.title, localTitle(session), session.cwd.toString()).any { QueryTerm(token, false).matches(it) }
+            }
+            if (score == null && !plan.verifyAll && !metadataSignal && key !in substringCandidates) continue
             val stamp = stamp(session)
-            if (stamp != null && key in ready && validatedStamps[key] != stamp) {
+            if (!metadataOnly && stamp != null && key in ready && validatedStamps[key] != stamp) {
                 failed++
                 continue
             }
-            val needsSource =
-                score?.entry != null ||
-                    key in substringCandidates ||
-                    plan.verifyAll &&
-                        !(metadataEvidence.allowed &&
-                            (metadataEvidence.title ||
-                                plan.literal.terms.any { it.matches(session.cwd.toString()) }))
+            val needsSource = !metadataOnly && (score?.entry != null || key in substringCandidates ||
+                plan.verifyAll && !(metadataEvidence.allowed && metadataEvidence.matches.isNotEmpty()))
             val loaded = if (needsSource && key in ready) read(session, stamp) else null
-            if (needsSource && key in ready && loaded == null) {
-                failed++
-                continue
-            }
-            if (stamp != stamp(session)) {
+            if (loaded == null && needsSource && key in ready) failed++
+            if (!metadataOnly && stamp != stamp(session)) {
                 failed++
                 buffers.remove(key)
                 continue
             }
-            val evidence =
-                if (loaded != null)
-                    LiteralEvidence.verify(plan, titles, session.cwd.toString(), loaded.entries)
-                else metadataEvidence
+            val evidence = if (loaded != null) LiteralEvidence.verify(plan,
+                listOf(session.title, localTitle(session)), session.cwd.toString(), loaded.entries, sources) else metadataEvidence
             if (!evidence.allowed) continue
-            if (score == null && !metadataSignal && evidence.entry == null && !evidence.title)
-                continue
-            // The body snippet must come from the passage SQLite actually ranked.
-            val rankedEntry = loaded?.entries?.firstOrNull { it.sourceId == score?.entry }
-            var entry =
-                if (!plan.verifyAll) rankedEntry ?: evidence.entry
-                else
-                    rankedEntry?.takeIf { e -> plan.literal.terms.any { it.matches(e.text) } }
-                        ?: evidence.entry
-            if (
-                entry != null &&
-                    score?.entry == entry.sourceId &&
-                    score.hash != null &&
-                    searchHash(entry.text) != score.hash
-            ) {
-                failed++
-                continue
+            if (score == null && !metadataSignal && evidence.entry == null && !evidence.title) continue
+            // Protected full-query evidence wins. Otherwise explain the actual SQL field winner.
+            val protected = evidence.matches.firstOrNull { it.fullExact }
+            val ranked = evidence.matches.firstOrNull { match ->
+                match.primary.source == score?.source && match.primary.metadataVariant == score.variant &&
+                    match.primary.entryId == score.entry
             }
-            val start = if (!plan.verifyAll && score?.entry != null) score.start else 0
-            val end =
-                if (!plan.verifyAll && score?.entry != null)
-                    minOf(score.end, entry?.text?.length ?: 0)
-                else entry?.text?.length ?: 0
-            val terms =
-                plan.literal.terms +
-                    if (plan.technical) emptyList() else plan.tokens.map { QueryTerm(it, false) }
-            val range =
-                entry?.let { e ->
-                    terms
-                        .flatMap { it.ranges(e.text) }
-                        .filter { it.first >= start && it.last < end }
-                        .minWithOrNull(compareBy({ it.first }, { it.last }))
+            var selected = protected ?: ranked ?: evidence.matches.firstOrNull()
+            if (selected == null) continue
+            if (protected == null && ranked != null && score?.entry != null) {
+                val entry = loaded?.entries?.firstOrNull { it.sourceId == score.entry && it.eligibleFor(sources) }
+                if (entry == null || searchHash(entry.text) != score.hash) {
+                    failed++
+                    continue
                 }
-            if (range == null) entry = null
-            hits +=
-                SearchHit(
-                    session,
-                    score?.score ?: 1e-6,
-                    evidence.title,
-                    if (entry != null && range != null)
-                        (if (entry.isTool) "${entry.label}: " else "") +
-                            snippet(entry.text, range.first, range.last - range.first + 1)
-                    else null,
-                    entry?.sourceId,
-                    entry?.isTool == true,
-                    key in partial,
-                    range,
-                    entry?.let { searchHash(it.text) },
-                    evidence.exact,
-                )
+                val terms = plan.literal.terms + if (plan.technical) emptyList() else plan.tokens.map { QueryTerm(it, false) }
+                val range = terms.flatMap { it.ranges(entry.text) }
+                    .filter { it.first >= score.start && it.last < score.end }
+                    .minWithOrNull(compareBy({ it.first }, { it.last }))
+                // A window containing only a normalized neighbour cannot claim literal evidence.
+                if (range == null) {
+                    selected = evidence.matches.firstOrNull { it.primary.entryId != score.entry } ?: continue
+                } else selected = ranked.copy(primary = ranked.primary.copy(range = range))
+            }
+            val primary = selected.primary
+            val range = primary.range!!
+            hits += SearchHit(session, score?.score ?: 1e-6, evidence.title,
+                snippet(selected.text, range.first, range.last - range.first + 1),
+                primary.entryId, primary.source == SearchMatchSource.TOOL_CALL || primary.source == SearchMatchSource.TOOL_RESULT,
+                !metadataOnly && (key in partial || key !in ready),
+                range.takeIf { primary.entryId != null }, primary.entryHash, evidence.exact,
+                primary.copy(range = range.takeIf { primary.entryId != null }), sources)
         }
         val sorted =
             hits
@@ -342,7 +316,7 @@ class ContentSearchIndex(
                 )
         return SearchResultSnapshot(
             sorted.take(100),
-            SearchCoverage(candidates.size, ready.size, failed, partial.size),
+            SearchCoverage(candidates.size, if (metadataOnly) candidates.size else ready.size, failed, if (metadataOnly) 0 else partial.size),
             revision,
             storageFailure,
             sorted.size > 100,
@@ -414,6 +388,7 @@ class ContentSearchIndex(
                         end,
                         hash,
                         entry.text.substring(start, end),
+                        entry.searchSource!!,
                     )
                 )
                 if (end == entry.text.length) break

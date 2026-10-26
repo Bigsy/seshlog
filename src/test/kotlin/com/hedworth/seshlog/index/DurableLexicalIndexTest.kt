@@ -202,7 +202,7 @@ class DurableLexicalIndexTest {
         index(db).use { it.search("synthetic_query_marker", listOf(s)) }
         JDBC.createConnection("jdbc:sqlite:$db", Properties()).use { c ->
             c.createStatement().use { st ->
-                listOf("body", "title", "path").forEach { table ->
+                listOf("user_body", "assistant_body", "tool_body", "title", "path").forEach { table ->
                     st.executeQuery("SELECT count(*) FROM $table WHERE text IS NOT NULL").use { r ->
                         r.next()
                         assertEquals(0, r.getInt(1))
@@ -224,12 +224,12 @@ class DurableLexicalIndexTest {
         ContentSearchIndex(
                 { listOf(body) },
                 { stamp },
-                storeFactory = { LexicalSearchStore.open(db, 96 * 1024) },
+                storeFactory = { LexicalSearchStore.open(db, 128 * 1024) },
             )
             .use { index ->
                 assertEquals(1, index.search("before", listOf(s)).size)
                 stamp++
-                body = (0..600).joinToString(" ") { searchHash(it.toString()) }
+                body = (0..2000).joinToString(" ") { searchHash(it.toString()) }
                 Files.writeString(s.transcriptPath!!, body)
                 val result = index.searchSnapshot(searchHash("100"), listOf(s))
                 assertNotNull(result.availability)

@@ -533,12 +533,21 @@ Implemented: immutable source/context/provenance types and a kind-first eligibil
 
 ### 1. Implement classified durable storage and filtered retrieval
 
-- [ ] Add the next schema, separate body populations and kind-preserving associations.
+- [x] Add the next schema, separate body populations and kind-preserving associations.
 - Thread immutable options through index APIs; implement SQL aggregation, exact/phrase/substring
   restrictions and accurate primary-match provenance. Keep all-source indexing reusable.
 - Complete old-schema handling, status reasons, new export/import validation and lifecycle updates.
 - Add category isolation, dense import, migration/fallback and source-race regression tests.
 - Done when default/all/metadata-only retrieval and persistence contracts pass under `make check`.
+
+Implemented schema 3/classification 1, independent user/assistant/tool populations, a shared
+100,000-passage ceiling, SQL best-body max and weighted primary-field provenance. All literal
+lanes use captured options. Metadata-only queries do not extract or validate body revisions;
+failed body reads still permit truthful metadata evidence. Known v2/future formats are preserved
+with temporary filtered fallback. Dense imports cover 256 × 350-token rows in every source kind,
+reopen/idempotence, malformed categories and rollback. Disabled-category score/evidence isolation,
+all eight combinations, phrases, exact/Unicode/substring lanes and provider collisions are tested.
+`make check` passed 2026-10-26 (510 tests, 8 opt-in skips). No manual UI acceptance claimed.
 
 ### 2. Add saved controls and source-aware asynchronous delivery
 

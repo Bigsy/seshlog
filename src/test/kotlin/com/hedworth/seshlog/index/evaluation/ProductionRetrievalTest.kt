@@ -2,6 +2,7 @@ package com.hedworth.seshlog.index.evaluation
 
 import com.google.gson.Gson
 import com.hedworth.seshlog.index.ContentSearchIndex
+import com.hedworth.seshlog.index.SearchSources
 import com.hedworth.seshlog.semantic.retrievalCorpus
 import org.junit.Assert.*
 import org.junit.Test
@@ -83,7 +84,7 @@ class ProductionRetrievalTest {
                 val positive = c.queries.filter { it.relevant.isNotEmpty() }
                 val ranks =
                     c.queries.associate { q ->
-                        q.id to index.search(q.text, c.sessions).map { it.session.id }
+                        q.id to index.search(q.text, c.sessions, SearchSources.ALL).map { it.session.id }
                     }
                 val legacy =
                     LegacyLiteralSearchIndex(
@@ -130,7 +131,7 @@ class ProductionRetrievalTest {
                 assertTrue(hit5 >= 16)
                 c.queries
                     .filter { it.category == "absent" }
-                    .forEach { assertTrue(ranks.getValue(it.id).isEmpty()) }
+                    .forEach { assertTrue(it.text, ranks.getValue(it.id).isEmpty()) }
             }
     }
 }

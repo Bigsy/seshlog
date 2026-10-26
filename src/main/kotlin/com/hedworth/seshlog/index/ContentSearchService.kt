@@ -70,7 +70,7 @@ class ContentSearchService : Disposable {
                             }
                             .keys,
                     )
-                    index.searchSnapshot(query, sessions, cancelled)
+                    index.searchSnapshot(query, sessions, isCancelled = cancelled)
                 } catch (_: Exception) {
                     // Providers/SQLite may include private text or paths in exception messages.
                     log.warn("Content search unavailable; retry in Search settings")

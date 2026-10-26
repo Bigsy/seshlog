@@ -56,6 +56,9 @@ private constructor(
     private var sourceSnapshot: MutableMap<SearchSessionKey, SavedSource>? = null
     private var bodyCountCache: Int? = null
     private var sourceCountCache: Int? = null
+    /** Aggregate work counter for synthetic reuse benchmarks; contains no source text. */
+    internal var tokenizations: Long = 0
+        private set
 
     fun source(key: SearchSessionKey): SavedSource? {
         sourceSnapshot?.let {
@@ -765,6 +768,7 @@ private constructor(
             }
         db.prepareStatement("INSERT INTO $field(rowid,text) VALUES(?,?)").use {
             it.setLong(1, id)
+            if (!normalized) tokenizations++
             it.setString(2, if (normalized) text else LexicalTokens.tokens(text).joinToString(" "))
             it.executeUpdate()
         }

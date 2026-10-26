@@ -34,7 +34,7 @@ Click a screenshot to view it full size.
 - Marks newly finished turns as unread, shows working/unread counts on project rows, and jumps
   to the next unread session from the toolbar or a configurable shortcut.
 - Opens conversations in read-only editor tabs and renders Markdown in the recent-message preview.
-- Includes Claude subagent activity in search. Linked continuations share one current session row;
+- Includes Claude subagent activity when **Tool activity** is selected. Linked continuations share one current session row;
   **Earlier Sessions** opens the preceding transcripts without changing them.
 - Lists recognized file changes with Open and Compare with Current actions.
 - Copies the latest assistant reply, or the latest explicit Claude Code or Codex plan, without
@@ -65,10 +65,24 @@ Then choose **Settings → Plugins → ⚙ → Install Plugin from Disk…** and
 The **Filters** menu contains agent, date, hidden-session and sibling-worktree controls.
 Project and date filters apply to both browsing and search; you can include sibling worktrees or show sessions from all projects.
 
-Search ranks by relevance; ordinary words are optional signals. Use `"quoted phrases"` to require exact text within a title, path or single conversation entry. Multiple phrases may match different entries. Exact technical identifiers receive priority. Select a result and
-choose **Open Conversation** to read it in a read-only editor tab, then use **F3 / Shift+F3** to jump
-between matches. The editor also supports normal Find; Markdown rendering is available when its
-IDE plugin is enabled. Clear the search to return to the recent-message preview.
+**Search in** beside the search field chooses **Your messages**, **Assistant replies** and
+**Tool activity**. The default **Conversation** includes your messages and assistant replies,
+with tools off. Titles (including local overrides) and project paths are always included.
+You can turn off all three sources for **Titles & paths**. The preference is shared across
+project windows and remembered across restarts; clearing the query preserves it.
+
+Search ranks by relevance; ordinary words are optional signals. Use `"quoted phrases"` to require
+exact text within an included title, path or single eligible conversation entry. Multiple phrases
+may match different eligible entries. Exact technical identifiers receive priority. Rows label
+their displayed evidence as **Title**, **Project path**, **You**, **Assistant**, **Tool call** or
+**Tool result**. A matching provider title remains visible in the excerpt even if you renamed the row.
+
+Select a result and choose **Open Conversation** to read it in a read-only editor tab.
+The preview and **F3 / Shift+F3** navigation use the selected sources; excluded activity remains
+visible as context. Title/path results initially explain the metadata match. An opened editor tab
+keeps the query and sources it was opened with, shown above the conversation. Normal IDE Find
+searches the whole document. Markdown rendering is available when its IDE plugin is enabled.
+Clear the search to return to the recent-message preview.
 Click the preview header to collapse it to a single row under the list, and again to expand it;
 the choice is remembered across restarts.
 
@@ -153,7 +167,9 @@ their existing session behaviour.
   on first discovery. Completions without usable activity/process evidence may be missed.
   Partial conversation views do not clear unread badges when the latest reply cannot be verified.
 - Large conversations have search and viewer limits; partial coverage is shown in the UI.
-  Images and thinking are excluded. Tool text is searchable for Claude Code, Codex and opencode.
+  Images and thinking are excluded. **Tool activity** enables tool text for Claude Code, Codex
+  and opencode, including Claude subagent results. Pi currently provides dialogue only.
+  Shared retention limits can omit later dialogue even when tools are excluded from matching.
 - **Files Changed** lists recognized operations in the retained transcript text, so it can be partial.
   Complete Write calls can be compared with the current file; edits and patches show their recorded
   operation rather than reconstructing a historical file.
@@ -191,7 +207,17 @@ Seshlog runs locally and makes **no network requests**. There is no telemetry or
 Agent transcripts are read-only. Seshlog keeps settings and metadata caches in IDE storage;
 raw conversation content and snippets stay in memory. Search terms, positions, source references and index versions persist in a contentless SQLite index under the IDE config directory, `seshlog/search/lexical.sqlite`. These derived words and positions can reveal conversation content; the file is not encrypted. No raw transcript copies or query history are saved. The index survives restart and Invalidate Caches, and is excluded from automatic Settings Sync and settings export.
 
+All supported sources, including tools, are indexed within the shared limits. **Search in**
+restricts query evidence, ranking and navigation; it does not change collection or retention.
+Switching sources reuses compatible postings. Source preferences are IDE settings and are not
+included in a search-index export.
+
 Settings → Tools → Seshlog → Search shows cache usage and offers Refresh, Rebuild, Clear, Retry, Open cache location and explicit export/import. Refresh revalidates and reuses saved postings; Rebuild/ Clear cause local reindexing on the next search. Exports contain sensitive lexical data, without the original conversations or foreign absolute source paths. Import validates discovered local sources, including relocated files, before using their postings. Missing transcripts cannot be displayed or resumed from the index alone. Unavailable storage falls back to a temporary local index with a coverage message. A second IDE using the same profile must close its saved index before maintenance can proceed.
+
+Source filtering uses index format 3. Older format-2 indexes are preserved and use correctly
+filtered temporary search until you explicitly choose **Rebuild**. Rebuild retains a recovery
+copy and re-extracts local sources once. Old-format exports must be rebuilt and exported again
+in the original IDE before importing; import never changes the saved source preference.
 
 Agent SQLite metadata reads use read-only
 connections; SQLite can update an existing shared-memory index while leaving stored sessions unchanged.
@@ -210,6 +236,8 @@ Issues and pull requests are welcome. New parsing behaviour needs a synthetic fi
 `src/test/resources/fixtures/`; never commit real transcripts.
 See [AGENTS.md](AGENTS.md) for development conventions and [PLAN.md](PLAN.md) for current work.
 The [production BM25 report](docs/production-bm25.md) records relevance, durability and resource evidence and its remaining acceptance limits.
+The [source-filter report](docs/search-source-filters.md) records the new schema, selected-source
+evaluation, synthetic performance and remaining manual checks.
 
 Keep the five most recent release entries in `src/main/resources/META-INF/plugin.xml`; when adding
 another, move the oldest entry to the top of [the changelog archive](docs/changelog-archive.md).

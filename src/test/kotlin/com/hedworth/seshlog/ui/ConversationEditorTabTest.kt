@@ -21,6 +21,28 @@ import java.nio.file.Paths
 import java.time.Instant
 
 class ConversationEditorTabTest : BasePlatformTestCase() {
+    fun `test full editor opens the ranked tool passage and rejects a reclassified target`() {
+        val session = Session(AgentKind.CLAUDE_CODE, "ranked-tool-editor", "Synthetic", Paths.get("/synthetic"),
+            null, null, Instant.EPOCH, null, false, null, null, 1, true)
+        val tool = ConversationEntry(ConversationMessage(Role.USER, "third needle tool", null), "t", EntryKind.TOOL_RESULT)
+        val primary = SearchPrimaryMatch(SearchMatchSource.TOOL_RESULT, "t", 6..11,
+            com.hedworth.seshlog.index.lexical.searchHash(tool.text))
+        val hit = SearchHit(session, 1.0, false, "needle tool", "t", range = primary.range,
+            entryHash = primary.entryHash, primary = primary, sources = SearchSources.ALL)
+        for (reclassified in listOf(false, true)) {
+            val entries = listOf(ConversationEntry(ConversationMessage(Role.USER, "first needle user", null), "u"),
+                if (reclassified) tool.copy(kind = EntryKind.DIALOGUE) else tool)
+            val file = ConversationEditorTabs.open(project, session, "needle", loader = { entries }, hit = hit)
+            try {
+                await { String(file.contentsToByteArray(), StandardCharsets.UTF_8).contains("third needle tool") }
+                val editor = FileEditorManager.getInstance(project).getEditors(file).filterIsInstance<TextEditor>().first().editor
+                if (reclassified) {
+                    assertTrue(editor.document.text.contains("Source changed"))
+                    assertEquals(0, editor.caretModel.offset)
+                } else assertEquals(editor.document.text.indexOf("needle tool"), editor.caretModel.offset)
+            } finally { FileEditorManager.getInstance(project).closeFile(file) }
+        }
+    }
     fun `test full editor captures source context and navigates original entry bodies only`() {
         val session = Session(AgentKind.CLAUDE_CODE, "editor-sources", "needle title", Paths.get("/synthetic"),
             null, null, Instant.EPOCH, null, false, null, null, 1, true)

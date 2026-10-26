@@ -161,6 +161,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private var corpusRevision = 0L
     private var lastSearchRevision = -1L
     private var searchDeliveryGeneration = 0L
+    internal var searchRequestCount = 0
+        private set
     private var rankedHits: Map<SearchSessionKey,SearchHit> = emptyMap()
     fun selectedSearchHit(): SearchHit? = selectedSession()?.let { rankedHits[SearchSessionKey(it.kind,it.id)] }
 
@@ -584,6 +586,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         searchAlarm.cancelAllRequests()
         searchScope.cancel()
         searchDeliveryGeneration++
+        lastSearchQuery = null
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) {
             // Cleared (or too short): drop back to the plain list immediately.
@@ -620,6 +623,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         updateLoadingState()
         val generation = pathResolutionGeneration
         val delivery = ++searchDeliveryGeneration
+        searchRequestCount++
         ContentSearchService.getInstance().searchSnapshot(searchScope, query, candidates, sources) { snapshot ->
             // Stale delivery guard: the field may have changed since this search was requested.
             if (!project.isDisposed && !Disposer.isDisposed(this) && generation == pathResolutionGeneration &&

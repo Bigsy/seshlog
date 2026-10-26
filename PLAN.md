@@ -252,6 +252,9 @@ Existing tests to extend: `ContentSearchIndexTest`, `ContentSearchServiceTest`, 
   introduce a hidden query language, operators, wildcards, or implicit Boolean syntax.
 - Index provider titles, local title overrides, cwd/project paths and searchable conversation/tool
   entries. Preserve metadata-only hits when transcript content is absent or temporarily unreadable.
+  The scoped [source-filter follow-up](PLAN-filter.md) selects eligible query sources: default
+  user/assistant dialogue, tools off; titles/paths always included; all-off means metadata only.
+  All supported sources remain indexed within shared bounds. See [implementation evidence](docs/search-source-filters.md).
 - Exact full-query matches in titles, identifiers, file names and paths get strong relevance.
   Tokenization must not lose `SearchRequestScope.kt`, `foo_bar`, `camelCase`, `a.b.C`, `C++`,
   `--retry`, `SQLSTATE 40P01`, stack-trace fragments, numeric error codes or Windows paths.
@@ -327,7 +330,9 @@ Default search remains offline. The benchmark is a reference, not a production-r
 IntelliJ UI types. Persist provider-aware source keys, source stamps, content/metadata revisions,
 index/tokenizer/chunker versions and passage identity/original entry/ranges in ordinary tables.
 Use contentless FTS5 tables for lexical fields; they must not retain a raw text content column.
-Keep body, title/local-title and path populations separate so long bodies do not dilute titles.
+Keep user, assistant and tool body populations separate from each other and from title/local-title
+and path populations, as specified in PLAN-filter.md, so excluded categories cannot alter active
+body statistics and long bodies do not dilute titles.
 One body row represents a bounded passage. Metadata rows distinguish provider title, local title
 and path; metadata-only sessions are searchable without a body row. SQL combines best body passage
 score with metadata scores, using max(provider-title, local-title), never summing duplicate titles.
@@ -1051,7 +1056,8 @@ Manual `make run` checks in section 14 are still owed, so this release checkbox 
 Item 4 validation record (2026-10-25): implementation and automated preparation are complete;
 manual/platform release acceptance is **not** marked complete. See `docs/production-bm25.md` and
 `docs/benchmarks/production-bm25-2026-10-25.jsonl` for all synthetic cases/measurements and caveats.
-Current production schema is **2**: Unicode-word preprocessing feeds the ASCII FTS tokenizer so
+The 2026-10-25 milestone validated schema **2** (superseded by source-filter schema **3**, documented
+in PLAN-filter.md and docs/search-source-filters.md): Unicode-word preprocessing feeds the ASCII FTS tokenizer so
 newer Unicode letters survive SQLite token boundaries; Unicode/source and identifier-substring
 literal lanes retain the original contract. Field aggregation and winner selection run in SQL.
 Older/incompatible schemas are preserved and use temporary fallback until explicit rebuild.
@@ -1379,8 +1385,8 @@ prototype evidence remains valid as historical measurements, not proof of the ne
 | SQLite benchmark | Same 44-query fixture: aligned FTS5 36/40 first, 39/40 top-five; 10k-session p95 8.85 ms, reopen+first query 3.56 ms with warm filesystem. See docs/sqlite-bm25-benchmark.md. | Complete, test-only |
 | Prototype | `e598a18`; section 2 and docs/semantic-search-prototype.md. | Complete, local/test-only |
 | Evaluation corpus | Frozen v1: 200 sessions / 200 queries, family-separated split, preserved literal adapter and metric checks. See item 0; broader realism/human review remains a release gate. | Automated scaffold complete |
-| BM25 scorer | Schema 2, Unicode-word preprocessing + ASCII FTS; separate title/path/body populations, 8/3/1, exact tier, native SQL BM25/max aggregation. | Implemented/tested |
-| Lexical persistence | Durable IDE config path, contentless schema 2, validated restart/import reuse, bounded atomic writes, controls, snapshots and recovery. See items 2–4. | Implemented/tested |
+| BM25 scorer | Schema 3, Unicode-word preprocessing + ASCII FTS; separate title/path/user/assistant/tool populations, selected-source best-body max, 8/3/1, exact tier, native SQL BM25. See PLAN-filter.md. | Implemented/tested; resource/manual limits in source-filter report |
+| Lexical persistence | Durable IDE config path, contentless schema 3, validated restart/import reuse, classified associations, bounded atomic writes, controls, snapshots and recovery. Older formats preserved until explicit rebuild. | Implemented/tested |
 | BM25 release | Automated suite/release/262+263 verifier and three-run synthetic benchmarks passed. Manual matrix, broader corpus review and lower-memory/native profiling remain owed. | Acceptance pending |
 | HTTP protocol/client | Record supported API, input/response bounds, URL/TLS/proxy behavior and tests. | Pending item 5 |
 | Settings/credentials/authorization | Record PasswordSafe API, config revisions, test-only probes and disclosure/Apply tests. | Pending item 6 |

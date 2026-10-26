@@ -12,7 +12,7 @@ sqlite-bench:
 # Production BM25: frozen quality evaluation plus three 1k/10k synthetic durability runs.
 lexical-bench:
 	@mkdir -p build
-	@SESHLOG_LEXICAL_BENCH=1 ./gradlew test --offline --tests '*LexicalSearchBenchmark*' --tests '*ProductionRetrievalTest*' --rerun -i > build/lexical-bench.log 2>&1; status=$$?; \
+	@SESHLOG_LEXICAL_BENCH=1 ./gradlew test --offline --tests '*LexicalSearchBenchmark*' --tests '*ProductionRetrievalTest*' --tests '*SourceRetrievalTest*' --rerun -i > build/lexical-bench.log 2>&1; status=$$?; \
 	grep -E 'SESHLOG_LEXICAL |(LexicalSearchBenchmark|ProductionRetrievalTest).*(SKIPPED|FAILED)|^\* What went wrong:' build/lexical-bench.log | grep -v '"event":"case"'; exit $$status
 
 # Local GGUF required. Add SESHLOG_SEMANTIC_REAL=1 for bounded read-only history timings.

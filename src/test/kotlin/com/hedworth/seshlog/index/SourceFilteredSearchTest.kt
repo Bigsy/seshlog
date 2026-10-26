@@ -27,6 +27,22 @@ class SourceFilteredSearchTest {
     private fun index(entries: () -> List<ConversationEntry>, stamp: () -> Int = { 1 }, db: Path? = null) =
         ContentSearchIndex({ error("structured") }, { stamp() }, entryExtractor = { entries() }, storeFactory = { LexicalSearchStore.open(db) })
 
+    @Test fun `a source that fails reading and changes stamp is counted once in coverage`() {
+        var stamp = 1
+        var reads = 0
+        ContentSearchIndex({ emptyList() }, { stamp }, characterBudget = 0, entryExtractor = {
+            if (reads++ == 0) listOf(entry("u", "needle", SearchEntrySource.USER)) else {
+                stamp++
+                error("synthetic unavailable source")
+            }
+        }).use { index ->
+            val result = index.searchSnapshot("needle", listOf(session()))
+            assertTrue(result.hits.isEmpty())
+            assertEquals(1, result.coverage.skipped)
+            assertTrue(result.coverage.partial)
+        }
+    }
+
     @Test fun `all selections restrict every source with provider collisions and empty corpus`() {
         val sources = SearchEntrySource.entries
         val entries = sources.map { entry(it.name, "marker_${it.name}", it) }
@@ -147,6 +163,12 @@ class SourceFilteredSearchTest {
             val path = index.searchSnapshot("\"database locked\"", listOf(s), SearchSources.METADATA_ONLY)
             assertFalse(path.coverage.partial)
             assertEquals(SearchMatchSource.PROJECT_PATH, path.hits.single().primary.source)
+            val literalPath = s.copy(cwd = Path.of("/the and of/+-"))
+            for (query in listOf("\"the and of\"", "+-")) {
+                val hit = index.search(query, listOf(literalPath), SearchSources.METADATA_ONLY).single()
+                assertEquals(SearchMatchSource.PROJECT_PATH, hit.primary.source)
+                assertNull(hit.entryId)
+            }
             assertEquals(0, reads)
             assertEquals(1, index.search("needle", listOf(s)).size)
             assertEquals(1, reads)
@@ -207,6 +229,35 @@ class SourceFilteredSearchTest {
             assertTrue(index.searchSnapshot("absent", listOf(session())).coverage.partial)
             assertFalse(index.searchSnapshot("absent", listOf(session()), SearchSources.METADATA_ONLY).coverage.partial)
             assertTrue(index.search("coverage_marker", listOf(session()), SearchSources.ALL).isEmpty())
+        }
+    }
+
+    @Test fun `imported classified postings validate local sources and retain exact navigation without tokenizing`() {
+        val entries = SearchEntrySource.entries.map { entry(it.name, "marker_${it.name}", it) }
+        val file = tmp.root.toPath().resolve("synthetic-source.txt")
+        Files.writeString(file, entries.joinToString("\n") { "${it.kind} ${it.message.role} ${it.text}" })
+        val session = session(title = "Metadata marker").copy(transcriptPath = file)
+        var reads = 0
+        var store: LexicalSearchStore? = null
+        fun index(path: Path) = ContentSearchIndex({ emptyList() }, { 1 }, entryExtractor = { reads++; entries },
+            storeFactory = { LexicalSearchStore.open(path).also { store = it } })
+        val snapshot = tmp.root.toPath().resolve("classified-export.sqlite")
+        val expected = index(tmp.root.toPath().resolve("original.sqlite")).use {
+            val hit = it.search("marker_TOOL_RESULT", listOf(session), SearchSources.ALL).single()
+            it.export(snapshot)
+            hit
+        }
+        reads = 0
+        index(tmp.root.toPath().resolve("imported.sqlite")).use {
+            assertEquals(1, it.importSnapshot(snapshot))
+            assertEquals(1, it.search("Metadata", listOf(session)).size)
+            assertEquals(0, reads)
+            val actual = it.search("marker_TOOL_RESULT", listOf(session), SearchSources.ALL).single()
+            assertEquals(expected, actual)
+            assertEquals(3 to (0 until "marker_TOOL_RESULT".length), validatedPassage(actual, entries))
+            assertTrue(it.search("marker_TOOL_RESULT", listOf(session)).isEmpty())
+            assertEquals(1, reads)
+            assertEquals(0L, store!!.tokenizations)
         }
     }
 }

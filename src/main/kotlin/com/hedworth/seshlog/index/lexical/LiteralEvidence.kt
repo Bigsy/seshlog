@@ -51,7 +51,7 @@ object LiteralEvidence {
             match(path, SearchPrimaryMatch(SearchMatchSource.PROJECT_PATH, metadataVariant = SearchMetadataVariant.PROJECT_PATH))?.let(::add)
             searchable.forEach { entry ->
                 match(entry.text, SearchPrimaryMatch(entry.searchSource!!.matchSource, entry.sourceId,
-                    entryHash = searchHash(entry.text), toolName = entry.toolName))?.let(::add)
+                    toolName = entry.toolName))?.let(::add)
             }
         }.sortedWith(compareBy({ it.primary.source.ordinal }, { it.primary.entryId.orEmpty() }, { it.primary.range?.first ?: 0 }, { it.primary.range?.last ?: 0 }, { it.primary.metadataVariant?.ordinal ?: 0 }))
         val firstBody = matches.firstOrNull { it.primary.entryId != null }

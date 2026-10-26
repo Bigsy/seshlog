@@ -12,6 +12,33 @@ import javax.swing.JCheckBoxMenuItem
 import javax.swing.JMenuItem
 
 class SearchSourcesControlTest : BasePlatformTestCase() {
+    fun `test typing away and back reruns a query whose previous generation was cancelled`() {
+        val owner = Disposer.newDisposable()
+        try {
+            val panel = SessionTreePanel(project, owner)
+            panel.searchField.text = "needle"
+            fun await(done: () -> Boolean) {
+                val deadline = System.currentTimeMillis() + 5000
+                while (!done() && System.currentTimeMillis() < deadline) {
+                    com.intellij.testFramework.PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+                    Thread.sleep(10)
+                }
+                assertTrue(done())
+            }
+            await { panel.searchRequestCount >= 1 }
+            val before = panel.searchRequestCount
+            panel.searchField.text = "different"
+            panel.searchField.text = "needle"
+            await { panel.searchRequestCount > before }
+            val submitted = panel.searchRequestCount
+            panel.searchField.text = ""
+            SeshlogSettings.getInstance().searchSources.let { current ->
+                SeshlogSettings.getInstance().searchSources = current.copy(toolActivity = !current.toolActivity)
+                assertEquals(submitted, panel.searchRequestCount)
+                SeshlogSettings.getInstance().searchSources = current
+            }
+        } finally { Disposer.dispose(owner) }
+    }
     fun `test all menu states persist across panels without broad settings or scan events`() {
         val settings = SeshlogSettings.getInstance()
         val previous = settings.searchSources

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "sessions": [
+    {"id":"retry-task","title":"Orchard retry policy","cwd":"/synthetic/orchard","entries":[
+      {"role":"USER","kind":"DIALOGUE","text":"Review orchard retry policy for transient failures."},
+      {"role":"ASSISTANT","kind":"DIALOGUE","text":"Keep retries bounded and validate the request before repeating it."}]},
+    {"id":"tool-distractor","title":"Inspecting an asset bundle","cwd":"/synthetic/assets","entries":[
+      {"role":"USER","kind":"DIALOGUE","text":"Check the image dimensions."},
+      {"role":"ASSISTANT","kind":"TOOL_CALL","text":"read_file bundle_manifest.json"},
+      {"role":"USER","kind":"TOOL_RESULT","text":"orchard retry policy and unrelated package metadata","repeat":60}]},
+    {"id":"assistant-solution","title":"Investigate a stalled worker","cwd":"/synthetic/worker","entries":[
+      {"role":"USER","kind":"DIALOGUE","text":"Can you explain what went wrong?"},
+      {"role":"ASSISTANT","kind":"DIALOGUE","text":"Kestrel lease expiry requires a fencing generation counter."}]},
+    {"id":"tool-error","title":"Build diagnostic","cwd":"/synthetic/compiler","entries":[
+      {"role":"USER","kind":"DIALOGUE","text":"Inspect the failed build."},
+      {"role":"USER","kind":"TOOL_RESULT","text":"ERR_KITE_715 C++ /tmp/broken.cpp database locked"}]},
+    {"id":"echoes","title":"Investigate a flaky queue","cwd":"/synthetic/queue","entries":[
+      {"role":"USER","kind":"DIALOGUE","text":"Validate the narwhal enqueue receipt."},
+      {"role":"ASSISTANT","kind":"DIALOGUE","text":"The narwhal enqueue receipt needs a stable key."},
+      {"role":"ASSISTANT","kind":"TOOL_CALL","text":"assert narwhal enqueue receipt"},
+      {"role":"USER","kind":"TOOL_RESULT","text":"narwhal enqueue receipt passed","repeat":30}]},
+    {"id":"metadata","title":"Harbour migration checklist","localTitle":"Displayed override","cwd":"/synthetic/path_only_marker","entries":[]},
+    {"id":"subagent","title":"Delegate a bounded review","cwd":"/synthetic/delegate","entries":[
+      {"role":"USER","kind":"DIALOGUE","text":"Review the implementation."},
+      {"role":"USER","kind":"TOOL_RESULT","tool":"Claude subagent","text":"SUBAGENT_CEDAR_42 confirms the result."}]},
+    {"id":"literal-split","title":"Investigate a transient lock","cwd":"/synthetic/transient","entries":[
+      {"role":"USER","kind":"DIALOGUE","text":"Cache invalidation needs a test."},
+      {"role":"ASSISTANT","kind":"DIALOGUE","text":"A bounded timeout protects the worker."},
+      {"role":"USER","kind":"TOOL_RESULT","text":"database locked"}]}
+  ],
+  "queries": [
+    {"id":"task","text":"\"orchard retry policy\"","conversation":{"retry-task":"TITLE"},"user":{"retry-task":"TITLE"},"all":{"retry-task":"TITLE","tool-distractor":"TOOL_RESULT"}},
+    {"id":"solution","text":"kestrel","conversation":{"assistant-solution":"ASSISTANT"},"user":{},"all":{"assistant-solution":"ASSISTANT"}},
+    {"id":"technical","text":"ERR_KITE_715","conversation":{},"user":{},"all":{"tool-error":"TOOL_RESULT"}},
+    {"id":"echo","text":"narwhal","conversation":{"echoes":"USER"},"user":{"echoes":"USER"},"all":{"echoes":"USER"}},
+    {"id":"provider-title","text":"Harbour","conversation":{"metadata":"TITLE"},"user":{"metadata":"TITLE"},"all":{"metadata":"TITLE"}},
+    {"id":"local-title","text":"Displayed override","conversation":{"metadata":"TITLE"},"user":{"metadata":"TITLE"},"all":{"metadata":"TITLE"}},
+    {"id":"path","text":"path_only_marker","conversation":{"metadata":"PROJECT_PATH"},"user":{"metadata":"PROJECT_PATH"},"all":{"metadata":"PROJECT_PATH"}},
+    {"id":"subagent","text":"SUBAGENT_CEDAR_42","conversation":{},"user":{},"all":{"subagent":"TOOL_RESULT"}},
+    {"id":"phrases-split","text":"\"Cache invalidation\" \"bounded timeout\"","conversation":{"literal-split":"USER"},"user":{},"all":{"literal-split":"USER"}},
+    {"id":"excluded-phrase","text":"\"database locked\" timeout","conversation":{},"user":{},"all":{"literal-split":"TOOL_RESULT","tool-error":"TOOL_RESULT"}},
+    {"id":"no-answer","text":"ABSENT_HERON_991","conversation":{},"user":{},"all":{}}
+  ]
+}

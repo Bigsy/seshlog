@@ -434,58 +434,63 @@ not sufficient to validate source filtering without extending the fixture adapte
 
 ### Pure/domain and retrieval acceptance
 
-- [ ] All classifier combinations, including coverage and subagent tool-result precedence.
-- [ ] All eight selections, empty corpus, provider-ID collisions and metadata-only sessions.
-- [ ] Same marker only in user / only in assistant / only in tool-call / only in tool-result:
+- [x] All classifier combinations, including coverage and subagent tool-result precedence.
+- [x] All eight selections, empty corpus, provider-ID collisions and metadata-only sessions.
+- [x] Same marker only in user / only in assistant / only in tool-call / only in tool-result:
   included exactly when its category is enabled; default has no tool-only result.
-- [ ] Always-included provider/local titles and paths; all checkboxes off searches those only.
-- [ ] Excluded text cannot alter BM25 score/order, exact tier, substring candidates, snippets,
+- [x] Always-included provider/local titles and paths; all checkboxes off searches those only.
+- [x] Excluded text cannot alter BM25 score/order, exact tier, substring candidates, snippets,
   result limits or phrase eligibility. Add/change a large disabled tool log with unchanged
   eligible text/metadata and assert the selected result's score, order and evidence stay stable.
-- [ ] Best-body max across enabled categories; duplicated echoed text does not sum category scores.
-- [ ] Mandatory phrase only in excluded text fails; optional word in included text cannot rescue it.
-- [ ] Multiple phrases split across two included categories succeed; disabling the only source
+- [x] Best-body max across enabled categories; duplicated echoed text does not sum category scores.
+- [x] Mandatory phrase only in excluded text fails; optional word in included text cannot rescue it.
+- [x] Multiple phrases split across two included categories succeed; disabling the only source
   satisfying one makes the query fail. Entry-crossing phrase still fails.
-- [ ] Quoted phrase in title/path remains eligible with all body sources off.
-- [ ] Technical identifiers, C++, C#, paths, stopword-only text, Unicode and identifier-substring
+- [x] Quoted phrase in title/path remains eligible with all body sources off.
+- [x] Technical identifiers, C++, C#, paths, stopword-only text, Unicode and identifier-substring
   fallback all obey selection. More than 100 excluded high-scoring entries cannot hide a valid hit.
-- [ ] Primary label/snippet/entry/range agree for every source. Distinguish matching provider title
+- [x] Primary label/snippet/entry/range agree for every source. Distinguish matching provider title
   from a displayed local override; distinguish path from title without fabricated body targets.
-- [ ] No finite-score/tie-order regressions and no false hits from coverage labels or tool names
+- [x] No finite-score/tie-order regressions and no false hits from coverage labels or tool names
   that exist only in rendered headings, rather than actual searchable source text.
 
 ### Persistence and lifecycle acceptance
 
-- [ ] New defaults load from old settings; all eight saved combinations round-trip, including
+- [x] New defaults load from old settings; all eight saved combinations round-trip, including
   all false. Unrelated Settings Apply/Reset preserves the chosen values.
-- [ ] Source toggles reuse a compatible index; no re-tokenization or provider rescan solely due
+- [x] Source toggles reuse a compatible index; no re-tokenization or provider rescan solely due
   to toggling. Any original-source reads needed for snippet/exact verification are counted separately.
-- [ ] Reopen reuses category metadata/postings; metadata-only renames do not extract bodies.
-- [ ] A changed source moving between categories removes old evidence atomically; failed/cancelled
+- [x] Reopen reuses category metadata/postings; metadata-only renames do not extract bodies.
+- [x] A changed source moving between categories removes old evidence atomically; failed/cancelled
   replacement retains the previous consistent source revision without publishing it as current.
-- [ ] Known schema-2 DB and future-schema DB are preserved; temporary fallback obeys new filters;
+- [x] Known schema-2 DB and future-schema DB are preserved; temporary fallback obeys new filters;
   explicit Rebuild produces the new format and preserves the existing recovery guarantees.
-- [ ] New-format round-trip preserves source kinds, scores, source validation and navigation;
+- [x] New-format round-trip preserves source kinds, scores, source validation and navigation;
   imported preference does not exist. Reject legacy/malformed category snapshots without mutation.
-- [ ] Adaptive dense-passage import, idempotence, existing-source precedence, rollback, full/busy
+- [x] Adaptive dense-passage import, idempotence, existing-source precedence, rollback, full/busy
   storage, process leases, shared total passage cap, disk/recovery accounting and purge remain valid.
-- [ ] Filtered-out categories are not reported as failures; real shared-retention loss still is.
+- [x] Filtered-out categories are not reported as failures; real shared-retention loss still is.
   Zero-hit envelopes distinguish complete selected-source no-match from partial/error states.
 
 ### Service/UI acceptance
 
-- [ ] Changing options with unchanged query/candidates causes a new request. An old all-source
+- [x] Changing options with unchanged query/candidates causes a new request. An old all-source
   result delivered late cannot reappear under Conversation or Your messages.
-- [ ] Two windows synchronize saved options but preserve independent text-query cancellation.
+- [x] Two windows synchronize saved options but preserve independent text-query cancellation.
   Closing either window leaves the other usable; late callbacks after disposal are ignored.
-- [ ] Clear/short query, reset, rapid toggles and a source update during search preserve correct
+- [x] Clear/short query, reset, rapid toggles and a source update during search preserve correct
   state and do not trigger unnecessary scans or reindexing.
 - [ ] Control summaries, checked states, labels, tooltips and accessible descriptions are correct;
   keyboard activation works. Selected row/group/pin behaviour survives refreshed results.
-- [ ] Preview and full-editor initial navigation use the eligible primary source; source changes
+- [x] Preview and full-editor initial navigation use the eligible primary source; source changes
   never use stale offsets. F3/previous/next/counts/highlights exclude disabled categories.
-- [ ] Title/path-only hits do not auto-jump into excluded body text. Full context remains visible;
+- [x] Title/path-only hits do not auto-jump into excluded body text. Full context remains visible;
   normal Find and copying still work. An already opened tab keeps its captured search context.
+
+
+Automated coverage is recorded above; the remaining control row needs physical keyboard checking.
+Two-window semantics are exercised through independent service scopes and app-synchronized panels;
+physical windows, themes and platform checks remain separately unchecked in section 11.
 
 Extend existing tests where appropriate: `ContentSearchIndexTest`, `LexicalRankingTest`,
 `DurableLexicalIndexTest`, `LexicalSnapshotImportTest`, `SearchStorageBoundsTest`,
@@ -585,7 +590,7 @@ labels and selection restoration. Physical navigation/theme/accessibility checks
 
 ### 4. Evaluate, document and validate the feature
 
-- [ ] Run the source-labelled evaluation and bounded default/all/long-tool benchmarks; record
+- [x] Run the source-labelled evaluation and bounded default/all/long-tool benchmarks; record
   fixture/schema versions, measured results and limitations.
 - Update README's search section, tool/subagent claims and data-retention explanation. Explain
   defaults, titles/paths always included, source labels, all-off mode, scope of F3 versus normal
@@ -595,6 +600,44 @@ labels and selection restoration. Physical navigation/theme/accessibility checks
 - Run required checks and inspect the plugin ZIP for test/fixture/private-data leakage.
 - Done when automated tests and the manual acceptance below pass, or explicitly hand off the
   remaining manual checks without claiming release completion. Do not publish/upload.
+
+Implemented and validated 2026-10-26. [Report](docs/search-source-filters.md) and
+[synthetic JSONL](docs/benchmarks/search-source-filters-2026-10-26.jsonl) record schema 3,
+classification/normalization 1, frozen fixture hash, all source-labelled cases, repeated 1k/10k
+builds, the 396k-character long-tool case, source reads/tokenizations, toggle/reopen/import costs,
+category counts and memory/disk samples. All 33 selected-source inclusion sets match; preferred
+primary evidence agrees 7/7 Conversation, 5/5 Your messages, 11/12 All activity. The repeated echo
+chooses a truthful Tool result in All activity, rather than the preferred You evidence; the frozen
+label and fixed weights remain unchanged. Historical corpus/report files remain unchanged.
+
+README and PLAN.md describe defaults, all-off metadata mode, always-included metadata, provenance,
+app-wide persistence, retained full context, captured editor navigation, indexing versus matching,
+and the preserved-v2/explicit-Rebuild transition. Validation also fixed typing-away-and-back
+cancellation, bounded unnecessary evidence allocation/hashing, literal-only metadata-path evidence,
+and duplicate skipped-source coverage counts, with regressions.
+
+`make check` / `make release` passed; final `./gradlew test verifyPlugin --offline` passed on the
+packaged code: **529 tests, 0 failures/errors, 10 opt-in skips**. `make lexical-bench` passed its
+correctness/reuse checks. Verifier 1.411 reports compatibility on **IU-262.10968.63** and
+**IU-263.7307.44**, with 2 scheduled-for-removal API usages each, 14/17 deprecated usages and
+65/58 experimental usages respectively. ZIP inspection found only production plugin/SQLite/
+searchable-options jars, with no tests, fixtures, transcript resources or evaluation classes.
+`git diff --check` passed. Artifact `build/distributions/seshlog-0.8.0.zip` SHA-256:
+`de287c8a8cfd981da205136e18d4a04b4b2b0106a49cb78547078a76525c540b`.
+
+**Acceptance gaps remain explicit:** the unchanged 10k warm p95 <100 ms target failed:
+Conversation 104.25–112.57 ms; All activity 452.14–474.91 ms. Titles & paths passed at
+52.16–85.19 ms. No target was relaxed. Lower-memory/native-allocation/real-history/platform
+gates in PLAN.md remain open.
+
+**Manual handoff:** none of section 11's physical acceptance rows is marked passed. A prepared
+temporary-profile launch first failed Groovy semantic analysis (`Unsupported class file major
+version 71`). The JDK-25 retry launched, but process inspection proved its actual config/system/log
+paths remained the repository sandbox defaults, so the intended synthetic profile was not verified.
+The UI connector could not bind the Java app returned as Main. Only this task's sandbox PID,
+identified by exact cached Java executable, sandbox arguments and temporary project path, was
+stopped. The daily IDE was not changed. Complete section 11 in a verified synthetic profile;
+this is implementation completion with manual/performance release acceptance still open.
 
 Commands (adjust test names to actual new classes):
 
@@ -647,4 +690,7 @@ Mention any intentional ranking change caused by separate source populations. Id
 implementation commit and leave a clean, reviewable diff. Do not conflate completing this feature
 with completing all of Phase 1 or implementing Phase 2.
 
-Implementation evidence: pending.
+Implementation commits: `b3a041b` (item 0), `5004ebc` (item 1), `1bebda9` (item 2),
+`6356e97` (item 3), and the commit titled
+`test(search): evaluate and document source-filter acceptance` (item 4, this report).
+No publication/upload, daily-IDE installation, Phase 2 or unrelated worktree work was performed.

@@ -236,42 +236,45 @@ class ContentSearchIndex(
         // scores() sets the scope used by the literal candidate lane.
         val substringCandidates = store.substringCandidates(plan, sources, isCancelled)
         val hits = ArrayList<SearchHit>()
-        var failed = if (metadataOnly) 0 else candidates.size - ready.size
-        val metadataByKey = candidates.associate { session ->
-            SearchSessionKey(session.kind, session.id) to LiteralEvidence.verify(plan,
-                listOf(session.title, localTitle(session)), session.cwd.toString(), emptyList(), sources)
-        }
+        val failed = if (metadataOnly) HashSet<SearchSessionKey>() else metadataKeys.toHashSet()
+        // Sorting needs only the protected title tier. Build full metadata excerpts lazily for
+        // verified candidates, rather than allocating ranges/descriptors for the entire corpus.
+        val fullQuery = QueryTerm(plan.literal.terms.joinToString(" ") { it.text }, false)
+        val exactTitles = if (plan.verifyAll) emptySet() else candidates.filter {
+            fullQuery.matches(it.title) || fullQuery.matches(localTitle(it))
+        }.mapTo(HashSet()) { SearchSessionKey(it.kind, it.id) }
         val verificationOrder = if (plan.verifyAll) candidates else candidates.sortedWith(
-            compareByDescending<Session> { metadataByKey.getValue(SearchSessionKey(it.kind, it.id)).exact }
+            compareByDescending<Session> { SearchSessionKey(it.kind, it.id) in exactTitles }
                 .thenByDescending { scores[SearchSessionKey(it.kind, it.id)]?.score ?: 1e-6 }
                 .thenByDescending { it.lastActivityAt }.thenBy { it.kind.name }.thenBy { it.id })
         for (session in verificationOrder) {
             if (isCancelled() || !plan.verifyAll && hits.size > 100) break
             val key = SearchSessionKey(session.kind, session.id)
             val score = scores[key]
-            val metadataEvidence = metadataByKey.getValue(key)
             val metadataSignal = plan.tokens.any { token ->
                 listOf(session.title, localTitle(session), session.cwd.toString()).any { QueryTerm(token, false).matches(it) }
             }
             if (score == null && !plan.verifyAll && !metadataSignal && key !in substringCandidates) continue
+            val metadataEvidence = LiteralEvidence.verify(plan, listOf(session.title, localTitle(session)),
+                session.cwd.toString(), emptyList(), sources)
             val stamp = stamp(session)
             if (!metadataOnly && stamp != null && key in ready && validatedStamps[key] != stamp) {
-                failed++
+                failed += key
                 continue
             }
             val needsSource = !metadataOnly && (score?.entry != null || key in substringCandidates ||
                 plan.verifyAll && !(metadataEvidence.allowed && metadataEvidence.matches.isNotEmpty()))
             val loaded = if (needsSource && key in ready) read(session, stamp) else null
-            if (loaded == null && needsSource && key in ready) failed++
+            if (loaded == null && needsSource && key in ready) failed += key
             if (!metadataOnly && stamp != stamp(session)) {
-                failed++
+                failed += key
                 buffers.remove(key)
                 continue
             }
             val evidence = if (loaded != null) LiteralEvidence.verify(plan,
                 listOf(session.title, localTitle(session)), session.cwd.toString(), loaded.entries, sources) else metadataEvidence
             if (!evidence.allowed) continue
-            if (score == null && !metadataSignal && evidence.entry == null && !evidence.title) continue
+            if (score == null && !metadataSignal && evidence.entry == null && !evidence.title && plan.tokens.isNotEmpty()) continue
             // Protected full-query evidence wins. Otherwise explain the actual SQL field winner.
             val protected = evidence.matches.firstOrNull { it.fullExact }
             val ranked = evidence.matches.firstOrNull { match ->
@@ -283,7 +286,7 @@ class ContentSearchIndex(
             if (protected == null && ranked != null && score?.entry != null) {
                 val entry = loaded?.entries?.firstOrNull { it.sourceId == score.entry && it.eligibleFor(sources) }
                 if (entry == null || searchHash(entry.text) != score.hash) {
-                    failed++
+                    failed += key
                     continue
                 }
                 val terms = plan.literal.terms + if (plan.technical) emptyList() else plan.tokens.map { QueryTerm(it, false) }
@@ -295,7 +298,7 @@ class ContentSearchIndex(
                     selected = evidence.matches.firstOrNull { it.primary.entryId != score.entry } ?: continue
                 } else selected = ranked.copy(primary = ranked.primary.copy(range = range))
             }
-            val primary = selected.primary
+            val primary = selected.primary.copy(entryHash = selected.primary.entryId?.let { searchHash(selected.text) })
             val range = primary.range!!
             hits += SearchHit(session, score?.score ?: 1e-6, evidence.title,
                 snippet(selected.text, range.first, range.last - range.first + 1),
@@ -316,7 +319,7 @@ class ContentSearchIndex(
                 )
         return SearchResultSnapshot(
             sorted.take(100),
-            SearchCoverage(candidates.size, if (metadataOnly) candidates.size else ready.size, failed, if (metadataOnly) 0 else partial.size),
+            SearchCoverage(candidates.size, if (metadataOnly) candidates.size else ready.size, failed.size, if (metadataOnly) 0 else partial.size),
             revision,
             storageFailure,
             sorted.size > 100,

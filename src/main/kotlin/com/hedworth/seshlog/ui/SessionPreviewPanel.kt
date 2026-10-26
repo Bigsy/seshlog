@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.SearchSources
 import com.hedworth.seshlog.index.lexical.validatedPassage
 
 import com.hedworth.seshlog.index.SessionAttention
@@ -61,6 +62,8 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     private val body = JPanel(cards)
     private val tailControls = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
     internal var searchQuery = ""
+        private set
+    internal var searchSources = SearchSources.DEFAULT
         private set
     private val header = JBLabel().apply {
         border = JBUI.Borders.empty(4, 6)
@@ -159,14 +162,15 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
     }
 
     /** Called on the EDT whenever the tree selection changes. */
-    fun showSession(nextSession: Session?, query: String = "", hit: SearchHit? = null) {
+    fun showSession(nextSession: Session?, query: String = "", hit: SearchHit? = null, sources: SearchSources = hit?.sources ?: SearchSources.DEFAULT) {
         val normalizedQuery = query.trim()
         val previousSession = session
         val sameContent = hasShownSession && previousSession?.id == nextSession?.id && previousSession?.kind == nextSession?.kind && searchHit == hit &&
-            previousSession?.lastActivityAt == nextSession?.lastActivityAt && searchQuery == normalizedQuery
+            previousSession?.lastActivityAt == nextSession?.lastActivityAt && searchQuery == normalizedQuery && searchSources == sources
         session = nextSession
         searchHit=hit
         searchQuery = normalizedQuery
+        searchSources = sources
         hasShownSession = true
         tailControls.isVisible = !collapsed && searchQuery.isEmpty()
         cards.show(body, if (searchQuery.isEmpty()) "tail" else "search")
@@ -207,6 +211,7 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
         val receipt = SessionAttentionState.getInstance().receipt(target)
         val query = searchQuery
         val hit=searchHit
+        val sources = searchSources
         val count = settings.previewMessageCount
         val myGen = generation.incrementAndGet()
         executor.execute {
@@ -220,17 +225,17 @@ class SessionPreviewPanel(parent: Disposable) : JBPanel<SessionPreviewPanel>(Bor
                 LOG.debug("Cannot read last messages of ${target.kind} session ${target.id}", e)
                 null
             }
-            val passage=if(result!=null)validatedPassage(hit,result) else null
+            val passage=if(result!=null)validatedPassage(hit,result,sources) else null
             if (generation.get() != myGen) return@execute
             val app = ApplicationManager.getApplication()
             if (app == null || app.isDisposed) return@execute
             app.invokeLater({
-                if (generation.get() != myGen) return@invokeLater
+                if (generation.get() != myGen || sources != searchSources || query != searchQuery || hit != searchHit) return@invokeLater
                 if (query.isNotEmpty()) {
                     messages = result.orEmpty().filter { !it.isTool }.map { it.message }
                     if (result == null) conversation.clear("Transcript could not be read.")
                     else {
-                        conversation.showEntries(result, query, passage, hit?.entryId!=null && passage==null)
+                        conversation.showEntries(result, query, passage, hit?.entryId!=null && passage==null, sources, hit?.primary?.source)
                         completionReceipt = receipt
                     }
                     return@invokeLater

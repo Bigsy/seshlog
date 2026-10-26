@@ -547,7 +547,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
                 if (tool) com.hedworth.seshlog.model.EntryKind.TOOL_RESULT else com.hedworth.seshlog.model.EntryKind.DIALOGUE)
         panel.showEntries(listOf(entry("Needle in the first message", "first"),
             entry("prefix ".repeat(100) + "needle", "tool", true),
-            entry("last needle", "last")), "needle")
+            entry("last needle", "last")), "needle", sources = com.hedworth.seshlog.index.SearchSources.ALL)
         assertEquals("Match 1 of 3", panel.status.text)
         assertEquals("Needle", panel.editor.text.substring(panel.editor.caretPosition, panel.editor.caretPosition + 6))
         panel.next.doClick()

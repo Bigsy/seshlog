@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.model.ConversationEntry
+import com.hedworth.seshlog.index.SearchSources
+import com.hedworth.seshlog.index.SearchMatchSource
 import com.intellij.ui.JBColor
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBTextArea
@@ -19,6 +21,7 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
     private var document = ConversationDocument("", emptyList())
     private var matches = emptyList<EntryMatch>()
     private var query = ""
+    private var sources = SearchSources.DEFAULT
     private var current = -1
     val isLatestReplyVisible: Boolean get() = CompletionViewObserver.isLatestReplyVisible(document, editor)
 
@@ -51,11 +54,14 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
         next.isEnabled = false
     }
 
-    fun showEntries(entries: List<ConversationEntry>, query: String, target: Pair<Int,IntRange>? = null, changed: Boolean = false) {
+    fun showEntries(entries: List<ConversationEntry>, query: String, target: Pair<Int,IntRange>? = null, changed: Boolean = false,
+                    sources: SearchSources = SearchSources.DEFAULT, primary: SearchMatchSource? = null) {
         editor.highlighter.removeAllHighlights()
         this.query = query
+        this.sources = sources
+        status.toolTipText = sources.description
         document = ConversationDocument.buildEntries(entries)
-        matches = document.sourceMatches(query)
+        matches = document.sourceMatches(query, sources)
         current = -1
         editor.text = document.text
         editor.caretPosition = 0
@@ -67,7 +73,9 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
             document=revealed;editor.text=document.text;editor.caretPosition=range.first
             editor.highlighter.addHighlight(range.first,range.last+1,DefaultHighlighter.DefaultHighlightPainter(JBColor(0xFFBE62,0x996020)))
             current=matches.indexOfFirst { it.entryIndex==target.first && it.range==target.second }
-            status.text="Ranked passage"+coverage()
+            status.text="${primary?.label ?: "Ranked passage"} · ${matches.size} matches"+coverage()
+        } else if (primary == SearchMatchSource.TITLE || primary == SearchMatchSource.PROJECT_PATH) {
+            status.text = (if (primary == SearchMatchSource.TITLE) "Matched session title" else "Matched project path") + " · ${matches.size} body matches" + coverage()
         } else if (matches.isNotEmpty()) navigate(1)
         else status.text = (if (entries.isEmpty()) "No conversation yet."
             else "No content matches; title or path matched.") + coverage()
@@ -80,7 +88,7 @@ internal class ConversationSearchPanel : JPanel(BorderLayout()) {
         document = revealed
         if (editor.text != document.text) editor.text = document.text
         editor.highlighter.removeAllHighlights()
-        for (match in document.matches(query)) {
+        for (match in document.matches(query, sources)) {
             editor.highlighter.addHighlight(match.first, match.last + 1,
                 DefaultHighlighter.DefaultHighlightPainter(JBColor(0xFFF2AA, 0x665A22)))
         }

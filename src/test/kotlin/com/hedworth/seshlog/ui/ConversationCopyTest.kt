@@ -17,7 +17,7 @@ class ConversationCopyTest {
         assertEquals(first, doc.copyMessage(doc.entryRanges[0].first))
         assertEquals("command\noutput", doc.copyMessage(doc.messageRanges[1].first))
         assertEquals("You:\n$first\n\nAssistant:\nAnswer\nsecond line", doc.copyDialogue())
-        val match = doc.sourceMatches("\"second line\"").single()
+        val match = doc.sourceMatches("\"second line\"", com.hedworth.seshlog.index.SearchSources.ALL).single()
         val (opened, range) = doc.reveal(match)
         assertEquals("Answer\nsecond line", opened.copyMessage(range.first))
         assertNull(doc.copyMessage(-1))

@@ -150,7 +150,7 @@ class ConversationDialog(
     private fun findMatches() {
         editor.highlighter.removeAllHighlights()
         if (loading) return
-        matches = document.sourceMatches(search.text.trim())
+        matches = document.sourceMatches(search.text.trim(), com.hedworth.seshlog.index.SearchSources.ALL)
         current = -1
         updateActions()
         status.text = when {

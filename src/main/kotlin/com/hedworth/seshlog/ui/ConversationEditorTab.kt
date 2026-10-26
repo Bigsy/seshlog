@@ -1,11 +1,13 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.SearchSources
+import com.hedworth.seshlog.index.SearchContext
+import com.hedworth.seshlog.index.SearchMatchSource
 import com.hedworth.seshlog.index.lexical.validatedPassage
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.index.SessionIndex
-import com.hedworth.seshlog.index.TextQuery
 import com.hedworth.seshlog.model.ConversationEntry
 import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
@@ -16,6 +18,11 @@ import com.intellij.openapi.actionSystem.CustomShortcutSet
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ScrollType
+import com.intellij.openapi.editor.markup.HighlighterLayer
+import com.intellij.openapi.editor.markup.HighlighterTargetArea
+import com.intellij.openapi.editor.markup.RangeHighlighter
+import com.intellij.openapi.editor.markup.TextAttributes
+import com.intellij.ui.JBColor
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileEditor.TextEditor
@@ -48,6 +55,7 @@ object ConversationEditorTabs {
         startAtLatest: Boolean = false,
         loader: ((Session) -> List<ConversationEntry>)? = null,
         hit: SearchHit? = null,
+        sources: SearchSources = hit?.sources ?: SearchSources.DEFAULT,
     ): VirtualFile {
         val title = SessionOrganisation.getInstance().title(session)
             .replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80).ifBlank { "conversation" }
@@ -63,7 +71,7 @@ object ConversationEditorTabs {
         val opened = manager.openFile(file, true)
         val editor = (manager.selectedEditor as? TextEditor)?.takeIf { it.file == file }?.editor
             ?: opened.filterIsInstance<TextEditor>().firstOrNull()?.editor
-        val controller = Controller(project, session, file, editor, query, startAtLatest, loader, hit)
+        val controller = Controller(project, session, file, editor, SearchContext(query, sources), startAtLatest, loader, hit)
         controllers[file] = controller
         project.messageBus.connect(controller).subscribe(
             FileEditorManagerListener.FILE_EDITOR_MANAGER,
@@ -98,7 +106,7 @@ object ConversationEditorTabs {
         val session: Session,
         private val file: LightVirtualFile,
         private val initialEditor: Editor?,
-        private val query: String,
+        private val context: SearchContext,
         private val startAtLatest: Boolean,
         private val loader: ((Session) -> List<ConversationEntry>)?,
         private val hit: SearchHit?,
@@ -110,6 +118,8 @@ object ConversationEditorTabs {
         private var latestReplyEnd = -1
         private var targetOffset: Int? = null
         private var changedPassage=false
+        private var ranges: List<IntRange> = emptyList()
+        private val highlights = IdentityHashMap<Editor, List<RangeHighlighter>>()
         private var completionReceipt: SessionAttention.Completion? = null
         private val navigationEditors = Collections.newSetFromMap(IdentityHashMap<Editor, Boolean>())
         private val observer = CompletionViewObserver(this) {
@@ -131,15 +141,18 @@ object ConversationEditorTabs {
             val cancelled = scope.begin()
             executor.execute {
                 val result = runCatching {
-                    val entries=loader?.invoke(session) ?: SessionIndex.getInstance().providerFor(session).conversationEntries(session)
-                    entries to validatedPassage(hit,entries)
+                    val entries = loader?.invoke(session) ?: SessionIndex.getInstance().providerFor(session).conversationEntries(session)
+                    val target = validatedPassage(hit, entries, context.sources)
+                    val built = MarkdownConversation.build(SessionOrganisation.getInstance().title(session), entries, session,
+                        context.takeIf { it.query.isNotBlank() }, hit?.primary?.source)
+                    Triple(entries, target, built)
                 }
                 ApplicationManager.getApplication().invokeLater {
                     if (cancelled() || project.isDisposed) return@invokeLater
-                    result.onSuccess { (entries,target) ->
-                        val built = MarkdownConversation.build(SessionOrganisation.getInstance().title(session), entries, session)
+                    result.onSuccess { (entries,target,built) ->
                         changedPassage=hit?.entryId!=null && target==null
                         document = built.text + if(changedPassage) "\n_Source changed; search again to refresh the ranked passage._\n" else ""
+                        ranges = built.matches
                         targetOffset=target?.let { (i,range) -> built.starts[i]+range.first }
                         latestReplyEnd = built.latestReplyEnd
                         completionReceipt = if (entries.none { it.truncated || !it.searchable }) receipt else null
@@ -148,6 +161,7 @@ object ConversationEditorTabs {
                     }.onFailure {
                         document = MarkdownConversation.failure(SessionOrganisation.getInstance().title(session))
                         latestReplyEnd = -1
+                        ranges = emptyList()
                         completionReceipt = null
                         replaceContent(document)
                     }
@@ -169,6 +183,7 @@ object ConversationEditorTabs {
 
         private fun installNavigation(editor: Editor) {
             if (!navigationEditors.add(editor)) return
+            highlightMatches(editor)
             val component = editor.contentComponent
             component.inputMap.put(KeyStroke.getKeyStroke("ctrl G"), "seshlog.nextConversationMatch")
             component.inputMap.put(KeyStroke.getKeyStroke("ctrl shift G"), "seshlog.previousConversationMatch")
@@ -200,16 +215,25 @@ object ConversationEditorTabs {
                 }
                 file.setWritable(false)
             }
+            navigationEditors.filterNot { it.isDisposed }.forEach(::highlightMatches)
+        }
+
+        private fun highlightMatches(editor: Editor) {
+            highlights.remove(editor)?.forEach { editor.markupModel.removeHighlighter(it) }
+            val attributes = TextAttributes().apply { backgroundColor = JBColor(0xFFF2AA, 0x665A22) }
+            highlights[editor] = ranges.filter { it.first >= 0 && it.last < editor.document.textLength }.map {
+                editor.markupModel.addRangeHighlighter(it.first, it.last + 1, HighlighterLayer.SELECTION - 1, attributes, HighlighterTargetArea.EXACT_RANGE)
+            }
         }
 
         private fun positionEditor() {
             val editor = activeEditor() ?: return
             if (editor.isDisposed) return
-            val ranges = TextQuery.parse(query).ranges(editor.document.text)
             val offset = when {
                 startAtLatest -> editor.document.textLength
                 changedPassage -> 0
                 targetOffset!=null -> targetOffset!!
+                hit?.primary?.source == SearchMatchSource.TITLE || hit?.primary?.source == SearchMatchSource.PROJECT_PATH -> 0
                 else -> ranges.firstOrNull()?.first ?: 0
             }
             editor.caretModel.moveToOffset(offset.coerceIn(0, editor.document.textLength))
@@ -218,7 +242,6 @@ object ConversationEditorTabs {
 
         fun navigate(forward: Boolean): Boolean {
             val editor = activeEditor() ?: return false
-            val ranges = TextQuery.parse(query).ranges(editor.document.text)
             if (ranges.isEmpty()) return false
             val caret = editor.caretModel.offset
             val next = if (forward) {
@@ -235,20 +258,34 @@ object ConversationEditorTabs {
             synchronized(controllers) {
                 if (controllers[file] === this) controllers.remove(file)
             }
+            highlights.forEach { (editor, ranges) -> if (!editor.isDisposed) ranges.forEach { editor.markupModel.removeHighlighter(it) } }
+            highlights.clear()
             scope.dispose()
             executor.shutdownNow()
         }
     }
 }
 
-private data class BuiltMarkdown(val text: String, val latestReplyEnd: Int, val starts: List<Int>)
+private data class BuiltMarkdown(val text: String, val latestReplyEnd: Int, val starts: List<Int>, val matches: List<IntRange>)
 
 private object MarkdownConversation {
     fun placeholder(title: String) = "# ${escapeHeading(title)}\n\n_Loading conversation…_\n"
     fun failure(title: String) = "# ${escapeHeading(title)}\n\n_Conversation could not be read._\n"
 
-    fun build(title: String, entries: List<ConversationEntry>, session: Session? = null): BuiltMarkdown {
+    fun build(title: String, entries: List<ConversationEntry>, session: Session? = null,
+              context: SearchContext? = null, primary: SearchMatchSource? = null): BuiltMarkdown {
+        val sourceMatches = if (context == null) emptyList() else
+            ConversationDocument("", emptyList(), entries).sourceMatches(context.query, context.sources)
         val out = StringBuilder("# ${escapeHeading(title)}\n\n")
+        context?.let {
+            out.append("_Search: “").append(escapeHeading(it.query)).append("” · Search in: ")
+                .append(it.sources.summary).append(" · ").append(sourceMatches.size).append(" body matches._\n\n")
+            when (primary) {
+                SearchMatchSource.TITLE -> out.append("_Matched session title._\n\n")
+                SearchMatchSource.PROJECT_PATH -> out.append("_Matched project path._\n\n")
+                else -> {}
+            }
+        }
         session?.let {
             if (it.subagentTranscriptPaths.isNotEmpty()) {
                 out.append("_Includes ${it.subagentTranscriptPaths.size} Claude subagent transcript")
@@ -268,7 +305,10 @@ private object MarkdownConversation {
             out.append("---\n\n")
             if (start == out.length) out.append('\n')
         }
-        return BuiltMarkdown(out.toString(), latestEnd,starts)
+        return BuiltMarkdown(out.toString(), latestEnd, starts, sourceMatches.map { match ->
+            val start = starts[match.entryIndex]
+            (start + match.range.first)..(start + match.range.last)
+        })
     }
 
     private fun escapeHeading(value: String): String = value.replace("\n", " ").replace("\r", " ")

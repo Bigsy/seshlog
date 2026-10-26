@@ -790,10 +790,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             activeQuery,
             session?.let { organisation.title(it) },
             selectedSearchHit(),
+            if (activeQuery.isEmpty()) SearchSources.DEFAULT else activeSources,
         )
         if (key == previewKey) return
         previewKey = key
-        preview.showSession(session, activeQuery, selectedSearchHit())
+        preview.showSession(session, activeQuery, selectedSearchHit(), key.sources)
     }
 
     private data class PreviewKey(
@@ -802,6 +803,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val query: String,
         val localTitle: String?,
         val hit: SearchHit?,
+        val sources: SearchSources,
     )
 
     /** Re-select the session with [id] if it is still in the tree; a vanished session just loses selection. */

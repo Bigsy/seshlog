@@ -9,6 +9,40 @@ import java.nio.file.Path
 import java.time.Instant
 
 class RankedPassageTest : BasePlatformTestCase() {
+    fun `test category reclassification and a disabled source reject an otherwise identical passage`() {
+        val entry = ConversationEntry(ConversationMessage(Role.USER, "needle", null), "id")
+        val primary = SearchPrimaryMatch(SearchMatchSource.USER, "id", 0..5, searchHash(entry.text))
+        val hit = SearchHit(session(), 1.0, false, "needle", "id", range = 0..5,
+            entryHash = primary.entryHash, primary = primary, sources = SearchSources.ALL)
+        assertNotNull(validatedPassage(hit, listOf(entry)))
+        assertNull(validatedPassage(hit, listOf(entry.copy(message = entry.message.copy(role = Role.ASSISTANT)))))
+        assertNull(validatedPassage(hit, listOf(entry), SearchSources(false, true, true)))
+    }
+
+    fun `test preview navigation counts only eligible sources while metadata starts without a body jump`() {
+        val entries = listOf(
+            ConversationEntry(ConversationMessage(Role.USER, "user needle", null), "u"),
+            ConversationEntry(ConversationMessage(Role.ASSISTANT, "assistant needle", null), "a"),
+            ConversationEntry(ConversationMessage(Role.USER, "tool needle", null), "t", EntryKind.TOOL_RESULT),
+        )
+        val panel = ConversationSearchPanel()
+        panel.showEntries(entries, "needle", sources = SearchSources.DEFAULT, primary = SearchMatchSource.TITLE)
+        assertEquals(0, panel.editor.caretPosition)
+        assertTrue(panel.status.text.contains("Matched session title"))
+        assertTrue(panel.status.text.contains("2 body matches"))
+        assertTrue(panel.editor.text.contains("tool needle"))
+        panel.next.doClick(0)
+        assertTrue(panel.status.text.contains("1 of 2"))
+        panel.next.doClick(0)
+        assertTrue(panel.status.text.contains("2 of 2"))
+        panel.next.doClick(0)
+        assertTrue(panel.status.text.contains("1 of 2"))
+        assertEquals(3, panel.editor.highlighter.highlights.size) // Two eligible plus the current highlight.
+        panel.showEntries(entries, "needle", sources = SearchSources.METADATA_ONLY, primary = SearchMatchSource.PROJECT_PATH)
+        assertTrue(panel.status.text.contains("Matched project path"))
+        assertFalse(panel.next.isEnabled)
+        assertEquals(0, panel.editor.highlighter.highlights.size)
+    }
     private fun session(kind: AgentKind = AgentKind.CLAUDE_CODE) =
         Session(
             kind,
@@ -41,13 +75,14 @@ class RankedPassageTest : BasePlatformTestCase() {
                 false,
                 "needle",
                 "tool",
-                true,
                 range = range,
                 entryHash = searchHash(entry.text),
+                primary = SearchPrimaryMatch(SearchMatchSource.TOOL_RESULT, "tool", range, searchHash(entry.text)),
+                sources = SearchSources.ALL,
             )
         val target = validatedPassage(hit, listOf(entry))!!
         val panel = ConversationSearchPanel()
-        panel.showEntries(listOf(entry), "needle", target)
+        panel.showEntries(listOf(entry), "needle", target, sources = SearchSources.ALL)
         assertTrue(panel.editor.text.contains("[expanded]"))
         assertEquals(
             "needle",

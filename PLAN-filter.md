@@ -567,11 +567,21 @@ theme and narrow-layout acceptance in section 11 remains owed.
 
 ### 3. Render clear labels and preserve filtered navigation
 
-- [ ] Replace ambiguous row/tooltip/accessibility labels with primary provenance and matching text.
+- [x] Replace ambiguous row/tooltip/accessibility labels with primary provenance and matching text.
 - Carry context through preview and Open Conversation; implement eligible source ranges for
   highlights/counts/F3 in both viewers, while preserving full context and normal Find.
 - Add source-change, metadata-only, collapsed tool and captured-editor-context regressions.
 - Done when navigation/UI tests and `make check` pass; no filesystem work is introduced on EDT.
+
+Implemented all six provenance labels in rows/tooltips/accessibility, with matched metadata
+excerpts and bounded tool descriptions. Passage validation checks expected category as well as
+ID/range/hash. Preview context includes sources; metadata evidence starts at its explanation.
+Both viewers map eligible original-entry ranges, preserving context and excluding headings,
+coverage and disabled tools. Full Markdown tabs retain their captured query/options and show
+counts/highlights. Normal IDE Find, copy and completion paths remain independent.
+`make check` passed 2026-10-26 (522 tests, 8 opt-in skips), including stale categories, collapsed
+tool expansion, metadata initial position, original offsets, captured editor context, source
+labels and selection restoration. Physical navigation/theme/accessibility checks remain owed.
 
 ### 4. Evaluate, document and validate the feature
 

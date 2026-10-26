@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.SearchMetadataVariant
 import com.hedworth.seshlog.index.lexical.SearchSessionKey
 import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.model.Activity
@@ -144,15 +145,17 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         val hit = hits[SearchSessionKey(session.kind,session.id)]
         if (hit != null) {
             matchLabel.text = buildList {
-                add(if (hit.toolMatch) "Tool match" else if (hit.snippet != null) "Content match" else "Title/path match")
+                add(hit.primary.source.label)
+                if (hit.toolMatch) hit.primary.toolName?.let { add(it.replace(Regex("\\s+"), " ").take(80)) }
                 if (hit.partial) add("partial coverage")
-                hit.snippet?.let { add(it.replace(Regex("\\s+"), " ").trim()) }
+                hit.snippet?.let { add(it.replace(Regex("\\s+"), " ").trim().take(280)) }
             }.joinToString("  ·  ")
             matchLabel.foreground = if (selected) foreground else HIT_COLOR
             matchLabel.isVisible = true
         }
         toolTipText = tooltip(session, hit)
-        getAccessibleContext().accessibleDescription = WorktreePresentation.description(session).joinToString(" ")
+        getAccessibleContext().accessibleDescription = (WorktreePresentation.description(session) +
+            listOfNotNull(hit?.let { "Matched ${it.primary.source.label}. ${it.snippet.orEmpty().take(1024)}" })).joinToString(" ")
     }
 
     override fun toString(): String = listOf(titleLabel.text, activityLabel.text, detailsLabel.text, matchLabel.text)
@@ -188,7 +191,17 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
                 append("<br>")
             }
             if (session.isLive) append("Running, pid ").append(session.livePid).append("<br>")
-            hit?.snippet?.let { append("Match: <i>").append(esc(it)).append("</i><br>") }
+            hit?.let {
+                append(esc(it.primary.source.label))
+                when (it.primary.metadataVariant) {
+                    SearchMetadataVariant.PROVIDER_TITLE -> append(" (provider title)")
+                    SearchMetadataVariant.LOCAL_TITLE -> append(" (local override)")
+                    else -> {}
+                }
+                if (it.toolMatch) it.primary.toolName?.let { name -> append(" · ").append(esc(name.take(80))) }
+                it.snippet?.let { snippet -> append(": <i>").append(esc(snippet.take(1024))).append("</i>") }
+                append("<br>")
+            }
             session.transcriptPath?.let { append("<span style='color:gray'>").append(esc(it.toString())).append("</span>") }
             append("</html>")
         }

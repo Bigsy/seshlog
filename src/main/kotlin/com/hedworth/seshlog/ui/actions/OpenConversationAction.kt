@@ -16,6 +16,7 @@ class OpenConversationAction : DumbAwareAction("Open Conversation", "Read the co
         val project = e.project ?: return
         val session = sessionFrom(e) ?: return
         val panel=e.getData(SeshlogDataKeys.PANEL)
-        ConversationEditorTabs.open(project, session, panel?.activeQuery.orEmpty(), hit=panel?.selectedSearchHit())
+        ConversationEditorTabs.open(project, session, panel?.activeQuery.orEmpty(), hit=panel?.selectedSearchHit(),
+            sources = panel?.activeSources ?: com.hedworth.seshlog.index.SearchSources.DEFAULT)
     }
 }

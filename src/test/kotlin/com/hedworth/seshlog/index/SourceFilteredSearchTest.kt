@@ -40,7 +40,7 @@ class SourceFilteredSearchTest {
                     val hits = index.search("marker_${source.name}", listOf(a, b), options)
                     assertEquals("$options $source", if (options.includes(source)) 2 else 0, hits.size)
                     hits.forEach { hit ->
-                        assertEquals(source.matchSource, hit.primary!!.source)
+                        assertEquals(source.matchSource, hit.primary.source)
                         assertEquals(source.name, hit.entryId)
                         assertEquals(hit.range, hit.primary.range)
                         assertEquals(hit.entryHash, hit.primary.entryHash)
@@ -68,7 +68,7 @@ class SourceFilteredSearchTest {
                 val hits = index.search(c["query"].asString, listOf(session()), options.getValue(c["sources"].asString))
                 if (c["entries"].asJsonArray.isEmpty) assertTrue(c.toString(), hits.isEmpty()) else {
                     assertEquals(1, hits.size)
-                    assertEquals(c["primary"].asString, hits.single().primary!!.source.name)
+                    assertEquals(c["primary"].asString, hits.single().primary.source.name)
                 }
             }
         }
@@ -90,7 +90,7 @@ class SourceFilteredSearchTest {
                 assertTrue(query, index.search(query, s).isEmpty())
                 val hit = index.search(query, s, SearchSources.ALL).single()
                 assertEquals(query, "tool", hit.entryId)
-                assertEquals(SearchMatchSource.TOOL_RESULT, hit.primary!!.source)
+                assertEquals(SearchMatchSource.TOOL_RESULT, hit.primary.source)
             }
         }
     }
@@ -139,14 +139,14 @@ class SourceFilteredSearchTest {
         val s = session(title = "Provider needle").copy(cwd = Path.of("/path_marker/database locked"))
         ContentSearchIndex({ reads++; error("unavailable") }, { 1 }, { "Displayed override" }, storeFactory = { LexicalSearchStore.open(db) }).use { index ->
             val title = index.search("needle", listOf(s), SearchSources.METADATA_ONLY).single()
-            assertEquals(SearchMetadataVariant.PROVIDER_TITLE, title.primary!!.metadataVariant)
+            assertEquals(SearchMetadataVariant.PROVIDER_TITLE, title.primary.metadataVariant)
             assertTrue(title.snippet!!.contains("Provider needle"))
             assertNull(title.entryId)
             assertNull(title.range)
-            assertEquals(SearchMetadataVariant.LOCAL_TITLE, index.search("Displayed", listOf(s), SearchSources.METADATA_ONLY).single().primary!!.metadataVariant)
+            assertEquals(SearchMetadataVariant.LOCAL_TITLE, index.search("Displayed", listOf(s), SearchSources.METADATA_ONLY).single().primary.metadataVariant)
             val path = index.searchSnapshot("\"database locked\"", listOf(s), SearchSources.METADATA_ONLY)
             assertFalse(path.coverage.partial)
-            assertEquals(SearchMatchSource.PROJECT_PATH, path.hits.single().primary!!.source)
+            assertEquals(SearchMatchSource.PROJECT_PATH, path.hits.single().primary.source)
             assertEquals(0, reads)
             assertEquals(1, index.search("needle", listOf(s)).size)
             assertEquals(1, reads)

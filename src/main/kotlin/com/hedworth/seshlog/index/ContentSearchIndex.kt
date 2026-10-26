@@ -13,14 +13,14 @@ data class SearchHit(
     val titleMatch: Boolean,
     val snippet: String?,
     val entryId: String? = null,
-    val toolMatch: Boolean = false,
     val partial: Boolean = false,
     val range: IntRange? = null,
     val entryHash: String? = null,
     val exact: Boolean = false,
-    val primary: SearchPrimaryMatch? = null,
+    val primary: SearchPrimaryMatch = SearchPrimaryMatch(SearchMatchSource.ASSISTANT),
     val sources: SearchSources = SearchSources.DEFAULT,
 ) {
+    val toolMatch: Boolean get() = primary.source == SearchMatchSource.TOOL_CALL || primary.source == SearchMatchSource.TOOL_RESULT
     val key: SearchSessionKey
         get() = SearchSessionKey(session.kind, session.id)
 }
@@ -299,7 +299,7 @@ class ContentSearchIndex(
             val range = primary.range!!
             hits += SearchHit(session, score?.score ?: 1e-6, evidence.title,
                 snippet(selected.text, range.first, range.last - range.first + 1),
-                primary.entryId, primary.source == SearchMatchSource.TOOL_CALL || primary.source == SearchMatchSource.TOOL_RESULT,
+                primary.entryId,
                 !metadataOnly && (key in partial || key !in ready),
                 range.takeIf { primary.entryId != null }, primary.entryHash, evidence.exact,
                 primary.copy(range = range.takeIf { primary.entryId != null }), sources)

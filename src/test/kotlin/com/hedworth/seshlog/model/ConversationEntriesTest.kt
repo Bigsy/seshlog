@@ -43,16 +43,16 @@ class ConversationEntriesTest {
             val hit = index.search("TOOL_ONLY \"second line\"", listOf(session()), SearchSources.ALL).single()
             assertTrue(name, hit.toolMatch)
             assertEquals(result.sourceId, hit.entryId)
-            assertEquals(SearchMatchSource.TOOL_RESULT, hit.primary!!.source)
+            assertEquals(SearchMatchSource.TOOL_RESULT, hit.primary.source)
             assertTrue(hit.snippet!!.contains("TOOL_ONLY"))
             val doc = ConversationDocument.buildEntries(entries)
             assertTrue(doc.expanded.isEmpty())
-            val match = doc.sourceMatches("TOOL_ONLY").single()
+            val match = doc.sourceMatches("TOOL_ONLY", SearchSources.ALL).single()
             val (opened, range) = doc.reveal(match)
             assertEquals(setOf(result.sourceId), opened.expanded)
             assertEquals("TOOL_ONLY", opened.text.substring(range))
             assertEquals(entries.indexOf(result), opened.entryAt(range.first))
-            assertEquals(match, opened.sourceMatches("TOOL_ONLY").single())
+            assertEquals(match, opened.sourceMatches("TOOL_ONLY", SearchSources.ALL).single())
         }
     }
 

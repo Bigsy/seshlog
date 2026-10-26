@@ -81,6 +81,9 @@ class SearchSourcesControlTest : BasePlatformTestCase() {
                 SearchCoverage(1, 1, 0, 0), 1, context = SearchContext("needle", SearchSources.ALL))
             panel.renderSearchResults("needle", old)
             assertEquals(1, panel.visibleSessions.size)
+            val root = panel.tree.model.root as javax.swing.tree.DefaultMutableTreeNode
+            val selected = com.intellij.util.ui.tree.TreeUtil.findNodeWithObject(root, session)!!
+            panel.tree.selectionPath = javax.swing.tree.TreePath(selected.path)
             settings.searchSources = SearchSources.DEFAULT
             assertTrue(panel.visibleSessions.isEmpty())
             assertNull(panel.selectedSearchHit())
@@ -88,6 +91,8 @@ class SearchSourcesControlTest : BasePlatformTestCase() {
             panel.renderSearchResults("needle", old)
             assertTrue(panel.visibleSessions.isEmpty())
             assertEquals("needle", panel.searchField.text)
+            panel.renderSearchResults("needle", old.copy(hits = old.hits.map { it.copy(sources = SearchSources.DEFAULT) }, context = SearchContext("needle")))
+            assertEquals(session.id, panel.selectedSession()!!.id)
             settings.searchSources = SearchSources.METADATA_ONLY
             panel.searchField.text = ""
             assertEquals(SearchSources.METADATA_ONLY, panel.activeSources)

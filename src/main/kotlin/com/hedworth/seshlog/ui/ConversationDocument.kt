@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.TextQuery
+import com.hedworth.seshlog.index.SearchSources
+import com.hedworth.seshlog.index.eligibleFor
 import com.hedworth.seshlog.model.*
 
 data class EntryMatch(val entryIndex: Int, val range: IntRange)
@@ -13,18 +15,21 @@ data class ConversationDocument(
     val entryRanges: List<IntRange> = messageRanges,
     val expanded: Set<String> = emptySet(),
 ) {
-    fun matches(query: String): List<IntRange> {
-        val parsed = TextQuery.parse(query)
-        return messageRanges.flatMapIndexed { index, range ->
-            if (entries.getOrNull(index)?.searchable == false) emptyList()
-            else parsed.ranges(text.substring(range)).map { (it.first + range.first)..(it.last + range.first) }
+    fun matches(query: String, sources: SearchSources = SearchSources.DEFAULT): List<IntRange> {
+        return sourceMatches(query, sources).mapNotNull { match ->
+            val entry = entries[match.entryIndex]
+            val visible = if (entry.isTool && entry.sourceId !in expanded) minOf(120, entry.text.length) else entry.text.length
+            if (match.range.last >= visible) null else {
+                val start = messageRanges[match.entryIndex].first
+                (start + match.range.first)..(start + match.range.last)
+            }
         }
     }
 
-    fun sourceMatches(query: String): List<EntryMatch> {
+    fun sourceMatches(query: String, sources: SearchSources = SearchSources.DEFAULT): List<EntryMatch> {
         val parsed = TextQuery.parse(query)
         return entries.flatMapIndexed { index, entry ->
-            if (!entry.searchable) emptyList() else parsed.ranges(entry.text).map { EntryMatch(index, it) }
+            if (!entry.eligibleFor(sources)) emptyList() else parsed.ranges(entry.text).map { EntryMatch(index, it) }
         }
     }
 

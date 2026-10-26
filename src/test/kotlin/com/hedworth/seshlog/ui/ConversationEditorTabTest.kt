@@ -6,6 +6,9 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Role
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.index.SessionAttention
+import com.hedworth.seshlog.index.*
+import com.hedworth.seshlog.model.EntryKind
+import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.SessionAttentionState
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
@@ -18,6 +21,54 @@ import java.nio.file.Paths
 import java.time.Instant
 
 class ConversationEditorTabTest : BasePlatformTestCase() {
+    fun `test full editor captures source context and navigates original entry bodies only`() {
+        val session = Session(AgentKind.CLAUDE_CODE, "editor-sources", "needle title", Paths.get("/synthetic"),
+            null, null, Instant.EPOCH, null, false, null, null, 1, true)
+        val entries = listOf(
+            ConversationEntry(ConversationMessage(Role.USER, "first needle user", null), "u"),
+            ConversationEntry(ConversationMessage(Role.ASSISTANT, "second needle assistant", null), "a"),
+            ConversationEntry(ConversationMessage(Role.USER, "third needle tool", null), "t", EntryKind.TOOL_RESULT, toolName = "needle"),
+            ConversationEntry(ConversationMessage(Role.ASSISTANT, "needle coverage", null), "c", EntryKind.COVERAGE),
+        )
+        val settings = SeshlogSettings.getInstance()
+        val previous = settings.searchSources
+        val file = ConversationEditorTabs.open(project, session, "needle", loader = { entries }, sources = SearchSources(true, false, false))
+        try {
+            await { String(file.contentsToByteArray(), StandardCharsets.UTF_8).contains("third needle tool") }
+            val editor = FileEditorManager.getInstance(project).getEditors(file).filterIsInstance<TextEditor>().first().editor
+            val text = editor.document.text
+            assertTrue(text.contains("Search in: Your messages · 1 body matches"))
+            val expected = text.indexOf("needle user")
+            assertEquals(expected, editor.caretModel.offset)
+            settings.searchSources = SearchSources.ALL
+            repeat(3) {
+                assertTrue(ConversationEditorTabs.navigate(project, true))
+                assertEquals(expected, editor.caretModel.offset)
+            }
+            assertTrue(ConversationEditorTabs.navigate(project, false))
+            assertEquals(expected, editor.caretModel.offset)
+            assertTrue(editor.markupModel.allHighlighters.any { it.startOffset == expected && it.endOffset == expected + 6 })
+            assertFalse(editor.markupModel.allHighlighters.any { it.startOffset == text.indexOf("needle tool") })
+            assertFalse(file.isWritable)
+        } finally { FileEditorManager.getInstance(project).closeFile(file); settings.searchSources = previous }
+    }
+
+    fun `test metadata primary starts at the explanation and explicit navigation visits eligible body matches`() {
+        val session = Session(AgentKind.CLAUDE_CODE, "metadata-editor", "needle title", Paths.get("/synthetic"),
+            null, null, Instant.EPOCH, null, false, null, null, 1, true)
+        val entries = listOf(ConversationEntry(ConversationMessage(Role.USER, "body needle", null), "u"))
+        val hit = SearchHit(session, 1.0, true, "needle title", primary = SearchPrimaryMatch(SearchMatchSource.TITLE,
+            metadataVariant = SearchMetadataVariant.PROVIDER_TITLE))
+        val file = ConversationEditorTabs.open(project, session, "needle", loader = { entries }, hit = hit)
+        try {
+            await { String(file.contentsToByteArray(), StandardCharsets.UTF_8).contains("body needle") }
+            val editor = FileEditorManager.getInstance(project).getEditors(file).filterIsInstance<TextEditor>().first().editor
+            assertTrue(editor.document.text.contains("Matched session title"))
+            assertEquals(0, editor.caretModel.offset)
+            assertTrue(ConversationEditorTabs.navigate(project, true))
+            assertEquals(editor.document.text.indexOf("needle", editor.document.text.indexOf("body needle")), editor.caretModel.offset)
+        } finally { FileEditorManager.getInstance(project).closeFile(file) }
+    }
     fun testOpeningConversationCreatesReadOnlyInMemoryMarkdown() {
         val session = Session(
             AgentKind.CLAUDE_CODE, "editor-tab", "Synthetic", Paths.get("/synthetic"),

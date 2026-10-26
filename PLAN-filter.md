@@ -551,10 +551,19 @@ all eight combinations, phrases, exact/Unicode/substring lanes and provider coll
 
 ### 2. Add saved controls and source-aware asynchronous delivery
 
-- [ ] Add app settings, a targeted notification event, the Search in menu and visible summaries.
+- [x] Add app settings, a targeted notification event, the Search in menu and visible summaries.
 - Extend service requests/result envelopes, deduplication and delivery guards with source options.
 - Test immediate toggles, empty queries, all-false persistence, two windows and stale callbacks.
 - Done when platform tests and `make check` pass; record remaining manual UI checks.
+
+Implemented app-wide XML preferences with old-settings defaults and all-false serialization,
+a dedicated source event, visible summaries and checkbox/reset menu. Each panel cancels its
+scope/debounce immediately, removes stale hits, and reruns its own active query with captured
+options. Source identity participates in deduplication, service envelopes and delivery guards.
+Tests cover subscriber synchronization/disposal, no broad-settings/provider-scan events, rapid
+toggles, short/clear queries, stale envelopes, independent service scopes and unrelated Settings
+bindings. `make check` passed 2026-10-26 (515 tests, 8 opt-in skips). Physical two-window, keyboard,
+theme and narrow-layout acceptance in section 11 remains owed.
 
 ### 3. Render clear labels and preserve filtered navigation
 

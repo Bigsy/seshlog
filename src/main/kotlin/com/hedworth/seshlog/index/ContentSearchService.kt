@@ -43,13 +43,15 @@ class ContentSearchService : Disposable {
         scope: SearchRequestScope,
         query: String,
         sessions: List<Session>,
+        sources: SearchSources = SearchSources.DEFAULT,
         onResult: (List<SearchHit>) -> Unit,
-    ) = searchSnapshot(scope, query, sessions) { onResult(it.hits) }
+    ) = searchSnapshot(scope, query, sessions, sources) { onResult(it.hits) }
 
     fun searchSnapshot(
         scope: SearchRequestScope,
         query: String,
         sessions: List<Session>,
+        sources: SearchSources = SearchSources.DEFAULT,
         onResult: (SearchResultSnapshot) -> Unit,
     ) {
         if (disposed) return
@@ -70,7 +72,7 @@ class ContentSearchService : Disposable {
                             }
                             .keys,
                     )
-                    index.searchSnapshot(query, sessions, isCancelled = cancelled)
+                    index.searchSnapshot(query, sessions, sources, cancelled)
                 } catch (_: Exception) {
                     // Providers/SQLite may include private text or paths in exception messages.
                     log.warn("Content search unavailable; retry in Search settings")
@@ -83,7 +85,7 @@ class ContentSearchService : Disposable {
                 }
             if (cancelled()) return@execute
             lastCoverage = snapshot.coverage
-            val result = snapshot.copy(request = request, candidateRevision = sessions.hashCode())
+            val result = snapshot.copy(request = request, candidateRevision = sessions.hashCode(), context = SearchContext(query, sources))
             deliver { if (!cancelled()) onResult(result) }
         }
     }
@@ -154,8 +156,12 @@ class ContentSearchService : Disposable {
 
     fun importSnapshot(source: Path, callback: (String) -> Unit) =
         maintenance(callback) {
-            val count = index.importSnapshot(source) { disposed }
-            "Imported $count sources; local transcripts will be validated before use."
+            try {
+                val count = index.importSnapshot(source) { disposed }
+                "Imported $count sources; local transcripts will be validated before use."
+            } catch (_: IllegalArgumentException) {
+                "Search snapshot is incompatible or invalid. The active index is preserved. Rebuild and export again from the original IDE."
+            }
         }
 
     private fun validateDestination(path: Path) {

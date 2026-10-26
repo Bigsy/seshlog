@@ -1,5 +1,6 @@
 package com.hedworth.seshlog.settings
 
+import com.hedworth.seshlog.index.SearchSources
 import com.hedworth.seshlog.model.AgentKind
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
@@ -49,12 +50,29 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         var restoreMode: String = RestoreMode.ASK.name
         /** Balloon when a running session's agent finishes a turn and waits for input. */
         var notifyWhenWaiting: Boolean = true
+        var searchUserMessages: Boolean = true
+        var searchAssistantReplies: Boolean = true
+        var searchToolActivity: Boolean = false
     }
 
     private var state = State()
 
     override fun getState(): State = state
-    override fun loadState(state: State) = XmlSerializerUtil.copyBean(state, this.state)
+    override fun loadState(state: State) {
+        val previous = searchSources
+        XmlSerializerUtil.copyBean(state, this.state)
+        if (searchSources != previous) SearchSourcesListener.fire(searchSources)
+    }
+
+    var searchSources: SearchSources
+        get() = SearchSources(state.searchUserMessages, state.searchAssistantReplies, state.searchToolActivity)
+        set(value) {
+            if (value == searchSources) return
+            state.searchUserMessages = value.userMessages
+            state.searchAssistantReplies = value.assistantReplies
+            state.searchToolActivity = value.toolActivity
+            SearchSourcesListener.fire(value)
+        }
 
     var claudeDataDir: String
         get() = state.claudeDataDir

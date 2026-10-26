@@ -6,6 +6,8 @@ import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SearchHit
 import com.hedworth.seshlog.index.SearchCoverage
 import com.hedworth.seshlog.index.SearchResultSnapshot
+import com.hedworth.seshlog.index.SearchSources
+import com.hedworth.seshlog.index.SearchContext
 import com.hedworth.seshlog.index.lexical.SearchSessionKey
 import com.hedworth.seshlog.index.SearchRequestScope
 import com.hedworth.seshlog.index.SessionAttention
@@ -22,6 +24,7 @@ import com.hedworth.seshlog.settings.AgentFilterState
 import com.hedworth.seshlog.settings.AgentSessionFilter
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.SeshlogSettingsListener
+import com.hedworth.seshlog.settings.SearchSourcesListener
 import com.hedworth.seshlog.settings.SessionAttentionState
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
@@ -102,6 +105,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private var renderedGroups: List<ProjectGroup>? = null
     private var lastSearchQuery: String? = null
     private var lastSearchCandidates: List<Session>? = null
+    private var lastSearchSources: SearchSources? = null
     private var previewKey: PreviewKey? = null
 
     private val organisation get() = SessionOrganisation.getInstance()
@@ -144,6 +148,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private val agentFilter get() = AgentFilterState.getInstance(project)
 
     internal val agentMenuButton = JButton("Agents ▾")
+    internal val sourcesButton = JButton()
+    var activeSources: SearchSources = settings.searchSources
+        private set
 
     private val statusLabel = JLabel()
     private val retryButton = JButton("Retry")
@@ -256,6 +263,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         searchField.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(e: DocumentEvent) = scheduleSearch()
         })
+        updateSourcesControl()
+        sourcesButton.addActionListener { createSourcesMenu().show(sourcesButton, 0, sourcesButton.height) }
 
         agentMenuButton.addActionListener {
             createAgentMenu().show(agentMenuButton, 0, agentMenuButton.height)
@@ -267,6 +276,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(JPanel(BorderLayout()).apply {
                 border = JBUI.Borders.empty(0, 4, 4, 4)
                 add(searchField, BorderLayout.CENTER)
+                add(sourcesButton, BorderLayout.EAST)
             }, BorderLayout.CENTER)
         }
         add(header, BorderLayout.NORTH)
@@ -330,6 +340,11 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(ContentSearchService.TOPIC, object : ContentSearchService.Listener {
             override fun changed() { lastSearchQuery=null; lastSearchCandidates=null; rerender() }
+        })
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(SearchSourcesListener.TOPIC, object : SearchSourcesListener {
+            override fun sourcesChanged(sources: SearchSources) {
+                if (!project.isDisposed && !Disposer.isDisposed(this@SessionTreePanel) && sources == settings.searchSources) applySearchSources(sources)
+            }
         })
         project.messageBus.connect(this).subscribe(
             ModuleRootListener.TOPIC,
@@ -507,8 +522,68 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         if (activeQuery.isNotEmpty()) runSearch() else render(index.sessions)
     }
 
+    private fun updateSourcesControl() {
+        sourcesButton.text = "Search in: ${activeSources.summary} ▾"
+        sourcesButton.toolTipText = activeSources.description
+        sourcesButton.accessibleContext.accessibleName = "Search in: ${activeSources.summary}"
+        sourcesButton.accessibleContext.accessibleDescription = activeSources.description
+    }
+
+    internal fun createSourcesMenu() = JPopupMenu().apply {
+        fun option(label: String, selected: Boolean, update: (SearchSources, Boolean) -> SearchSources) {
+            add(JCheckBoxMenuItem(label, selected).apply {
+                accessibleContext.accessibleName = label
+                putClientProperty("CheckBoxMenuItem.doNotCloseOnMouseClick", true)
+                addActionListener { settings.searchSources = update(settings.searchSources, isSelected) }
+            })
+        }
+        option("Your messages", activeSources.userMessages) { s, value -> s.copy(userMessages = value) }
+        option("Assistant replies", activeSources.assistantReplies) { s, value -> s.copy(assistantReplies = value) }
+        option("Tool activity", activeSources.toolActivity) { s, value -> s.copy(toolActivity = value) }
+        addSeparator()
+        add(JMenuItem("Session titles and project paths are always included.").apply { isEnabled = false })
+        add(JMenuItem("Reset to conversation").apply { addActionListener { settings.searchSources = SearchSources.DEFAULT } })
+    }
+
+    private fun applySearchSources(sources: SearchSources) {
+        if (activeSources == sources) return
+        activeSources = sources
+        updateSourcesControl()
+        searchAlarm.cancelAllRequests()
+        searchScope.cancel()
+        searchDeliveryGeneration++
+        lastSearchQuery = null
+        lastSearchCandidates = null
+        lastSearchSources = null
+        rememberedSelection = selectedSession()?.let { SearchSessionKey(it.kind, it.id) } ?: rememberedSelection
+        rankedHits = emptyMap()
+        renderer.hits = emptyMap()
+        searchPartial = false
+        searchAvailability = null
+        searchLimited = false
+        previewKey = null
+        val query = searchField.text.trim()
+        if (query.length < MIN_QUERY_LENGTH) {
+            activeQuery = ""
+            searching = false
+            render(index.sessions)
+        } else {
+            activeQuery = query
+            searching = true
+            visibleSessions = emptyList()
+            rebuildTree(emptyList())
+            tree.emptyText.clear()
+            tree.emptyText.appendText("Searching selected sources…")
+            showPreviewIfChanged()
+            updateLoadingState()
+            searchAlarm.addRequest({ runSearch() }, 0)
+        }
+    }
+
     private fun scheduleSearch() {
         searchAlarm.cancelAllRequests()
+        searchScope.cancel()
+        searchDeliveryGeneration++
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) {
             // Cleared (or too short): drop back to the plain list immediately.
@@ -533,20 +608,22 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         val query = searchField.text.trim()
         if (query.length < MIN_QUERY_LENGTH) return
         val candidates = baseFilter(index.sessions)
+        val sources = activeSources
         val revision = corpusRevision + ContentSearchService.getInstance().revision
-        if (query == lastSearchQuery && candidates == lastSearchCandidates && revision == lastSearchRevision) return
+        if (query == lastSearchQuery && candidates == lastSearchCandidates && revision == lastSearchRevision && sources == lastSearchSources) return
         lastSearchRevision=revision
         lastSearchQuery = query
         lastSearchCandidates = candidates
+        lastSearchSources = sources
         activeQuery = query
         searching = true
         updateLoadingState()
         val generation = pathResolutionGeneration
         val delivery = ++searchDeliveryGeneration
-        ContentSearchService.getInstance().searchSnapshot(searchScope, query, candidates) { snapshot ->
+        ContentSearchService.getInstance().searchSnapshot(searchScope, query, candidates, sources) { snapshot ->
             // Stale delivery guard: the field may have changed since this search was requested.
             if (!project.isDisposed && !Disposer.isDisposed(this) && generation == pathResolutionGeneration &&
-                searchField.text.trim() == query && delivery == searchDeliveryGeneration &&
+                searchField.text.trim() == query && delivery == searchDeliveryGeneration && sources == activeSources && snapshot.context == SearchContext(query, sources) &&
                 revision == corpusRevision + ContentSearchService.getInstance().revision && candidates == baseFilter(index.sessions)) renderSearchResults(query, snapshot)
         }
     }
@@ -582,6 +659,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         SearchResultSnapshot(hits,SearchCoverage(hits.size,hits.size,0,hits.count { it.partial }),0))
 
     fun renderSearchResults(query: String, snapshot: SearchResultSnapshot) {
+        if (snapshot.context != null && snapshot.context != SearchContext(query, activeSources)) return
         val hits=snapshot.hits
         activeQuery = query
         searching = false
@@ -601,7 +679,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
         val text: StatusText = tree.emptyText
         text.clear()
-        if (hits.isEmpty()) text.appendText(snapshot.availability ?: if(searchPartial) "No matches in indexed content · Limited coverage" else "No sessions match this query" +
+        if (hits.isEmpty()) text.appendText(snapshot.availability ?: if(searchPartial) "No matches in selected sources · Limited coverage" else "No matches in the selected sources" +
             if (dateFilter.period != DatePeriod.ALL) " · ${dateFilter.label}" else "")
     }
 

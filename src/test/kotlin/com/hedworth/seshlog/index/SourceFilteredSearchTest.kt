@@ -127,6 +127,106 @@ class SourceFilteredSearchTest {
         }
     }
 
+    @Test fun `protected technical body evidence outranks metadata and incidental results`() {
+        val exact = session("exact", "fix")
+        val incidental = session("incidental", "fix").copy(lastActivityAt = Instant.EPOCH.plusSeconds(1))
+        val entries = mapOf(
+            exact.id to listOf(entry("exact-entry", "ERR_42 fix", SearchEntrySource.USER)),
+            incidental.id to listOf(entry("incidental-entry", "fix ERR_42", SearchEntrySource.USER)),
+        )
+        lateinit var store: LexicalSearchStore
+        ContentSearchIndex({ emptyList() }, { 1 }, entryExtractor = { entries.getValue(it.id) },
+            storeFactory = { LexicalSearchStore.open().also { store = it } }).use { index ->
+            val hits = index.search("ERR_42 fix", listOf(incidental, exact))
+            assertEquals(SearchMatchSource.TITLE, store.scores(RetrievalQuery.compile("ERR_42 fix"),
+                listOf(SearchSessionKey(exact.kind, exact.id))).single().source)
+            assertEquals(listOf("exact", "incidental"), hits.map { it.session.id })
+            val hit = hits.first()
+            assertTrue(hit.exact)
+            assertEquals(SearchMatchSource.USER, hit.primary.source)
+            assertEquals("exact-entry", hit.entryId)
+            assertEquals(0..9, hit.range)
+            assertEquals(0 to (0..9), validatedPassage(hit, entries.getValue(exact.id)))
+            assertFalse(hits.last().exact)
+            assertEquals(SearchMatchSource.TITLE, hits.last().primary.source)
+        }
+    }
+
+    @Test fun `protected phrase and technical evidence respect enabled body sources`() {
+        val s = session(title = "fix")
+        val entries = listOf(
+            entry("user", "fix orchard", SearchEntrySource.USER),
+            entry("tool", "ERR_42 fix", SearchEntrySource.TOOL_RESULT),
+        )
+        index({ entries }).use { index ->
+            val phrase = index.search("\"fix\" orchard", listOf(s)).single()
+            assertTrue(phrase.exact)
+            assertEquals(SearchMatchSource.USER, phrase.primary.source)
+            assertEquals("user", phrase.entryId)
+            assertEquals(0..10, phrase.range)
+
+            val excluded = index.search("ERR_42 fix", listOf(s)).single()
+            assertFalse(excluded.exact)
+            assertEquals(SearchMatchSource.TITLE, excluded.primary.source)
+            val included = index.search("ERR_42 fix", listOf(s), SearchSources.ALL).single()
+            assertTrue(included.exact)
+            assertEquals(SearchMatchSource.TOOL_RESULT, included.primary.source)
+            assertEquals("tool", included.entryId)
+            assertEquals(0..9, included.range)
+            val metadata = index.search("ERR_42 fix", listOf(s), SearchSources.METADATA_ONLY).single()
+            assertFalse(metadata.exact)
+            assertEquals(SearchMatchSource.TITLE, metadata.primary.source)
+            assertNull(metadata.entryId)
+        }
+    }
+
+    @Test fun `protected body evidence is verified beyond the result limit`() {
+        val incidental = (0..100).map {
+            session("incidental-$it", "fix").copy(lastActivityAt = Instant.EPOCH.plusSeconds(1))
+        }
+        val exact = session("exact", "fix")
+        ContentSearchIndex({ emptyList() }, { 1 }, entryExtractor = { session ->
+            listOf(entry("body", if (session.id == exact.id) "ERR_42 fix" else "fix ERR_42", SearchEntrySource.USER))
+        }).use { index ->
+            val hits = index.search("ERR_42 fix", incidental + exact)
+            assertEquals(100, hits.size)
+            assertEquals(exact.id, hits.first().session.id)
+            assertTrue(hits.first().exact)
+            assertEquals(SearchMatchSource.USER, hits.first().primary.source)
+        }
+    }
+
+    @Test fun `failed protected evidence read retains metadata with partial coverage`() {
+        var reads = 0
+        ContentSearchIndex({ emptyList() }, { 1 }, characterBudget = 0, entryExtractor = {
+            if (reads++ == 0) listOf(entry("user", "ERR_42 fix", SearchEntrySource.USER))
+            else error("synthetic source unavailable")
+        }).use { index ->
+            val result = index.searchSnapshot("ERR_42 fix", listOf(session(title = "fix")))
+            val hit = result.hits.single()
+            assertEquals(2, reads)
+            assertEquals(1, result.coverage.skipped)
+            assertTrue(result.coverage.partial)
+            assertTrue(hit.partial)
+            assertFalse(hit.exact)
+            assertEquals(SearchMatchSource.TITLE, hit.primary.source)
+            assertNull(hit.entryId)
+        }
+    }
+
+    @Test fun `protected exact metadata avoids unnecessary body rereads`() {
+        var reads = 0
+        ContentSearchIndex({ emptyList() }, { 1 }, characterBudget = 0, entryExtractor = {
+            reads++
+            listOf(entry("user", "ERR_42 fix", SearchEntrySource.USER))
+        }).use { index ->
+            val hit = index.search("ERR_42 fix", listOf(session(title = "ERR_42 fix"))).single()
+            assertTrue(hit.exact)
+            assertEquals(SearchMatchSource.TITLE, hit.primary.source)
+            assertEquals(1, reads)
+        }
+    }
+
     @Test fun `excluded high scoring tools never consume the result limit`() {
         val sessions = (0..120).map { session(it.toString()) }
         ContentSearchIndex({ emptyList() }, { 1 }, entryExtractor = { s ->

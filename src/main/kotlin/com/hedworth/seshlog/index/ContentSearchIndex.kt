@@ -262,8 +262,14 @@ class ContentSearchIndex(
                 failed += key
                 continue
             }
+            // A metadata hit can satisfy eligibility without proving that an eligible body lacks
+            // protected full-query evidence. Metadata is conclusive only when it already has
+            // that evidence (and therefore wins the deterministic source tie), or when this
+            // query cannot protect a body match at all.
+            val metadataConclusive = metadataEvidence.allowed && metadataEvidence.matches.isNotEmpty() &&
+                (!(plan.technical || plan.phrases.isNotEmpty()) || metadataEvidence.matches.any { it.fullExact })
             val needsSource = !metadataOnly && (score?.entry != null || key in substringCandidates ||
-                plan.verifyAll && !(metadataEvidence.allowed && metadataEvidence.matches.isNotEmpty()))
+                plan.verifyAll && !metadataConclusive)
             val loaded = if (needsSource && key in ready) read(session, stamp) else null
             if (loaded == null && needsSource && key in ready) failed += key
             if (!metadataOnly && stamp != stamp(session)) {
@@ -303,7 +309,7 @@ class ContentSearchIndex(
             hits += SearchHit(session, score?.score ?: 1e-6, evidence.title,
                 snippet(selected.text, range.first, range.last - range.first + 1),
                 primary.entryId,
-                !metadataOnly && (key in partial || key !in ready),
+                !metadataOnly && (key in partial || key !in ready || key in failed),
                 range.takeIf { primary.entryId != null }, primary.entryHash, evidence.exact,
                 primary.copy(range = range.takeIf { primary.entryId != null }), sources)
         }

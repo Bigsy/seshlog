@@ -31,7 +31,7 @@ files are retained. Opening them while disabled does not enable recording or ini
 if none exist, the action explains how to enable local logging.
 
 Settings explicitly say that diagnostics are stored only on this computer and are never uploaded
-or sent anywhere. Record content and rotation limits remain unchanged. README and AGENTS describe
+or sent anywhere. Record content and rotation limits remain unchanged. README and the usage guide describe
 the opt-out and the distinction between opening existing logs and recording new ones.
 
 Four regressions cover persistence/old-state defaults, configurable Apply/reset, no file creation

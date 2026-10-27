@@ -158,5 +158,5 @@ For a terminal that loses its session association:
 
 These logs stay on this computer. Paths and session IDs are hashed; conversation text, titles,
 raw commands and environment variables are excluded. Review logs before sharing them.
-[AGENTS.md](../AGENTS.md#reading-session-management-diagnostics) has detailed locations and
-instructions for interpreting the records.
+If the diagnostics action is unavailable, **Help → Show Log in Finder/Explorer** opens the IDE's
+log folder; look for its `seshlog` subfolder.

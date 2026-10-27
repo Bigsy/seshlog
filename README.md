@@ -88,6 +88,6 @@ make release  # Build and check the plugin ZIP
 
 To install your build, choose **Settings → Plugins → ⚙ → Install Plugin from Disk…** and select
 `build/distributions/seshlog-<version>.zip`.
-See [AGENTS.md](AGENTS.md) for development conventions and [PLAN.md](PLAN.md) for current work.
+See [PLAN.md](PLAN.md) for current work.
 
 [MIT license](LICENSE)

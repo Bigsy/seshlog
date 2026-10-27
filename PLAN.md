@@ -1,7 +1,7 @@
 # Current work plan
 
-Updated 2026-10-27. This is the authoritative execution checklist. Read [AGENTS.md](AGENTS.md)
-before editing; inspect `git status --short`, preserve user work, and re-find symbols rather than
+Updated 2026-10-27. This is the authoritative execution checklist.
+Before editing, inspect `git status --short`, preserve user work, and re-find symbols rather than
 trusting historical line numbers. Take the open items below in order unless the user directs otherwise.
 
 ## Current status and next work
@@ -35,7 +35,7 @@ acceptance rows below remain owed; the search performance follow-up stays closed
     tab generation/process evidence and checkout identity before delayed effects.
   - Add pure race/policy tests and platform UI/action tests. Run `make check`, Plugin Verifier and
     package checks; document actual results and remaining manual checks in
-    `docs/session-switcher.md`. Commit this item once, following AGENTS.md.
+    `docs/session-switcher.md`. Commit this item once.
   Completed 2026-10-27 in the focused commit **Add metadata session and worktree switcher**:
   `make check` / `make release` passed **552 tests, zero failures/errors, 10 opt-in skips**.
   Offline Plugin Verifier reports compatibility on IU-262.10968.63 and IU-263.7307.44.
@@ -406,7 +406,7 @@ SESHLOG_LEXICAL_BENCH=1 ./gradlew test --offline \
 Use offline Gradle when dependency access is unavailable. Keep real-history/model/server suites
 opt-in; normal tests require none. `make sqlite-bench` and the local-model `make semantic-bench`
 remain historical experiments, documented in their reports. Their flags never authorize HTTP uploads.
-Follow AGENTS.md for diagnostics and sandbox/cache permissions. No transcript edits to enable logging.
+See the [usage guide](docs/usage.md#troubleshooting) for local diagnostics. No transcript edits to enable logging.
 
 Record completed item commits, actual commands, metrics, platform versions and remaining manual
 checks in the relevant report, with a short status update here. Tick only after required regressions

@@ -10,12 +10,13 @@
     <ul>
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
         <li>Follow Claude Code and Codex sessions across recorded worktree changes, with checkout paths, observed Git branches and detached-HEAD labels</li>
+        <li>Quickly find sessions across projects by title, project, path or branch, and switch to a terminal or open a worktree with a keyboard shortcut</li>
         <li>Open a session's verified worktree in a new IntelliJ window or focus it if already open, keeping the original window and terminal available. Opening is disabled for missing or uncertain checkouts and for new projects inside protected agent data directories.</li>
         <li>Open Worktree and Fork Session starts an independent conversation fork in the worktree window's terminal, keeping the original session running.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Search titles, working directories and conversations by relevance, with quoted phrases for exact matches</li>
         <li>Choose which messages and tool activity can match, with conversation-only search by default and clear labels showing where each result matched</li>
-        <li>Reuse the local search index across restarts, with controls to rebuild, clear, export and import it</li>
+        <li>Reuse the local search index across restarts, with controls to refresh, retry, rebuild or clear it</li>
         <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>
         <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
         <li>Copy the latest assistant reply from Claude Code, Codex, opencode or Pi, preserving Markdown and code blocks without selecting terminal output</li>
@@ -30,7 +31,7 @@
     Entirely local: Seshlog reads the agent's transcripts read-only, never writes to them, and makes
     no network requests — no telemetry, no analytics, nothing leaves your machine.
     The saved search index contains sensitive lexical terms and positions, without raw conversation
-    copies or query history. Export and import are explicit; indexes are never uploaded automatically.
+    copies or query history. The index stays in this IDE profile and is not synced automatically.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -40,6 +41,14 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.8.2</b>
+    <ul>
+        <li>Find sessions and worktrees across projects with the new quick switcher: press ⌘⌥S on macOS or Ctrl+Alt+Shift+P on Windows and Linux, or choose Seshlog: Switch Session / Worktree from Find Action. Search titles, project names, paths and branches.</li>
+        <li>Focus a tracked terminal, explicitly resume a stopped session, or open its verified worktree. Results highlight matching text and distinguish agents and branches; use the keyboard to move between Resume and Open Worktree.</li>
+        <li>Recheck session, terminal and worktree state before switching or resuming, and prevent launches when the selected location or the required live-session information cannot be verified.</li>
+        <li>Simplify Search settings with index status, refresh and a maintenance menu. Import and export controls have been removed from settings.</li>
+        <li>Turn local session diagnostic recording off in Settings → Tools → Seshlog. It is enabled by default; turning it off stops new recording and keeps existing log files.</li>
+    </ul>
     <b>0.8.1</b>
     <ul>
         <li>Choose Your messages, Assistant replies and Tool activity from Search in. Conversation is the default, with tools excluded; session titles and working directories always remain searchable. Remember the choice across project windows and IDE restarts.</li>
@@ -67,14 +76,6 @@
         <li>Follow recorded working-directory changes as sessions move between checkouts. Project filtering and the Sibling worktrees option use the updated location in both browsing and search.</li>
         <li>Open a session's verified worktree in a new IntelliJ window, or focus the window already using it. The original project window and its agent terminals stay open.</li>
         <li>Keep missing or uncertain worktrees visible while disabling opening. New project opening inside protected agent data directories remains disabled; an already-open project there can still be focused.</li>
-    </ul>
-    <b>0.6.9</b>
-    <ul>
-        <li>Track Codex terminals again from codex-cli 0.158, which runs sessions through a shared background server rather than the terminal's own process. Seshlog matches each Codex terminal to the session that server has open for the same directory, so new Codex sessions attach to their tab, relaunching Codex in a tab attaches it again, and copying a reply or plan works in tabs started with a plain codex command.</li>
-        <li>Attach only when that match is unambiguous across every Codex terminal on the machine, including those outside the IDE. Several Codex tabs in one directory are told apart by when each started its session, so they no longer all stay unattached; two started within seconds of each other still do rather than risk copying from the wrong one. A resumed Codex tab follows a new session started inside Codex once Codex has closed the previous one.</li>
-        <li>Own a forked session's tab from the moment it opens, as for a new session, so it attaches to the fork, offers Fork and Copy, and is restored after a restart.</li>
-        <li>Resume a session in the tab its agent last exited in, even after the session was renamed, and bring a reused tab to the front instead of opening another.</li>
-        <li>Recognise Codex terminal transcripts written by the new server, including sessions run with --no-daemon.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

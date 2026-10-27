@@ -3,6 +3,14 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.6.9
+
+- Track Codex terminals again from codex-cli 0.158, which runs sessions through a shared background server rather than the terminal's own process. Seshlog matches each Codex terminal to the session that server has open for the same directory, so new Codex sessions attach to their tab, relaunching Codex in a tab attaches it again, and copying a reply or plan works in tabs started with a plain codex command.
+- Attach only when that match is unambiguous across every Codex terminal on the machine, including those outside the IDE. Several Codex tabs in one directory are told apart by when each started its session, so they no longer all stay unattached; two started within seconds of each other still do rather than risk copying from the wrong one. A resumed Codex tab follows a new session started inside Codex once Codex has closed the previous one.
+- Own a forked session's tab from the moment it opens, as for a new session, so it attaches to the fork, offers Fork and Copy, and is restored after a restart.
+- Resume a session in the tab its agent last exited in, even after the session was renamed, and bring a reused tab to the front instead of opening another.
+- Recognise Codex terminal transcripts written by the new server, including sessions run with --no-daemon.
+
 ## 0.6.8
 
 - Show a resumed Claude Code session as one row for its latest continuation in the session list, search and attention views. Earlier transcripts stay searchable and open from Earlier Sessions in the context menu. Branch and working directory follow the resumed session, and forks and still-running earlier sessions keep their own rows.

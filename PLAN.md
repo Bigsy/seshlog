@@ -108,6 +108,12 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   and selection contrast. The temporary preview harness was removed. Physical theme/accessibility
   acceptance remains open; restart the synthetic sandbox to load the new renderer.
 
+- [x] Mark the selected switcher row with a theme-aware outline instead of a filled background,
+  preserving field colours and bold matches with identical text insets. Update the renderer
+  assertions; synthetic light/dark palette renders inspected at 760 and 420 pixels. The full
+  offline test suite passed 584 tests, zero failures/errors, 10 opt-in skips. The temporary preview
+  harness was removed; physical theme/accessibility acceptance remains open after sandbox restart.
+
 ### Search settings layout cleanup (user priority, 2026-10-27)
 
 - [x] Simplify the Search settings section: a concise status/empty state, one refresh action,

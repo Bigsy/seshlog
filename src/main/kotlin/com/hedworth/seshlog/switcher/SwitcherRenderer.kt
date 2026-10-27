@@ -10,6 +10,7 @@ import java.awt.Component
 import java.awt.Dimension
 import java.awt.Font
 import java.time.Instant
+import javax.swing.BorderFactory
 import javax.swing.JLabel
 import javax.swing.JList
 import javax.swing.JPanel
@@ -26,8 +27,11 @@ internal class SwitcherRenderer(private val query: () -> String = { "" }) :
     }
     private var lastQuery: String? = null
     private var terms: List<String> = emptyList()
+    private val rowBorder = JBUI.Borders.empty(5, 8)
+    private val selectedBorder = BorderFactory.createCompoundBorder(
+        JBUI.Borders.customLine(OUTLINE_COLOR, 2), JBUI.Borders.empty(3, 6))
 
-    init { border = JBUI.Borders.empty(5, 8); add(heading, BorderLayout.NORTH); add(details, BorderLayout.SOUTH) }
+    init { border = rowBorder; add(heading, BorderLayout.NORTH); add(details, BorderLayout.SOUTH) }
 
     override fun validate() { doLayout(); heading.doLayout() }
 
@@ -39,24 +43,23 @@ internal class SwitcherRenderer(private val query: () -> String = { "" }) :
             terms = if (text.length > SwitcherSearch.MAX_QUERY) emptyList()
                 else text.split(Regex("\\s+")).filter(String::isNotBlank).distinct()
         }
-        background = if (selected) list.selectionBackground else list.background
-        val foreground = if (selected) list.selectionForeground else list.foreground
-        val secondary = if (selected) foreground else SECONDARY_COLOR
-        val agent = if (selected) foreground else AGENT_COLOR
-        val branch = if (selected) foreground else BRANCH_COLOR
+        background = list.background
+        border = if (selected) selectedBorder else rowBorder
+        val foreground = list.foreground
+        val secondary = SECONDARY_COLOR
         title.clear(); details.clear()
         title.font = list.font.deriveFont(Font.PLAIN)
         details.font = title.font.deriveFont((list.font.size2D - 1).coerceAtLeast(1f))
         attention.font = details.font
         attention.foreground = secondary
         title.appendHighlighted(value.title, foreground)
-        details.append(value.session.kind.displayName, SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, agent))
+        details.append(value.session.kind.displayName, SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, AGENT_COLOR))
         fun field(text: String, color: Color) {
             details.append(" · ", SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, secondary))
             details.appendHighlighted(text, color)
         }
         value.projectNames.forEach { field(it, foreground) }
-        (value.checkout?.branchLabel ?: value.session.displayBranch)?.let { field(it, branch) }
+        (value.checkout?.branchLabel ?: value.session.displayBranch)?.let { field(it, BRANCH_COLOR) }
         field(value.session.cwd.toString(), secondary)
         attention.text = value.attention(Instant.now())
         getAccessibleContext().accessibleName = "${value.title}, ${value.details()}, ${attention.text}, ${value.status}"
@@ -88,6 +91,7 @@ internal class SwitcherRenderer(private val query: () -> String = { "" }) :
         val AGENT_COLOR = JBColor(Color(0x2458A6), Color(0x8AB4F8))
         val BRANCH_COLOR = JBColor(Color(0x26734D), Color(0x7EC699))
         val SECONDARY_COLOR = JBColor(Color(0x6C707E), Color(0xA8ADB5))
+        val OUTLINE_COLOR = JBColor.namedColor("Component.focusColor", JBColor(Color(0x3574F0), Color(0x548AF7)))
         fun textComponent() = SimpleColoredComponent().apply { isOpaque = false; ipad = JBUI.emptyInsets() }
     }
 }

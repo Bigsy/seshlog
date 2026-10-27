@@ -29,8 +29,9 @@ in Keymap settings. It requires an open project. No provider parsers or search p
   on refresh. Pins and unread do not change ranking; there is no separate navigation-history store.
 - Rows show literal titles, agent, project/checkout path, branch, activity, unread and availability.
   Native text fragments distinguish blue agents, green branches and muted paths/status; query words
-  are bold within visible titles, project names, branches and paths, ignoring case. Selected rows
-  use the IDE's selection palette and retain bold matches. No titles or paths are interpreted as HTML.
+  are bold within visible titles, project names, branches and paths, ignoring case. A theme-aware
+  outline marks the selected row, preserving text colours and bold matches without shifting the
+  text. No titles or paths are interpreted as HTML.
   Activity/unread stay beside the title so long paths do not push them out of view. Accessible names
   include the full row and action state. Selecting/filtering never acknowledges a completion; existing
   terminal visibility/receipt handling still owns acknowledgement.

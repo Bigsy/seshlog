@@ -123,8 +123,8 @@ text is not searched. Title matches are favoured over project, branch and path m
 breaking ties. Up/Down selects a row; Enter focuses its verified associated terminal and
 project window. Activity and unread badges use the existing session state; selecting a row alone
 does not mark it read.
-Agents are blue, branches green, and paths and status muted; matching words are bold. Selected rows
-use the IDE's selection colours while retaining bold matches.
+Agents are blue, branches green, and paths and status muted; matching words are bold. A border marks
+the selected row, preserving these text colours and bold matches.
 
 For stopped sessions, Enter moves focus to the explicit **Resume** button; activate it to launch.
 Use Left/Right or Shift+Tab/Tab to move between **Resume** and **Open Worktree** when both are enabled.

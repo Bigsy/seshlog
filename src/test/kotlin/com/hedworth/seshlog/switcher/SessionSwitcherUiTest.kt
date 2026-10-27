@@ -152,10 +152,16 @@ class SessionSwitcherUiTest : BasePlatformTestCase() {
         val path = details.first { it.first.startsWith("/synthetic/") }.second.fgColor
         assertEquals(3, setOf(agent, branch, path).size)
 
-        // Selection follows the IDE palette, keeping bold matches readable on its background.
+        // Selection outlines the row without changing field colours or moving the text.
+        val title = fragments(renderer.title)
+        val insets = renderer.insets
+        val size = renderer.preferredSize
         renderer.getListCellRendererComponent(list, row, 0, true, true)
-        for ((_, attributes) in fragments(renderer.title) + fragments(renderer.details))
-            assertEquals(list.selectionForeground, attributes.fgColor)
+        assertEquals(list.background, renderer.background)
+        assertEquals(title, fragments(renderer.title))
+        assertEquals(details, fragments(renderer.details))
+        assertEquals(insets, renderer.insets)
+        assertEquals(size, renderer.preferredSize)
         assertEquals(listOf("Demo", "Uncertain"), boldFragments(renderer.title))
 
         query = ""

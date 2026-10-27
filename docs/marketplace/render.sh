@@ -14,7 +14,7 @@ render_dir="$(mktemp -d "${TMPDIR:-/tmp}/seshlog-marketplace.XXXXXX")"
 trap 'rm -rf "$render_dir"' EXIT
 
 node "$repo_dir/docs/marketplace/gen.js" "$render_dir/html"
-for card in 01-hero 02-worktrees 03-sessions 04-search; do
+for card in 01-hero 02-worktrees 03-sessions 04-search 05-switcher; do
   chrome_status=0
   "$chrome_bin" --headless=new --disable-gpu --no-first-run --no-default-browser-check \
     --disable-background-networking --disable-component-update --disable-sync --no-pings \

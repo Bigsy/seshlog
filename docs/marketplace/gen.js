@@ -36,7 +36,7 @@ p{font-size:27px;line-height:1.46;color:#b1c0b9;margin:0}.small{font-size:21px;l
 function shell(number, label, content, extra = '') {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${css}${extra}</style></head><body><main class="page">
   <header class="top">${icon}<strong>Seshlog</strong><span>Coding-agent sessions in IntelliJ</span><span class="issue">${label}</span></header>
-  ${content}<footer class="foot"><span>Local sessions · Real plugin UI · Synthetic demo data</span><span>${number} / 04</span></footer>
+  ${content}<footer class="foot"><span>Local sessions · Real plugin UI · Synthetic demo data</span><span>${number} / 05</span></footer>
   </main></body></html>`;
 }
 const screen = (image, subtitle, cls = '') => `<div class="window ${cls}"><div class="windowhead">Seshlog<span class="mini">${subtitle}</span></div><img src="${png(image)}" alt="Seshlog session list rendered by the plugin"></div>`;
@@ -92,6 +92,21 @@ const cards = {
     </section>
     <div class="searchfacts"><span>Search across local sessions</span><span>Inspect matching messages</span><span>Resume with the context intact</span></div>
     `, `.searchscreen{position:absolute;left:88px;top:490px;width:1744px}.searchscreen img{width:100%}.searchresults{height:374px;overflow:hidden}.searchfacts{position:absolute;left:88px;right:88px;top:1045px;display:flex;gap:80px;font-size:22px;color:#b5df91}`),
+
+  '05-switcher': shell('05', 'Switch session + worktree', `
+    <section class="copy"><div class="eyebrow">A shortcut across your projects</div>
+      <h1>Find a session.<br><em>Keep moving.</em></h1>
+      <p>Jump between projects and worktrees<br>without hunting through terminal tabs.</p>
+      <div class="pills"><span class="pill"><b>⌘⌥S</b> macOS</span><span class="pill"><b>Ctrl+Alt+Shift+P</b> Windows / Linux</span></div>
+      <ul class="facts"><li><b>Search what you remember</b><br>Titles, projects, paths and branches.</li><li><b>Spot the right checkout</b><br>Coloured branches and bold matches.</li><li><b>Across all four agents</b><br>Claude Code, Codex, opencode and Pi.</li></ul>
+    </section>
+    <section class="screen">${screen('session-switcher.png', 'Switch Session / Worktree')}
+      <div class="forkdiagram">
+        <div class="node"><span class="tag">TRACKED TERMINAL</span><b>Jump back in</b><p>Enter focuses the session<br>and its project window.</p></div>
+        <div class="node new"><span class="tag">STOPPED SESSION</span><b>Choose how to continue</b><p>Resume explicitly, or open<br>an eligible worktree.</p></div>
+      </div>
+      <p class="caption">Searches session metadata. Your conversation stays untouched.</p>
+    </section>`),
 };
 
 for (const [name, html] of Object.entries(cards)) fs.writeFileSync(path.join(out, name + '.html'), html);

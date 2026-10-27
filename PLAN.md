@@ -114,6 +114,16 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   offline test suite passed 584 tests, zero failures/errors, 10 opt-in skips. The temporary preview
   harness was removed; physical theme/accessibility acceptance remains open after sandbox restart.
 
+### Switcher Marketplace card (user priority, 2026-10-27)
+
+- [x] Add a fifth Marketplace card for the session/worktree switcher and show it in the README.
+  Preserve the existing design and first three UI captures; refresh the search card's UI for
+  source selection/provenance and update pagination. Extend the opt-in synthetic renderer and
+  rebuild instructions. The opt-in capture and full offline test suite passed (584 tests,
+  zero failures/errors, 10 opt-in skips). All five 1920×1200 PNGs and README media links validated;
+  full-size and thumbnail renders inspected. Pixel comparison confines changes in cards 1–3 to
+  the footer counts. No Marketplace upload was performed.
+
 ### Search settings layout cleanup (user priority, 2026-10-27)
 
 - [x] Simplify the Search settings section: a concise status/empty state, one refresh action,

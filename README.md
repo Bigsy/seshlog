@@ -15,6 +15,9 @@ tool window.
     <td><a href="docs/marketplace/03-sessions.png"><img src="docs/marketplace/03-sessions.png" alt="Browse sessions from all four supported agents" width="360"></a></td>
     <td><a href="docs/marketplace/04-search.png"><img src="docs/marketplace/04-search.png" alt="Find matching conversations and resume with their context" width="360"></a></td>
   </tr>
+  <tr>
+    <td colspan="2" align="center"><a href="docs/marketplace/05-switcher.png"><img src="docs/marketplace/05-switcher.png" alt="Search across projects and switch sessions or worktrees with a keyboard shortcut" width="360"></a></td>
+  </tr>
 </table>
 
 Click a screenshot to view it full size.

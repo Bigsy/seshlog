@@ -1,10 +1,16 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.SearchMatchSource
+import com.hedworth.seshlog.index.SearchPrimaryMatch
+import com.hedworth.seshlog.index.SearchSources
 import com.hedworth.seshlog.model.*
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentFilterState
+import com.hedworth.seshlog.switcher.SessionSwitcherPanel
+import com.hedworth.seshlog.switcher.SwitcherRow
+import com.hedworth.seshlog.switcher.SwitcherSearch
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
@@ -35,6 +41,7 @@ class MarketplaceScreenshotTest : BasePlatformTestCase() {
         val settings = SeshlogSettings.getInstance()
         val oldAll = settings.showAllProjects
         val oldCollapsed = settings.previewCollapsed
+        val oldSources = settings.searchSources
         val owner = Disposer.newDisposable()
         try {
             UIManager.setLookAndFeel("com.intellij.ide.ui.laf.darcula.DarculaLaf")
@@ -43,6 +50,7 @@ class MarketplaceScreenshotTest : BasePlatformTestCase() {
             IconLoader.setUseDarkIcons(true)
             settings.showAllProjects = true
             settings.previewCollapsed = true
+            settings.searchSources = SearchSources.DEFAULT
             AgentFilterState.getInstance(project).mode = AgentFilterMode.All
             val panel = SessionTreePanel(project, owner)
             SwingUtilities.updateComponentTreeUI(panel)
@@ -55,22 +63,43 @@ class MarketplaceScreenshotTest : BasePlatformTestCase() {
             capture(treeView, output.resolve("worktree-sessions.png"), 700, 510)
 
             val hits = listOf(
-                SearchHit(sessions[0], 5.0, false, "Keep checkout validation next to the payment request."),
+                SearchHit(sessions[0], 5.0, false, "Keep checkout validation next to the payment request.",
+                    primary = SearchPrimaryMatch(SearchMatchSource.USER)),
                 SearchHit(sessions[1], 3.0, false, "The checkout validation now covers missing billing details."),
             )
             panel.searchField.text = "checkout validation"
             panel.renderSearchResults("checkout validation", hits)
             capture(treeView, output.resolve("session-search.png"), 700, 185)
-            capture(panel.searchField, output.resolve("search-field.png"), 700, 30)
+            capture(panel.searchField.parent as JComponent, output.resolve("search-field.png"), 700, 34)
+            captureSwitcher(output, sessions)
         } finally {
             Disposer.dispose(owner)
             settings.showAllProjects = oldAll
             settings.previewCollapsed = oldCollapsed
+            settings.searchSources = oldSources
             UIManager.setLookAndFeel(previousLaf)
             JBColor.setDark(previousDark)
             IconLoader.setUseDarkIcons(previousDark)
             IconLoader.deactivate()
         }
+    }
+
+    private fun captureSwitcher(output: Path, sessions: List<Session>) {
+        val panel = SessionSwitcherPanel(project, live = false)
+        try {
+            SwingUtilities.updateComponentTreeUI(panel)
+            panel.query.text = "checkout"
+            val titles = listOf("Refine checkout validation", "Refine checkout validation (fork)",
+                "Add checkout refund history", "Review checkout edge cases", "Improve checkout receipt emails",
+                "Document checkout payment events")
+            val rows = sessions.mapIndexed { index, session ->
+                SwitcherRow(session.copy(title = titles[index], lastActivityAt = session.lastActivityAt.minusSeconds(index * 180L)),
+                    projectNames = listOf("atlas"), associated = index == 2, unread = index == 1)
+            }
+            panel.results.apply(panel.results.begin(panel.query.text), SwitcherSearch.find(rows, panel.query.text))
+            panel.render()
+            capture(panel, output.resolve("session-switcher.png"), 760, 380)
+        } finally { Disposer.dispose(panel) }
     }
 
     private fun capture(component: JComponent, file: Path, width: Int, height: Int) {

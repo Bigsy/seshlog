@@ -19,13 +19,10 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Component
-import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.KeyboardFocusManager
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
-import java.time.Instant
 import java.util.concurrent.Future
 import javax.swing.*
 import javax.swing.event.DocumentEvent
@@ -79,7 +76,7 @@ internal class SessionSwitcherPanel(
         query.accessibleContext.accessibleName = "Search sessions by title, project, path or branch"
         list.accessibleContext.accessibleName = "Sessions across all projects"
         list.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        list.cellRenderer = SwitcherRenderer()
+        list.cellRenderer = SwitcherRenderer { query.text }
         add(query, BorderLayout.NORTH)
         add(JBScrollPane(list), BorderLayout.CENTER)
         add(JPanel(BorderLayout()).apply {
@@ -251,32 +248,5 @@ internal class SessionSwitcherPanel(
         component.actionMap.put("seshlog.$key", object : AbstractAction() {
             override fun actionPerformed(e: ActionEvent) = action()
         })
-    }
-}
-
-internal class SwitcherRenderer : JPanel(BorderLayout()), ListCellRenderer<SwitcherRow> {
-    private val title = JLabel().apply { putClientProperty("html.disable", true) }
-    private val details = JLabel().apply { putClientProperty("html.disable", true) }
-    private val attention = JLabel().apply { putClientProperty("html.disable", true) }
-    private val heading = JPanel(BorderLayout(JBUI.scale(12), 0)).apply {
-        isOpaque = false; add(title, BorderLayout.CENTER); add(attention, BorderLayout.EAST)
-    }
-    init { border = JBUI.Borders.empty(5, 8); add(heading, BorderLayout.NORTH); add(details, BorderLayout.SOUTH) }
-    override fun validate() { doLayout(); heading.doLayout() }
-    override fun getListCellRendererComponent(list: JList<out SwitcherRow>, value: SwitcherRow,
-                                              index: Int, selected: Boolean, focus: Boolean): Component {
-        background = if (selected) list.selectionBackground else list.background
-        val color = if (selected) list.selectionForeground else list.foreground
-        title.foreground = color; details.foreground = color; attention.foreground = color
-        title.font = list.font; details.font = list.font.deriveFont((list.font.size2D - 1).coerceAtLeast(1f))
-        attention.font = details.font
-        title.text = value.title
-        attention.text = value.attention(Instant.now())
-        details.text = value.details()
-        getAccessibleContext().accessibleName = "${title.text}, ${details.text}, ${attention.text}, ${value.status}"
-        // Literal tooltip; do not interpret agent titles/paths as HTML.
-        toolTipText = null
-        preferredSize = Dimension(JBUI.scale(700), title.preferredSize.height + details.preferredSize.height + JBUI.scale(10))
-        return this
     }
 }

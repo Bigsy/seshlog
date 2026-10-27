@@ -7,6 +7,9 @@ import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.keymap.KeymapManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.ui.SimpleColoredComponent
+import com.intellij.ui.SimpleTextAttributes
+import java.awt.Font
 import java.awt.KeyboardFocusManager
 import java.awt.event.ActionEvent
 import javax.swing.JButton
@@ -14,7 +17,6 @@ import javax.swing.JComponent
 import javax.swing.KeyStroke
 import javax.swing.JList
 import javax.swing.JPanel
-import javax.swing.JLabel
 
 class SessionSwitcherUiTest : BasePlatformTestCase() {
     fun `test keyboard moves between enabled worktree and resume buttons without launching`() {
@@ -131,8 +133,53 @@ class SessionSwitcherUiTest : BasePlatformTestCase() {
         assertTrue(component.accessibleContext.accessibleName.contains("observed-branch"))
         assertTrue(component.accessibleContext.accessibleName.contains("unread"))
         assertTrue(component.accessibleContext.accessibleName.contains("/synthetic/engine/topic/src"))
-        val title = component.components.filterIsInstance<JPanel>().single().components.filterIsInstance<JLabel>().first()
-        assertEquals("<html>literal title", title.text)
-        assertEquals(true, title.getClientProperty("html.disable"))
+        assertEquals("<html>literal title", renderer.title.getCharSequence(false).toString())
+        assertEquals(row.details(), renderer.details.getCharSequence(false).toString())
     }
+
+    fun `test renderer colours fields and bolds case insensitive query words across visible metadata`() {
+        var query = "DEMO uncertain TOPIC observed"
+        val renderer = SwitcherRenderer { query }
+        val list = JList<SwitcherRow>()
+        val row = SwitcherRow(switchSession().copy(title = "Demo Uncertain location"),
+            projectNames = listOf("Demo Engine"))
+        renderer.getListCellRendererComponent(list, row, 0, false, false)
+        assertEquals(listOf("Demo", "Uncertain"), boldFragments(renderer.title))
+        assertEquals(listOf("Demo", "observed", "topic"), boldFragments(renderer.details))
+        val details = fragments(renderer.details)
+        val agent = details.first { it.first == "Codex" }.second.fgColor
+        val branch = details.first { it.first == "observed" }.second.fgColor
+        val path = details.first { it.first.startsWith("/synthetic/") }.second.fgColor
+        assertEquals(3, setOf(agent, branch, path).size)
+
+        // Selection follows the IDE palette, keeping bold matches readable on its background.
+        renderer.getListCellRendererComponent(list, row, 0, true, true)
+        for ((_, attributes) in fragments(renderer.title) + fragments(renderer.details))
+            assertEquals(list.selectionForeground, attributes.fgColor)
+        assertEquals(listOf("Demo", "Uncertain"), boldFragments(renderer.title))
+
+        query = ""
+        renderer.getListCellRendererComponent(list, row, 0, false, false)
+        assertTrue(boldFragments(renderer.title).isEmpty())
+        assertTrue(boldFragments(renderer.details).isEmpty())
+        renderer.getListCellRendererComponent(list, SwitcherRow(switchSession().copy(title = "Another row")), 1, false, false)
+        assertEquals("Another row", renderer.title.getCharSequence(false).toString())
+        assertFalse(renderer.details.getCharSequence(false).contains("Demo Engine"))
+    }
+
+    fun `test renderer highlights overlapping repeated words and literal markup without shifting unicode offsets`() {
+        val renderer = SwitcherRenderer { "ana İSTANBUL <b>" }
+        val row = SwitcherRow(switchSession().copy(title = "İstanbul banana BANANA <b>literal</b>"))
+        renderer.getListCellRendererComponent(JList(), row, 0, false, false)
+        assertEquals(row.title, renderer.title.getCharSequence(false).toString())
+        assertEquals(listOf("İstanbul", "anana", "ANANA", "<b>"), boldFragments(renderer.title))
+    }
+
+    private fun fragments(component: SimpleColoredComponent): List<Pair<String, SimpleTextAttributes>> = buildList {
+        val iterator = component.iterator()
+        while (iterator.hasNext()) add(iterator.next() to iterator.textAttributes)
+    }
+
+    private fun boldFragments(component: SimpleColoredComponent): List<String> = fragments(component)
+        .filter { (_, attributes) -> attributes.fontStyle and Font.BOLD != 0 }.map { it.first }
 }

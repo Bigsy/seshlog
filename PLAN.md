@@ -99,6 +99,15 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   the full offline test suite passes (582 tests, 10 opt-in skips). Physical keyboard acceptance in
   the synthetic sandbox remains owed after restarting it to load the fix.
 
+- [x] Improve quick-switcher result readability: distinguish agents, branches and paths with
+  theme-aware colours, bold literal case-insensitive query words in visible titles and metadata,
+  and retain accessible full text and readable selection colours. Use native text fragments;
+  inspected synthetic light/dark palette renders at 760 and 420 pixels. The full offline test
+  suite passed 584 tests, zero failures/errors, 10 opt-in skips; native-fragment tests cover
+  matching across fields, overlapping words, literal markup, Unicode offsets, renderer reuse
+  and selection contrast. The temporary preview harness was removed. Physical theme/accessibility
+  acceptance remains open; restart the synthetic sandbox to load the new renderer.
+
 ### Search settings layout cleanup (user priority, 2026-10-27)
 
 - [x] Simplify the Search settings section: a concise status/empty state, one refresh action,

@@ -3,6 +3,10 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.6.8
+
+- Show a resumed Claude Code session as one row for its latest continuation in the session list, search and attention views. Earlier transcripts stay searchable and open from Earlier Sessions in the context menu. Branch and working directory follow the resumed session, and forks and still-running earlier sessions keep their own rows.
+
 ## 0.6.7
 
 - Collapse the message preview to its header row by clicking the header. Collapsed or expanded is remembered across restarts, and a collapsed preview does not read transcripts.

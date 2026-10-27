@@ -14,6 +14,7 @@
         <li>Open Worktree and Fork Session starts an independent conversation fork in the worktree window's terminal, keeping the original session running.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Search titles, working directories and conversations by relevance, with quoted phrases for exact matches</li>
+        <li>Choose which messages and tool activity can match, with conversation-only search by default and clear labels showing where each result matched</li>
         <li>Reuse the local search index across restarts, with controls to rebuild, clear, export and import it</li>
         <li>Preview recent messages or inspect the full loaded conversation for a search result, with highlighted matches and keyboard navigation</li>
         <li>Resume or fork a session into a new terminal tab; focus the tab if it is already running</li>
@@ -39,6 +40,14 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.8.1</b>
+    <ul>
+        <li>Choose Your messages, Assistant replies and Tool activity from Search in. Conversation is the default, with tools excluded; session titles and working directories always remain searchable. Remember the choice across project windows and IDE restarts.</li>
+        <li>Show whether each result matched a title, project path, user message, assistant reply, tool call or tool result. Open the supporting passage and keep search highlights and next/previous navigation within the selected sources, while leaving the full conversation available.</li>
+        <li>Fix technical and quoted matches being overlooked when a partial title or path match ranks higher, and start preview next/previous navigation from the passage that was opened.</li>
+        <li>Reduce repeated text processing when checking matches, making ordinary searches and repeated tool output faster.</li>
+        <li>Upgrading from 0.8.0 requires a one-time local search-index rebuild to enable source classification. Keep the previous saved index until you choose Rebuild in Search settings, and use temporary filtered search in the meantime.</li>
+    </ul>
     <b>0.8.0</b>
     <ul>
         <li>Rank search results by relevance across session titles, local title overrides, working directories and conversation passages. Ordinary query terms can match independently; quoted phrases require exact text.</li>
@@ -66,10 +75,6 @@
         <li>Own a forked session's tab from the moment it opens, as for a new session, so it attaches to the fork, offers Fork and Copy, and is restored after a restart.</li>
         <li>Resume a session in the tab its agent last exited in, even after the session was renamed, and bring a reused tab to the front instead of opening another.</li>
         <li>Recognise Codex terminal transcripts written by the new server, including sessions run with --no-daemon.</li>
-    </ul>
-    <b>0.6.8</b>
-    <ul>
-        <li>Show a resumed Claude Code session as one row for its latest continuation in the session list, search and attention views. Earlier transcripts stay searchable and open from Earlier Sessions in the context menu. Branch and working directory follow the resumed session, and forks and still-running earlier sessions keep their own rows.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

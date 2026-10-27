@@ -209,6 +209,26 @@ text; existing phrase, exact, source-filter, provenance and navigation tests rem
 `git diff --check` passed. Plugin Verifier/release packaging and physical UI checks were not rerun
 for this internal optimization; their prior evidence and remaining limits are separate below.
 
+## 0.8.1 build and compatibility validation, 2026-10-27
+
+Prepared the requested 0.8.1 build with notes for source selection, match provenance, navigation
+fixes, the literal-verification optimization and the explicit 0.8.0 index-rebuild transition.
+The plugin keeps five release entries; 0.6.8 moved intact to the changelog archive.
+
+`make release` passed with **537 tests, 0 failures/errors, 10 opt-in skips** and valid ZIP integrity.
+`./gradlew verifyPlugin --offline` passed on the packaged 0.8.1 code. Plugin Verifier 1.411 reports
+compatibility on IU-262.10968.63 and IU-263.7307.44, with the same existing warnings: two scheduled-
+for-removal usages each, 14/17 deprecated and 65/58 experimental usages respectively.
+
+Inspection confirms the packaged descriptor is 0.8.1, since-build 262, with the current five-entry
+changelog and the optimized QueryTerm class. The ZIP contains only the production plugin,
+SQLite JDBC and searchable-options jars, with no test/evaluation classes, fixtures, transcript
+resources or databases. `build/distributions/seshlog-0.8.1.zip` is 13,212,197 bytes; SHA-256:
+`e08558e1e945a651bf67ba02d38a53d226b2bead152c16cfd126f6f7c4ef6648`.
+
+This validates the requested build, not the remaining physical UI, supported-OS or lower-memory
+acceptance rows. No tag, Marketplace publication or daily-IDE installation was performed.
+
 ## Acceptance and handoff
 
 At the original implementation validation, automated checks passed: `make check`, `make lexical-bench`,

@@ -53,9 +53,10 @@ This follow-up is closed; no larger performance project is scheduled.
   recall@5 regression against the preserved literal baseline; clear natural-language improvement;
   at least 90% technical hit@1 and 90% positive recall@5. Review every lost technical top-one case.
   Report hit@1, recall@5, MRR@5, nDCG@10 where applicable, negatives and coverage by category.
-- [ ] After changes, run `make check`, Plugin Verifier and `make release`; inspect the ZIP for test,
+- [x] After changes, run `make check`, Plugin Verifier and `make release`; inspect the ZIP for test,
   fixture, transcript, database, model or helper leakage. Record actual warnings and artifact hash.
   A verified artifact does not authorize publication or installation into the daily IDE.
+  Completed for the 0.8.1 build on 2026-10-27; [validation record](docs/search-source-filters.md#081-build-and-compatibility-validation-2026-10-27).
 - [ ] Mark Phase 1 release-accepted only after the responsiveness/relevance/resource/platform checks
   and applicable physical checks pass. This closes the former PLAN.md items 3–4 and source-filter
   acceptance; Phase 2 is independent and is not required to ship BM25.
@@ -277,9 +278,10 @@ publish/upload, install into the daily IDE or start deferred/backlog work.
 - Latest unit/platform test run: 2026-10-27, `make check`, **537 tests, zero failures/errors,
   10 opt-in skips**. The small literal-verification optimization and its synthetic before/after
   benchmark are recorded in the source-filter report.
-- Latest recorded packaged compatibility evidence: 2026-10-26, 536 tests with 10 opt-in skips;
-  offline build/verification against IU-262.10968.63 and IU-263.7307.44, ZIP integrity passed.
-  Packaging/Plugin Verifier were not rerun for the internal literal-verification optimization.
+- Latest packaged validation: 2026-10-27, `make release` and `./gradlew verifyPlugin --offline`;
+  0.8.1 passed 537 tests (10 opt-in skips), ZIP integrity/content inspection and compatibility on
+  IU-262.10968.63 / IU-263.7307.44 with the existing API warnings. Artifact SHA-256 and details are
+  in the source-filter report. This build does not complete the remaining manual/platform checks.
 - [SQLite experiment](docs/sqlite-bm25-benchmark.md) and [local semantic prototype](docs/semantic-search-prototype.md)
   remain historical measurements with their original caveats and reproducible commands.
 - Historical worktree work and unfinished checks remain in Git at `e598a18:PLAN.md`; the earlier

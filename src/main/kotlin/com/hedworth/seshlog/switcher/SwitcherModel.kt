@@ -50,18 +50,53 @@ internal data class SwitcherRow(
 internal object SwitcherSearch {
     const val LIMIT = 200
     const val MAX_QUERY = 4096
+
+    private data class Match(val row: SwitcherRow, val weakest: Int, val total: Int, val titlePhrase: Int)
+
     fun find(rows: List<SwitcherRow>, query: String): List<SwitcherRow> {
         if (query.length > MAX_QUERY) return emptyList()
         val terms = query.lowercase(Locale.ROOT).split(Regex("\\s+")).filter(String::isNotBlank)
-        return rows.asSequence().filterNot { it.hidden }.filter { row ->
+        val phrase = terms.joinToString(" ")
+        return rows.asSequence().filterNot { it.hidden }.mapNotNull { row ->
             if (Thread.currentThread().isInterrupted) throw java.util.concurrent.CancellationException()
             val s = row.session
-            val fields = listOf(row.title, s.title, s.cwd.toString(), row.checkout?.root?.toString().orEmpty(),
-                s.gitBranch.orEmpty(), row.checkout?.branch.orEmpty()) + row.projectNames
-            val folded = fields.map { it.lowercase(Locale.ROOT) }
-            terms.all { term -> folded.any { term in it } }
-        }.sortedWith(compareByDescending<SwitcherRow> { it.session.lastActivityAt }
-            .thenBy { it.session.kind.name }.thenBy { it.session.id }).toList()
+            val titles = listOf(row.title, s.title).map { it.lowercase(Locale.ROOT) }
+            val metadata = (row.projectNames + listOf(s.gitBranch.orEmpty(), row.checkout?.branch.orEmpty()))
+                .map { it.lowercase(Locale.ROOT) }
+            val paths = listOf(s.cwd.toString(), row.checkout?.root?.toString().orEmpty())
+                .map { it.lowercase(Locale.ROOT) }
+            var weakest = 0
+            var total = 0
+            for (term in terms) {
+                val rank = when {
+                    titles.any { hasWordPrefix(it, term) } -> 0
+                    titles.any { term in it } -> 1
+                    metadata.any { term in it } -> 2
+                    paths.any { term in it } -> 3
+                    else -> return@mapNotNull null
+                }
+                weakest = maxOf(weakest, rank)
+                total += rank
+            }
+            val titlePhrase = when {
+                phrase.isEmpty() || titles.any { it == phrase } -> 0
+                titles.any { it.startsWith(phrase) } -> 1
+                titles.any { hasWordPrefix(it, phrase) } -> 2
+                else -> 3
+            }
+            Match(row, weakest, total, titlePhrase)
+        }.sortedWith(compareBy<Match> { it.weakest }.thenBy { it.total }.thenBy { it.titlePhrase }
+            .thenByDescending { it.row.session.lastActivityAt }
+            .thenBy { it.row.session.kind.name }.thenBy { it.row.session.id }).map { it.row }.toList()
+    }
+
+    private fun hasWordPrefix(text: String, term: String): Boolean {
+        var index = text.indexOf(term)
+        while (index >= 0) {
+            if (index == 0 || !text[index - 1].isLetterOrDigit()) return true
+            index = text.indexOf(term, index + 1)
+        }
+        return false
     }
 }
 
@@ -93,8 +128,9 @@ internal class SwitcherResults {
         val retained = if (sameQuery) rows.mapNotNull { byKey[it.key]?.takeIf { row -> row.key in eligible } } else emptyList()
         val retainedKeys = retained.mapTo(HashSet()) { it.key }
         rows = (retained + matches.filter { it.key in eligible && it.key !in retainedKeys }).take(SwitcherSearch.LIMIT)
-        selected = selected?.takeIf { key -> rows.any { it.key == key } }
-            ?: if (!sameQuery || wasEmpty) rows.firstOrNull()?.key else null
+        selected = if (!sameQuery) rows.firstOrNull()?.key
+        else selected?.takeIf { key -> rows.any { it.key == key } }
+            ?: if (wasEmpty) rows.firstOrNull()?.key else null
         appliedQuery = query
         pending = false
         return true

@@ -2,25 +2,30 @@
 
 Implemented scope, 2026-10-27: metadata navigation across the shared SessionIndex, independent of
 tool-window project/provider/date/hidden-view filters. Locally hidden sessions are always excluded.
-The Find Action/Keymap entry is **Seshlog: Switch Session / Worktree** (`Seshlog.SwitchSession`), with
-no default shortcut. It requires an open project. No provider parsers or search persistence changed.
+The Find Action/Keymap entry is **Seshlog: Switch Session / Worktree** (`Seshlog.SwitchSession`).
+The default shortcut is **⌘⌥S** on macOS and **Ctrl+Alt+Shift+P** on Windows/Linux; users can change it
+in Keymap settings. It requires an open project. No provider parsers or search persistence changed.
 
 ## Behavior and implementation
 
 - Empty query sorts by last session activity, with deterministic agent/id ties. All whitespace-separated
   words must appear in local/provider titles, project names, cwd/checkout paths or recorded/observed
   branches, ignoring case. This is literal metadata search, without BM25, transcript reads or HTTP.
-  The query limit is 4,096 characters. Filtering precedes the 200-row display limit.
+  For non-empty queries, title word prefixes and title substrings rank ahead of project/branch matches,
+  which rank ahead of path-only matches. For queries spanning fields, the weakest word match then overall
+  match quality determine the order. Ordered title phrases are preferred within equal match quality;
+  recency breaks ties. The query limit is 4,096 characters. Filtering precedes the 200-row display limit.
 - `SessionSwitcherPanel` captures immutable metadata and app-wide hidden/unread state. It subscribes
   to index/organisation/attention events and checks cached terminal ownership/open projects every
   1.5 seconds while open. Filtering uses one bounded worker with 100 ms debounce. Popup generations
   reject older query/metadata results, cancellation stops superseded filtering, and disposal removes
   subscriptions, timers and queued work. Separate popups have separate lifetimes.
 - `SwitcherResults` preserves surviving match order during refresh, appending new matches. At the
-  200-row limit, current recency determines membership while the selected matching row is protected;
-  recent arrivals evict lower-priority unselected rows. Selection
+  200-row limit, current ranking determines membership while the selected matching row is protected;
+  higher-ranked arrivals evict lower-priority unselected rows. Selection
   uses provider/id, not row index. Removing the selected row clears selection and disables actions.
-  A new query can choose the first result. Reopening uses fresh recency order. The viewport is retained
+  A changed query selects its first result; same-query refresh preserves the user's selection. Reopening
+  with an empty query uses fresh recency order. The viewport is retained
   on refresh. Pins and unread do not change ranking; there is no separate navigation-history store.
 - Rows show literal titles, agent, project/checkout path, branch, activity, unread and availability.
   Activity/unread stay beside the title so long paths do not push them out of view. Accessible names

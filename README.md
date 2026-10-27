@@ -115,11 +115,12 @@ opens the next session needing attention.
 
 ### Quick session / worktree switcher
 
-Use **Find Action → Seshlog: Switch Session / Worktree**, or assign it a shortcut under
-**Settings → Keymap** (unassigned by default). An open project is required. Empty search shows
+Use **⌘⌥S** on macOS, **Ctrl+Alt+Shift+P** on Windows/Linux, or **Find Action → Seshlog: Switch Session / Worktree**.
+The shortcut can be changed in **Settings → Keymap**. An open project is required. Empty search shows
 recently active sessions; type words from a local or agent title, project name/path, or recorded or
 observed branch. All words must match somewhere in that metadata, case-insensitively. Conversation
-text is not searched. Up/Down selects a row; Enter focuses its verified associated terminal and
+text is not searched. Title matches are favoured over project, branch and path matches, with recency
+breaking ties. Up/Down selects a row; Enter focuses its verified associated terminal and
 project window. Activity and unread badges use the existing session state; selecting a row alone
 does not mark it read.
 

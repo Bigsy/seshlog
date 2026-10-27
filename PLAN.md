@@ -81,6 +81,16 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   reports Compatible on IU-262.10968.63 / IU-263.7307.44 with unchanged warnings; ZIP integrity
   and nested-JAR content checks passed. Artifact hash and limits are recorded in the report.
 
+- [x] Improve switcher search ranking and add default shortcuts: prefer title word prefixes and
+  substrings over project/branch and path matches, use recency to break ties, and select the first
+  result when the query changes while preserving selection during same-query refresh. Register
+  ⌘⌥S on macOS and Ctrl+Alt+Shift+P on Windows/Linux; keep them configurable in Keymap settings.
+  Cover relevance, cross-field matching, selection and shortcut registration with synthetic tests.
+  Run `make check`; manual shortcut and switcher acceptance in the synthetic sandbox remains owed.
+  Completed 2026-10-27: the full offline test suite passed 581 tests, zero failures/errors and 10
+  opt-in skips. Plugin Verifier reports Compatible on IU-262.10968.63 / IU-263.7307.44 with
+  unchanged API warning counts. The previously running sandbox needs restarting to load these changes.
+
 ### Search settings layout cleanup (user priority, 2026-10-27)
 
 - [x] Simplify the Search settings section: a concise status/empty state, one refresh action,

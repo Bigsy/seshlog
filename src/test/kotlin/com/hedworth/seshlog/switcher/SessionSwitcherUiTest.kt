@@ -3,13 +3,29 @@ package com.hedworth.seshlog.switcher
 import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentFilterState
 import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.KeyboardShortcut
+import com.intellij.openapi.keymap.KeymapManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import javax.swing.KeyStroke
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JLabel
 
 class SessionSwitcherUiTest : BasePlatformTestCase() {
+    fun `test default shortcuts are registered for macOS and other platforms`() {
+        assertNotNull(ActionManager.getInstance().getAction("Seshlog.SwitchSession"))
+        val keymaps = KeymapManager.getInstance()
+        val common = KeyboardShortcut(KeyStroke.getKeyStroke("control alt shift P"), null)
+        val mac = KeyboardShortcut(KeyStroke.getKeyStroke("meta alt S"), null)
+        assertTrue(common in keymaps.getKeymap("\$default")!!.getShortcuts("Seshlog.SwitchSession"))
+        for (name in listOf("Mac OS X", "Mac OS X 10.5+")) {
+            val shortcuts = keymaps.getKeymap(name)!!.getShortcuts("Seshlog.SwitchSession")
+            assertTrue("$name should use the macOS shortcut", mac in shortcuts)
+            assertFalse("$name should not inherit the other platform shortcut", common in shortcuts)
+        }
+    }
+
     fun `test registered keyboard action and stopped enter offer explicit resume without changing filters`() {
         assertNotNull(ActionManager.getInstance().getAction("Seshlog.SwitchSession"))
         val filter = AgentFilterState.getInstance(project)

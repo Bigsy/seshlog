@@ -3,6 +3,8 @@ package com.hedworth.seshlog.claude
 import com.google.gson.JsonParser
 import com.intellij.openapi.diagnostic.logger
 import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.time.Instant
 
@@ -20,6 +22,8 @@ data class LiveSession(
     val statusUpdatedAt: Instant? = null,
 )
 
+internal data class LiveSessionScan(val sessions: Map<String, LiveSession>, val problem: String? = null)
+
 /**
  * Reads `~/.claude/sessions/<pid>.json`. A session counts as live only when the file exists
  * **and** the pid is still alive — stale files are left behind by hard-killed processes.
@@ -27,21 +31,33 @@ data class LiveSession(
 object LiveSessionReader {
     private val LOG = logger<LiveSessionReader>()
 
-    fun read(sessionsDir: Path, isAlive: ((Long) -> Boolean)? = null): Map<String, LiveSession> {
-        if (!Files.isDirectory(sessionsDir)) return emptyMap()
+    fun read(sessionsDir: Path, isAlive: ((Long) -> Boolean)? = null): Map<String, LiveSession> =
+        readWithDiagnostics(sessionsDir, isAlive).sessions
+
+    /** An absent optional directory is normal; failed enumeration is incomplete liveness evidence. */
+    internal fun readWithDiagnostics(
+        sessionsDir: Path,
+        isAlive: ((Long) -> Boolean)? = null,
+        listFiles: (Path) -> List<Path> = { directory ->
+            Files.list(directory).use { stream -> stream.filter { it.fileName.toString().endsWith(".json") }.toList() }
+        },
+    ): LiveSessionScan {
         val result = HashMap<String, LiveSession>()
         val files = try {
-            Files.list(sessionsDir).use { stream -> stream.filter { it.fileName.toString().endsWith(".json") }.toList() }
+            listFiles(sessionsDir)
         } catch (e: Exception) {
+            if (e is NoSuchFileException && Files.notExists(sessionsDir, LinkOption.NOFOLLOW_LINKS)) {
+                return LiveSessionScan(emptyMap())
+            }
             LOG.debug("Cannot list $sessionsDir", e)
-            return emptyMap()
+            return LiveSessionScan(emptyMap(), "Cannot list live-session directory: $sessionsDir")
         }
         for (file in files) {
             val live = parse(file) ?: continue
             if (!(isAlive?.invoke(live.pid) ?: isCurrent(file, live))) continue
             result[live.sessionId] = live
         }
-        return result
+        return LiveSessionScan(result)
     }
 
     fun parse(file: Path): LiveSession? = try {

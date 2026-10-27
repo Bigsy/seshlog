@@ -8,6 +8,25 @@ import org.junit.Test
 import java.nio.file.Path
 
 class SwitcherMetadataTest {
+    @Test fun `nested non-Git sessions search the most specific containing project names`() {
+        val root = Path.of("/synthetic/project")
+        val nested = root.resolve("nested")
+        val names = mapOf(root to listOf("Custom Parent"), nested to listOf("Custom Child", "Alias"))
+        fun rows(directory: Path, checkout: Checkout? = null): List<SwitcherRow> {
+            val session = switchSession().copy(cwd = directory, checkout = checkout, gitBranch = null)
+            val paths = ResolvedPaths.resolve(setOf(directory), resolver = { it },
+                repositoryResolver = { null }, checkoutResolver = { _, _ -> checkout })
+            return switcherRows(listOf(session), paths, names, emptySet(), emptySet(), { it.title }, { false })
+        }
+        assertEquals(1, SwitcherSearch.find(rows(root.resolve("src")), "Custom Parent").size)
+        val child = rows(nested.resolve("src"))
+        assertEquals(listOf("Custom Child", "Alias"), child.single().projectNames)
+        assertEquals(1, SwitcherSearch.find(child, "Custom Child Alias").size)
+        assertTrue(rows(Path.of("/synthetic/project-other/src")).single().projectNames.isEmpty())
+        val checkout = switchSession().checkout!!.copy(root = nested.resolve("repo"))
+        assertTrue(rows(checkout.root.resolve("src"), checkout).single().projectNames.isEmpty())
+    }
+
     @Test fun `Pi and opencode rows search observed branches without inventing agent location provenance`() {
         for (kind in listOf(AgentKind.PI, AgentKind.OPENCODE)) {
             val original = switchSession()

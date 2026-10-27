@@ -59,6 +59,17 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   IU-262.10968.63 / IU-263.7307.44 with unchanged warning counts. Report records artifact hash
   and the explicit retry behavior for busy worktrees; no physical acceptance rows were passed.
 
+- [x] Switcher edge-case follow-up (one focused commit): distinguish absent Claude live-marker
+  directories from failed enumeration and propagate incomplete liveness evidence to provider health,
+  so action rescans cannot authorize Resume. Attach the most specific containing project's names
+  to nested non-Git sessions without crossing known checkout boundaries. Add permanent synthetic
+  regressions, run `make check` and package/compatibility checks, and record the results in
+  `docs/session-switcher.md`. Physical switcher/search acceptance remains outstanding.
+  Completed 2026-10-27 in **Reject incomplete Claude liveness and match nested project names**:
+  `make check` / `make release` passed 568 tests, zero failures/errors, 10 opt-in skips; offline
+  Plugin Verifier reports Compatible on IU-262.10968.63 / IU-263.7307.44 with unchanged warnings.
+  ZIP integrity/content inspection passed; the report records the artifact hash and remaining limits.
+
 ### Performance decision: small wins only
 
 User direction, 2026-10-27: take small, measured optimizations, then drop the broader performance

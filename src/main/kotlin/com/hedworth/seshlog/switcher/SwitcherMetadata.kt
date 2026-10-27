@@ -12,7 +12,10 @@ internal fun switcherRows(sessions: List<Session>, paths: ResolvedPaths, project
                           hidden: (Session) -> Boolean): List<SwitcherRow> =
     switcherSessions(sessions, associated).map { session ->
         val observed = session.checkout ?: paths.checkout(session.cwd)
-        SwitcherRow(session, title(session), projectNames[observed?.root ?: paths.canonical(session.cwd)].orEmpty(),
+        val directory = paths.canonical(session.cwd)
+        val names = if (observed != null) projectNames[observed.root] else
+            projectNames.entries.filter { directory.startsWith(it.key) }.maxByOrNull { it.key.nameCount }?.value
+        SwitcherRow(session, title(session), names.orEmpty(),
             hidden(session), session.id in associated, session.id in unread, observed)
     }
 

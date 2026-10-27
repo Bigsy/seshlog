@@ -28,6 +28,8 @@ no default shortcut. It requires an open project. No provider parsers or search 
   terminal visibility/receipt handling still owns acknowledgement.
   Pi/opencode rows use the index's already-resolved checkout snapshot for branch/path search and
   presentation, without inventing agent location provenance or enabling worktree opening from it.
+  Nested non-Git sessions include the most specific containing open project's names and aliases;
+  known checkouts still require an exact checkout-root match for project names.
   Explicit continuation links are collapsed before hidden filtering, using the main list's policy;
   independently live/associated predecessors remain visible and missing links/cycles stay usable.
 - Enter focuses an associated terminal, including another open project's window. It captures the
@@ -44,7 +46,10 @@ no default shortcut. It requires an open project. No provider parsers or search 
   retain their original event names. Resume adds `worktree_resume_launched`.
   `requireFreshScan` requires a completed, published scan with READY health for the selected provider,
   including the rescan after opening. Timeout, failure, discarded results and unavailable providers
-  block launch. Busy worktree requests explicitly return rejection and leave the popup open for
+  block launch. Claude live-marker directory enumeration failures also mark provider health as ERROR,
+  preserving readable history while preventing Resume. A genuinely absent optional marker directory
+  remains valid; a non-directory or dangling symlink does not. Busy worktree requests explicitly
+  return rejection and leave the popup open for
   retry; distinct resumes are never silently treated as the same request. Opening remains serialized
   per checkout, and rejected requests are not automatically queued.
 - Non-linked directories use the most specific containing project directory, requiring the same
@@ -118,6 +123,31 @@ and the `WatchRootRegistration` generated-copy visibility warning. `git diff --c
 A successful scan is not an atomic lock against an independent external CLI starting afterwards;
 the fix removes the known failure path that accepted stale state after an unsuccessful rescan.
 Physical UI/platform acceptance is still owed. No daily IDE installation or publication occurred.
+
+## Edge-case follow-up, 2026-10-27
+
+**Reject incomplete Claude liveness and match nested project names** addresses the two remaining
+review findings. The provider propagates live-marker enumeration failure to the existing fresh-scan
+gate; the reader no longer treats access errors as a successful empty scan. Project-name matching
+uses already-canonical metadata, with no filesystem work added to popup capture or rendering.
+
+Permanent synthetic regressions cover denied enumeration, iteration failure, absent/empty marker
+directories, a dangling directory symlink, provider health and Resume eligibility after enumeration
+failure/recovery, custom names/aliases on nested non-Git sessions, path-prefix collisions and known
+checkout boundaries. The provider and project-name regressions both failed before the implementation
+change. Individual malformed marker parsing remains tolerant, as before; this change specifically
+closes failed directory enumeration. External CLI startup is still not atomically locked by a scan.
+
+`make check` and `make release` passed **568 tests, zero failures/errors, 10 opt-in skips** (four new
+tests). ZIP integrity and nested-JAR content checks passed with no test/fixture/transcript/database/
+model leakage. The 0.8.1 ZIP is **13,283,298 bytes**, SHA-256
+`5324a9674855f1abc3b1401e72321c995c4114f82e3e69ad8077b783ed9595d7`.
+
+`./gradlew verifyPlugin --offline` passed with Verifier 1.411: **Compatible** on IU-262.10968.63 and
+IU-263.7307.44. Warning counts remain 2 scheduled for removal each, 16/19 deprecated and 65/58
+experimental usages; the optional IDE layout warnings remain. `git diff --check` passed.
+Physical UI acceptance remains outstanding, along with all existing search acceptance checks;
+the performance follow-up stays closed. No daily-IDE installation or publication was performed.
 
 ## Manual acceptance still owed
 

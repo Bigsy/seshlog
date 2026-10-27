@@ -67,7 +67,9 @@ class ClaudeCodeSessionProvider(
         scanProblem = null
         val projects = projectsDir()
         if (!Files.isDirectory(projects)) return emptyList()
-        val live = LiveSessionReader.read(sessionsDir())
+        val liveScan = LiveSessionReader.readWithDiagnostics(sessionsDir())
+        scanProblem = liveScan.problem
+        val live = liveScan.sessions
 
         val transcripts = listTranscripts(projects)
         cache.retainOnly(transcripts.toSet())

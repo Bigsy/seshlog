@@ -1,6 +1,10 @@
 package com.hedworth.seshlog.claude
 
 import com.hedworth.seshlog.model.EntryKind
+import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.model.ProviderHealth
+import com.hedworth.seshlog.model.ProviderScan
+import com.hedworth.seshlog.index.ActionScanSnapshot
 import com.hedworth.seshlog.index.SessionContinuations
 
 import java.time.Instant
@@ -16,6 +20,29 @@ import java.nio.file.Paths
 class ClaudeCodeSessionProviderTest {
     @get:Rule
     val tmp = TemporaryFolder()
+
+    @Test
+    fun `unlistable live marker directory keeps history but cannot authorize resume and recovers`() {
+        val root = tmp.root.toPath()
+        val project = Files.createDirectories(root.resolve("projects/example"))
+        val fixture = Paths.get(javaClass.getResource("/fixtures/ai_title_only.jsonl")!!.toURI())
+        Files.copy(fixture, project.resolve("session.jsonl"))
+        val provider = ClaudeCodeSessionProvider({ root }, { "claude" })
+        val kind = AgentKind.CLAUDE_CODE
+        fun ready(scan: ProviderScan) = ActionScanSnapshot(mapOf(kind to scan.health)).ready(kind)
+
+        assertTrue(ready(provider.scanWithDiagnostics(emptyMap()))) // Optional directory absent.
+        val markers = Files.writeString(root.resolve("sessions"), "not a directory")
+        val failed = provider.scanWithDiagnostics(emptyMap())
+        assertEquals(1, failed.sessions.size)
+        assertTrue(!failed.sessions.single().isLive)
+        assertEquals(ProviderHealth.ERROR, failed.health)
+        assertTrue(!ready(failed))
+
+        Files.delete(markers)
+        Files.createDirectory(markers)
+        assertTrue(ready(provider.scanWithDiagnostics(emptyMap()))) // Error is not sticky.
+    }
 
     @Test
     fun `continued transcripts stay indexed but list uses latest metadata after cache reload`() {

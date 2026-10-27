@@ -14,6 +14,26 @@ class LiveSessionReaderTest {
     val tmp = TemporaryFolder()
 
     @Test
+    fun `failed enumeration differs from an absent or successfully empty marker directory`() {
+        val dir = tmp.newFolder("unreadable").toPath()
+        for (failure in listOf(java.nio.file.AccessDeniedException(dir.toString()),
+            java.io.UncheckedIOException(java.io.IOException("directory iteration failed")))) {
+            val scan = LiveSessionReader.readWithDiagnostics(dir, listFiles = { throw failure })
+            assertTrue(scan.sessions.isEmpty())
+            assertTrue(scan.problem != null)
+        }
+        assertEquals(null, LiveSessionReader.readWithDiagnostics(dir).problem)
+        assertEquals(null, LiveSessionReader.readWithDiagnostics(dir.resolve("absent")).problem)
+    }
+
+    @Test
+    fun `a dangling live marker directory symlink is incomplete evidence`() {
+        val dir = tmp.newFolder("broken-link").toPath()
+        val link = Files.createSymbolicLink(dir.resolve("sessions"), dir.resolve("missing-target"))
+        assertTrue(LiveSessionReader.readWithDiagnostics(link).problem != null)
+    }
+
+    @Test
     fun `stale pid files are not live`() {
         val dir = tmp.newFolder("sessions").toPath()
         val fixture = Paths.get(javaClass.getResource("/fixtures/live_session.json")!!.toURI())

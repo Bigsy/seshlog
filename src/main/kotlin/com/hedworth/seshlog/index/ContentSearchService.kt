@@ -130,15 +130,15 @@ class ContentSearchService : Disposable {
             when (action) {
                 CacheAction.REFRESH -> {
                     index.refresh()
-                    "Source buffers refreshed; saved postings will be revalidated and reused."
+                    "Sources refreshed. Saved index data will be checked and reused on your next search."
                 }
                 CacheAction.REBUILD -> {
                     index.rebuildSavedIndex { LexicalSearchStore.reset(cachePath) }
-                    "Lexical index will rebuild locally. The previous database was kept as lexical-recovery in the cache directory."
+                    "The index will rebuild on your next search. A recovery copy is saved in the index folder."
                 }
                 CacheAction.CLEAR -> {
                     index.rebuildSavedIndex { LexicalSearchStore.purge(cachePath) }
-                    "Saved lexical indexes, including recovery files, cleared."
+                    "Search index and recovery copies cleared. Your agent conversations are unchanged."
                 }
                 CacheAction.RETRY -> {
                     index.retry()

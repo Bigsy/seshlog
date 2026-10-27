@@ -5,6 +5,7 @@ import com.hedworth.seshlog.ui.actions.OpenSessionDiagnosticsAction
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
+import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindItem
@@ -103,8 +104,8 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                 }.comment("The most recent user prompts and assistant replies of the selected session.")
             }
             group("Search") {
-                row { comment("Local SQLite BM25 search. Saved terms and positions can reveal conversation content; no raw transcript copies or query history are saved. The index stays in this IDE profile and is excluded from Settings Sync. Exports are sensitive data.") }
-                row { cell(SearchCachePanel()) }
+                row { comment("Search stays on this device. The saved index can reveal conversation content.", maxLineLength = 45) }
+                row { cell(SearchCachePanel()).align(AlignX.FILL).resizableColumn() }
             }
             group("Session Diagnostics") {
                 row {

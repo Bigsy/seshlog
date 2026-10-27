@@ -238,15 +238,18 @@ raw conversation content and snippets stay in memory. Search terms, positions, s
 
 All supported sources, including tools, are indexed within the shared limits. **Search in**
 restricts query evidence, ranking and navigation; it does not change collection or retention.
-Switching sources reuses compatible postings. Source preferences are IDE settings and are not
-included in a search-index export.
+Switching sources reuses compatible postings. Source preferences are IDE settings.
 
-Settings → Tools → Seshlog → Search shows cache usage and offers Refresh, Rebuild, Clear, Retry, Open cache location and explicit export/import. Refresh revalidates and reuses saved postings; Rebuild/ Clear cause local reindexing on the next search. Exports contain sensitive lexical data, without the original conversations or foreign absolute source paths. Import validates discovered local sources, including relocated files, before using their postings. Missing transcripts cannot be displayed or resumed from the index alone. Unavailable storage falls back to a temporary local index with a coverage message. A second IDE using the same profile must close its saved index before maintenance can proceed.
+Settings → Tools → Seshlog → Search shows index usage and a **Refresh** action. **Manage index…**
+contains Retry, Rebuild and Clear. **Storage and privacy** explains what is saved and lets you copy
+the index path or open its folder. Refresh checks and reuses saved data; Rebuild and Clear cause
+local reindexing on the next search. Import and Export are no longer offered: rebuilding from local
+sources is inexpensive. Unavailable storage falls back to a temporary local index with a coverage
+message. A second IDE using the same profile must close its saved index before maintenance can proceed.
 
 Source filtering uses index format 3. Older format-2 indexes are preserved and use correctly
 filtered temporary search until you explicitly choose **Rebuild**. Rebuild retains a recovery
-copy and re-extracts local sources once. Old-format exports must be rebuilt and exported again
-in the original IDE before importing; import never changes the saved source preference.
+copy and re-extracts local sources once.
 
 Agent SQLite metadata reads use read-only
 connections; SQLite can update an existing shared-memory index while leaving stored sessions unchanged.

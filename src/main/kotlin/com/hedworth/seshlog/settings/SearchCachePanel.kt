@@ -2,59 +2,80 @@ package com.hedworth.seshlog.settings
 
 import com.hedworth.seshlog.index.ContentSearchService
 import com.intellij.ide.actions.RevealFileAction
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.Row
+import com.intellij.ui.dsl.builder.columns
+import com.intellij.ui.dsl.builder.panel
 import java.awt.BorderLayout
-import java.awt.FlowLayout
 import javax.swing.*
 
 /** Immediate cache actions are independent of configurable Apply and never run SQL on the EDT. */
-internal class SearchCachePanel : JPanel(BorderLayout(0, 6)) {
+internal class SearchCachePanel : JPanel(BorderLayout()) {
     private val service = ContentSearchService.getInstance()
-    private val status = JLabel("Reading lexical index status…")
-    private val result = JLabel(" ")
-    private val buttons = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0))
+    private val status = JLabel("Reading search index…")
+    private val coverage = JLabel()
+    private val result = JBTextArea().apply {
+        isEditable = false
+        isOpaque = false
+        columns = 28
+        lineWrap = true
+        wrapStyleWord = true
+        border = null
+        minimumSize = java.awt.Dimension(0, 0)
+        font = status.font
+        accessibleContext.accessibleName = "Search index action result"
+    }
+    private lateinit var resultRow: Row
+    private lateinit var coverageRow: Row
+    private val refreshButton = JButton("Refresh")
+    private val manageButton = JButton("Manage index…")
 
     init {
-        add(
-            JPanel(java.awt.GridLayout(0, 1)).apply {
-                add(status)
-                add(JLabel(service.cachePath.toString()))
-                add(result)
-            },
-            BorderLayout.NORTH,
-        )
-        fun button(label: String, action: () -> Unit) {
-            buttons.add(JButton(label).apply { addActionListener { action() } })
+        refreshButton.toolTipText = "Check local sources again on the next search, reusing saved index data"
+        refreshButton.addActionListener { action(ContentSearchService.CacheAction.REFRESH) }
+        manageButton.addActionListener { showActions() }
+        add(panel {
+            row { cell(status) }
+            coverageRow = row { cell(coverage) }.visible(false)
+            row {
+                cell(refreshButton)
+                cell(manageButton)
+            }
+            resultRow = row { cell(result).align(AlignX.FILL).resizableColumn() }.visible(false)
+            collapsibleGroup("Storage and privacy") {
+                row { comment("Search runs locally. The saved index contains words and positions that can reveal conversation content. No raw transcript copies or query history are saved.", maxLineLength = 45) }
+                row { comment("The index stays in this IDE profile and is excluded from Settings Sync.", maxLineLength = 45) }
+                row("Index file:") {
+                    textField().columns(24).applyToComponent {
+                        text = service.cachePath.toString()
+                        isEditable = false
+                        caretPosition = 0
+                        toolTipText = text
+                    }.align(AlignX.FILL).resizableColumn()
+                }
+                row { button("Open index folder") { RevealFileAction.openDirectory(service.cachePath.parent) } }
+            }
+        }, BorderLayout.CENTER)
+        refresh()
+    }
+
+    private fun showActions() {
+        val menu = JPopupMenu()
+        fun item(label: String, action: () -> Unit) {
+            menu.add(JMenuItem(label).apply { addActionListener { action() } })
         }
-        button("Refresh") { action(ContentSearchService.CacheAction.REFRESH) }
-        button("Rebuild…") {
-            if (confirm("Rebuild the lexical index? The next search reindexes local sources."))
+        item("Retry opening index") { action(ContentSearchService.CacheAction.RETRY) }
+        item("Rebuild index…") {
+            if (confirm("Rebuild the search index? Local sources will be indexed on your next search. A recovery copy of the current index will be kept."))
                 action(ContentSearchService.CacheAction.REBUILD)
         }
-        button("Clear…") {
-            if (confirm("Clear the saved lexical index? Conversations remain in agent storage."))
+        item("Clear index…") {
+            if (confirm("Clear the saved search index and recovery copies? Your agent conversations will not be changed."))
                 action(ContentSearchService.CacheAction.CLEAR)
         }
-        button("Retry") { action(ContentSearchService.CacheAction.RETRY) }
-        button("Export…") {
-            if (
-                confirm(
-                    "Exports contain sensitive words and their positions. Save only to a trusted location."
-                )
-            ) {
-                val chooser =
-                    JFileChooser().apply { selectedFile = java.io.File("seshlog-lexical.sqlite") }
-                if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION)
-                    service.export(chooser.selectedFile.toPath(), ::completed)
-            }
-        }
-        button("Import…") {
-            val chooser = JFileChooser()
-            if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION)
-                service.importSnapshot(chooser.selectedFile.toPath(), ::completed)
-        }
-        button("Open cache location") { RevealFileAction.openDirectory(service.cachePath.parent) }
-        add(buttons, BorderLayout.CENTER)
-        refresh()
+        menu.show(manageButton, 0, manageButton.height)
     }
 
     private fun confirm(message: String) =
@@ -66,19 +87,35 @@ internal class SearchCachePanel : JPanel(BorderLayout(0, 6)) {
         ) == JOptionPane.OK_OPTION
 
     private fun action(action: ContentSearchService.CacheAction) {
-        result.text = "Working…"
+        working()
         service.maintain(action, ::completed)
+    }
+
+    private fun working() {
+        refreshButton.isEnabled = false
+        manageButton.isEnabled = false
+        result.text = "Working…"
+        resultRow.visible(true)
     }
 
     private fun completed(message: String) {
         result.text = message
+        refreshButton.isEnabled = true
+        manageButton.isEnabled = true
+        revalidate()
         refresh()
     }
 
     private fun refresh() {
         service.status {
-            status.text =
-                "${it.sources} saved sources · ${it.bytes/1024} KiB · ${it.coverage.indexed}/${it.coverage.eligible} last search sources indexed"
+            val sources = when (it.sources) {
+                0 -> "No sources indexed yet"
+                1 -> "1 indexed source"
+                else -> "${it.sources} indexed sources"
+            }
+            status.text = "$sources · ${StringUtil.formatFileSize(it.bytes)} on disk"
+            coverage.text = "Last search: ${it.coverage.indexed} of ${it.coverage.eligible} sources indexed"
+            coverageRow.visible(it.coverage.eligible > 0)
         }
     }
 }

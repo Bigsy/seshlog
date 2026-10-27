@@ -81,6 +81,20 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   reports Compatible on IU-262.10968.63 / IU-263.7307.44 with unchanged warnings; ZIP integrity
   and nested-JAR content checks passed. Artifact hash and limits are recorded in the report.
 
+### Search settings layout cleanup (user priority, 2026-10-27)
+
+- [x] Simplify the Search settings section: a concise status/empty state, one refresh action,
+  maintenance actions in a menu, expandable storage/privacy details and wrapped action
+  feedback. Remove Import/Export from settings per user direction; retain local-storage disclosures
+  and existing maintenance semantics. Inspect synthetic renders,
+  run `make check` and compatibility checks, and record remaining physical UI checks.
+  This does not reopen the closed performance follow-up or complete search/switcher acceptance.
+  Completed in **Simplify local search settings**: `make check` passed 571 tests, zero failures/errors,
+  10 opt-in skips. Inspected synthetic wide and 420-pixel narrow renders, including expanded details
+  and wrapped completion feedback. No new behavioral tests for this presentation change; the temporary
+  renderer was removed. Physical settings/menu/keyboard/theme checks remain owed. Compatibility and
+  packaging will also be checked with the following diagnostics preference change.
+
 ### Performance decision: small wins only
 
 User direction, 2026-10-27: take small, measured optimizations, then drop the broader performance

@@ -214,10 +214,14 @@ their existing session behaviour.
 
 If a terminal loses its session association, run **Seshlog: Open Session Diagnostics** from
 **Find Action**, or use **Settings → Tools → Seshlog → Session Diagnostics**. The session context
-menu also offers it. This marks the incident and reveals the log file; when invoked from a session
+menu also offers it. When recording is enabled, this marks the incident and reveals the log file; when invoked from a session
 or its terminal, the marker includes its reference when available.
 
-Diagnostics are always on and stay in the running IDE's log directory under `seshlog/`.
+Diagnostics are enabled by default and stay **only on this computer**, in the running IDE's log
+folder under `seshlog/`. They are never uploaded or sent anywhere. Uncheck **Record session
+diagnostics** in Settings → Tools → Seshlog and Apply to stop new recording. Existing files remain
+available through Open Session Diagnostics, which does not re-enable logging. Queued writes that
+have not started are skipped; a write already in progress may finish.
 `sessions.jsonl` and three rotated backups retain **at most 20 MiB** in total. Copy all four after
 the problem occurs and note the time and agent version. Sandbox `make run` IDEs and normal installed
 IDEs have separate logs; the action finds the correct directory in either one.

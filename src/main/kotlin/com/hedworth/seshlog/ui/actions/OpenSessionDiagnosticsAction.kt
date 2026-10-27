@@ -2,6 +2,7 @@ package com.hedworth.seshlog.ui.actions
 
 import com.hedworth.seshlog.diagnostics.DiagnosticRef
 import com.hedworth.seshlog.diagnostics.SessionDiagnostics
+import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.hedworth.seshlog.terminal.TerminalTabs
 import com.intellij.ide.actions.RevealFileAction
@@ -12,6 +13,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import java.nio.file.Files
 
 class OpenSessionDiagnosticsAction : DumbAwareAction("Seshlog: Open Session Diagnostics") {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
@@ -30,10 +32,15 @@ class OpenSessionDiagnosticsAction : DumbAwareAction("Seshlog: Open Session Diag
             val app = ApplicationManager.getApplication()
             app.executeOnPooledThread {
                 val diagnostics = SessionDiagnostics.getInstance()
-                val written = diagnostics.flush()
+                val written = !SeshlogSettings.getInstance().sessionDiagnosticsEnabled || diagnostics.flush()
+                val exists = Files.isRegularFile(diagnostics.files.current)
                 app.invokeLater {
                     if (!app.isDisposed && project?.isDisposed != true) {
-                        if (written) RevealFileAction.openFile(diagnostics.files.current)
+                        if (written && exists) RevealFileAction.openFile(diagnostics.files.current)
+                        else if (!SeshlogSettings.getInstance().sessionDiagnosticsEnabled)
+                            NotificationGroupManager.getInstance().getNotificationGroup("Seshlog")
+                                .createNotification("Session diagnostic logging is turned off. Enable Record session diagnostics in Seshlog settings to create local logs.", NotificationType.INFORMATION)
+                                .notify(project)
                         else NotificationGroupManager.getInstance().getNotificationGroup("Seshlog")
                             .createNotification("Session diagnostics could not be flushed. Try again, or check idea.log for a diagnostics write failure.", NotificationType.WARNING)
                             .notify(project)

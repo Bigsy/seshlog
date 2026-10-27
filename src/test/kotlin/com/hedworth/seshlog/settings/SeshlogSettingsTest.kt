@@ -7,6 +7,21 @@ import java.nio.file.Paths
 class SeshlogSettingsTest {
     private val home = Paths.get(System.getProperty("user.home"))
 
+    @Test fun `diagnostics default on for old settings and off survives serialization and reload`() {
+        val settings = SeshlogSettings()
+        settings.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(org.jdom.Element("state"), SeshlogSettings.State::class.java))
+        assertEquals(true, settings.sessionDiagnosticsEnabled)
+        settings.sessionDiagnosticsEnabled = false
+        val xml = com.intellij.util.xmlb.XmlSerializer.serialize(settings.state)
+        val restored = SeshlogSettings()
+        restored.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(xml, SeshlogSettings.State::class.java))
+        assertEquals(false, restored.sessionDiagnosticsEnabled)
+        restored.previewMessageCount = 7
+        assertEquals(false, restored.sessionDiagnosticsEnabled)
+        restored.sessionDiagnosticsEnabled = true
+        assertEquals(true, restored.sessionDiagnosticsEnabled)
+    }
+
     @Test fun `old settings use conversation and all eight source selections serialize including all false`() {
         val old = com.intellij.util.xmlb.XmlSerializer.deserialize(org.jdom.Element("state"), SeshlogSettings.State::class.java)
         val settings = SeshlogSettings()

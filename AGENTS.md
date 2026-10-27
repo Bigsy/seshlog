@@ -32,10 +32,13 @@ make release  # test + buildPlugin + verify the zip
 
 ## Reading session-management diagnostics
 
-Session tracking writes **always-on, local, rotating JSON Lines** under
+Session tracking writes **local, rotating JSON Lines, enabled by default**, under
 `PathManager.getLogPath()/seshlog/`. This is the **running IDE's log directory**, not the repository,
-agent data directory, or IDE system/cache directory. Logging starts when Seshlog tracking/indexing
-starts. Unit tests suppress the application logger; logger tests use synthetic temporary files.
+agent data directory, or IDE system/cache directory. The **Record session diagnostics** checkbox in
+Settings → Tools → Seshlog turns new recording on/off when settings are applied. Logs never leave this computer automatically: there is no upload
+or telemetry. Existing files are kept when recording is turned off; a write already in progress may
+finish. Logging starts with tracking/indexing when enabled. Unit tests suppress the application
+logger; logger tests use synthetic temporary files.
 
 Ask which IDE reproduced the issue, or locate both sets of logs and inspect their timestamps and
 `env.idePid`/`run` before choosing one. A sandbox and daily IDE can run simultaneously and have
@@ -61,11 +64,13 @@ independent files. Do not assume the most recently built plugin is installed in 
   `%LOCALAPPDATA%\JetBrains\<product><version>\log\seshlog\`. Custom `idea.log.path` overrides these.
 
 In either IDE, **Find Action → Seshlog: Open Session Diagnostics** reveals the actual current file
-and writes a `report_requested` marker first. It is also in the session context menu and
+and writes a `report_requested` marker first when recording is enabled. It is also in the session
+context menu and
 **Settings → Tools → Seshlog → Session Diagnostics**. Invoking from a session or its terminal
 includes the hashed session/tab reference when available. **Help → Show Log in Finder/Explorer**
-locates the parent IDE log directory if the plugin action is unavailable. If there are no files,
-check that this diagnostics build is loaded in that IDE and check its `idea.log` for
+locates the parent IDE log directory if the plugin action is unavailable. Opening existing logs while
+disabled does not restart recording. If there are no files, check **Record session diagnostics**,
+confirm this diagnostics build is loaded in that IDE and check its `idea.log` for
 `Seshlog session diagnostics unavailable`; do not search or change agent transcripts to enable logs.
 
 There are **four files of at most 5 MiB each**: `sessions.jsonl` is current, `sessions.1.jsonl`

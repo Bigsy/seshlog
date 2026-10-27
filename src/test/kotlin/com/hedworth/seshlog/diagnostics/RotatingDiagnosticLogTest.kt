@@ -15,6 +15,52 @@ import java.util.concurrent.TimeUnit
 class RotatingDiagnosticLogTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun `disabled logging creates no files and can be enabled again without replay`() {
+        val enabled = java.util.concurrent.atomic.AtomicBoolean(false)
+        val files = RotatingDiagnosticFile(temporary.root.toPath().resolve("disabled"))
+        AsyncDiagnosticLog(files::write, enabled = enabled::get).use { log ->
+            log.trace.event("disabled_event")
+            assertTrue(log.flush())
+            assertFalse(Files.exists(files.directory))
+            enabled.set(true)
+            log.trace.event("enabled_event")
+            assertTrue(log.flush())
+            val before = Files.readString(files.current)
+            enabled.set(false)
+            log.trace.event("disabled_again")
+            assertTrue(log.flush())
+            assertEquals(before, Files.readString(files.current))
+            assertTrue(before.contains("enabled_event"))
+            assertFalse(before.contains("disabled_event"))
+        }
+    }
+
+    @Test fun `disabling recording drops queued writes but allows an in-flight write to finish`() {
+        val enabled = java.util.concurrent.atomic.AtomicBoolean(true)
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val lines = Collections.synchronizedList(mutableListOf<String>())
+        AsyncDiagnosticLog({ bytes ->
+            val line = bytes.toString(Charsets.UTF_8)
+            if ("in_flight" in line) { started.countDown(); check(release.await(5, TimeUnit.SECONDS)) }
+            lines += line
+        }, enabled = enabled::get).use { log ->
+            try {
+                log.trace.event("in_flight")
+                assertTrue(started.await(5, TimeUnit.SECONDS))
+                log.trace.event("queued_event")
+                enabled.set(false)
+            } finally { release.countDown() }
+            assertTrue(log.flush())
+            assertEquals(1, lines.size)
+            enabled.set(true)
+            log.trace.event("resumed_event")
+            assertTrue(log.flush())
+            assertTrue(lines.any { "resumed_event" in it })
+            assertFalse(lines.any { "queued_event" in it })
+        }
+    }
+
     @Test fun `rotation bounds disk usage and preserves chronological records across restarts`() {
         val directory = temporary.root.toPath().resolve("logs")
         val file = RotatingDiagnosticFile(directory, maxBytes = 60, backups = 3)

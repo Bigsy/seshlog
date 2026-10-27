@@ -95,6 +95,19 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   renderer was removed. Physical settings/menu/keyboard/theme checks remain owed. Compatibility and
   packaging will also be checked with the following diagnostics preference change.
 
+### Optional local session diagnostics (user priority, 2026-10-27)
+
+- [x] Add an app-wide, persisted **Record session diagnostics** checkbox, enabled by default for
+  existing installations. Applying it off stops new event recording and suppresses queued writes
+  that have not started; already-written logs remain available. Opening logs while disabled must
+  not restart logging or create a file. Make local-only/no-upload behavior explicit in settings
+  and documentation. Cover preference persistence, disabled writes, queued work and re-enabling;
+  run `make check`, package and compatibility checks. Preserve outstanding physical acceptance.
+  Completed in **Make local session diagnostics optional**: `make check` / `make release` passed
+  575 tests, zero failures/errors, 10 opt-in skips. Offline Plugin Verifier reports Compatible on
+  IU-262.10968.63 / IU-263.7307.44 with unchanged warnings; ZIP/content checks passed. This also
+  validates the preceding Search settings cleanup. [Report and manual checks](docs/settings-cleanup.md).
+
 ### Performance decision: small wins only
 
 User direction, 2026-10-27: take small, measured optimizations, then drop the broader performance

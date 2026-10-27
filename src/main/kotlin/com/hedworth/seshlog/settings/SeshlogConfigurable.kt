@@ -109,8 +109,15 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
             }
             group("Session Diagnostics") {
                 row {
+                    checkBox("Record session diagnostics")
+                        .bindSelected(settings::sessionDiagnosticsEnabled)
+                        .comment("Stored only on this computer. Never uploaded or sent anywhere.")
+                }
+                row {
                     button("Open session diagnostics") { OpenSessionDiagnosticsAction.show() }
-                }.comment("Always-on local logs: four files of up to 5 MiB in the IDE log directory. Records process matching and tab changes; no conversations or commands. Paths and session IDs are hashed.")
+                }
+                row { comment("Records process matching and tab changes, without conversations or commands. Paths and session IDs are hashed. Keeps up to 20 MiB in the IDE log folder.") }
+                row { comment("Turning this off stops new recording when you apply settings. Existing log files are kept.") }
             }
         }
     }

@@ -44,6 +44,7 @@ internal class AsyncDiagnosticLog(
     capacity: Int = 256,
     private val onFailure: (Throwable) -> Unit = {},
     private val environment: Map<String, Any?> = emptyMap(),
+    private val enabled: () -> Boolean = { true },
 ) : AutoCloseable {
     private val gson = Gson()
     private val run = UUID.randomUUID().toString()
@@ -55,9 +56,11 @@ internal class AsyncDiagnosticLog(
         ThreadPoolExecutor.AbortPolicy()).apply { allowCoreThreadTimeOut(true) }
 
     val trace = DiagnosticTrace { event, fields ->
+        if (!enabled()) return@DiagnosticTrace
         val bytes = encode(event, fields)
         try {
             executor.execute {
+                if (!enabled()) return@execute
                 var dropped = lost.getAndSet(0)
                 try {
                     if (dropped > 0) {

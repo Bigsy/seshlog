@@ -50,6 +50,8 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         var restoreMode: String = RestoreMode.ASK.name
         /** Balloon when a running session's agent finishes a turn and waits for input. */
         var notifyWhenWaiting: Boolean = true
+        /** Local-only diagnostic recording. Read by producer and writer threads. */
+        @Volatile var sessionDiagnosticsEnabled: Boolean = true
         var searchUserMessages: Boolean = true
         var searchAssistantReplies: Boolean = true
         var searchToolActivity: Boolean = false
@@ -169,6 +171,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var notifyWhenWaiting: Boolean
         get() = state.notifyWhenWaiting
         set(value) { state.notifyWhenWaiting = value }
+
+    var sessionDiagnosticsEnabled: Boolean
+        get() = state.sessionDiagnosticsEnabled
+        set(value) { state.sessionDiagnosticsEnabled = value }
 
     /** Resolved Claude data directory. */
     fun resolvedClaudeDataDir(): Path = resolveClaudeDataDir(state.claudeDataDir)

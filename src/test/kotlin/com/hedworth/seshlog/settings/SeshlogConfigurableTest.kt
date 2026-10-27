@@ -18,6 +18,28 @@ import javax.swing.ListCellRenderer
  */
 class SeshlogConfigurableTest : BasePlatformTestCase() {
 
+    fun `test diagnostics preference is applied and reset through the checkbox`() {
+        val settings = SeshlogSettings.getInstance()
+        val previous = settings.sessionDiagnosticsEnabled
+        val configurable = SeshlogConfigurable()
+        try {
+            settings.sessionDiagnosticsEnabled = true
+            val root = configurable.createComponent()
+            val toggle = components(root).filterIsInstance<JCheckBox>().single { it.text == "Record session diagnostics" }
+            assertTrue(toggle.isSelected)
+            toggle.isSelected = false
+            assertTrue(settings.sessionDiagnosticsEnabled) // Draft until Apply.
+            configurable.apply()
+            assertFalse(settings.sessionDiagnosticsEnabled)
+            toggle.isSelected = true
+            configurable.reset()
+            assertFalse(toggle.isSelected)
+        } finally {
+            configurable.disposeUIResources()
+            settings.sessionDiagnosticsEnabled = previous
+        }
+    }
+
     fun `test restore-mode combo renders a label for every mode`() {
         val configurable = SeshlogConfigurable()
         try {

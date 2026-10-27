@@ -1,1331 +1,68 @@
-# Plan: Phase 1 SQLite BM25, Phase 2 external embeddings
-
-Prepared 2026-10-25. This is the authoritative implementation plan for the next work.
-It replaces the worktree plan at the user's request. That plan, including unfinished manual
-checks, remains in Git at `e598a18:PLAN.md`; replacing it does not mark those checks complete.
-Do not resume unrelated worktree work as part of this search feature.
-
-Updated direction: the first semantic release connects to a user-supplied embedding server.
-Managed local inference is deferred, not a prerequisite. The earlier local-first plan is preserved
-at `34363dc:PLAN.md`; section 16 records its later scope without blocking this release.
-The user subsequently required persistent embeddings in the first version: use SQLite for a durable,
-portable embedding cache and bounded in-memory vectors for retrieval. Do not rebuild embeddings
-from scratch after every restart. The user then approved **Phase 1 as persistent SQLite FTS5 BM25**
-after the comparison benchmark. Lexical postings/statistics now persist too; raw transcript copies,
-snippets and query history do not. This explicitly supersedes the earlier in-memory-only BM25 plan.
-
-- **Phase 1 (items 0–4):** default local BM25 using SQLite FTS5, durable incremental indexing,
-  restart reuse, cache controls and portable export/import. No embedding endpoint required.
-- **Phase 2 (items 5–13):** optional external EmbeddingGemma server with its durable vector cache.
-- **Phase 3 (section 16):** managed local inference, deferred until separately requested.
-
-## 1. Start here — instructions for a fresh session
-
-1. Read `AGENTS.md`, this entire file, `docs/sqlite-bm25-benchmark.md`, and `docs/semantic-search-prototype.md`.
-2. Run `git status --short` and inspect existing changes before editing. Preserve user work.
-3. Read the production entry points in section 4 and the test-only prototype. The prototype is
-   evidence and reference code, not a production implementation to copy wholesale.
-4. Implement the numbered work items in section 12, in order. Each item specifies its output,
-   tests and completion condition. BM25 can ship before the semantic feature is finished.
-5. Keep this file current: record decisions, measurements, passing commands and outstanding
-   manual checks under the relevant item. Check a box only after its tests pass under `make check`.
-6. Make one focused commit per completed work item. No co-authorship or generated-by trailers.
-7. Do not ask the user to reconfirm the agreed direction. Resolve routine implementation choices
-   within this plan. If evidence invalidates a stated default, record the evidence and replacement
-   here before changing it. Do not quietly relax privacy, compatibility or release gates.
-8. Do not claim the semantic feature is complete because a benchmark or fake HTTP server passes.
-   The Phase 2 semantic release includes a real user-supplied server connection, secure settings, explicit
-   data-sharing disclosure, bounded indexing, useful navigation and reliable BM25 fallback.
-9. Do not build/download/package a managed local model or native helper in this release. Keep an
-   embedding-client interface so a local implementation can be added later without rewriting ranking.
-
-### What the user has agreed
-
-- Make **SQLite FTS5 BM25 the Phase 1 default**, fully local with no setup or embedding dependency.
-  SQLite owns postings, statistics, matching and BM25 scoring; this is not just a serialized copy
-  of a custom in-memory index. Reuse unchanged lexical data after restart and support export/import.
-- Add optional experimental semantic search, disabled by default, using the user's embedding server.
-- Ship external-server support before attempting managed local inference. The server can run on
-  localhost or another machine; Seshlog connects to it but does not install/start/manage it.
-- Settings need the server base URL, model name, optional API key, Test connection and clear disclosure
-  that query text and conversation passages/titles will be sent to the configured endpoint.
-- The server handles model CPU/RAM. Seshlog extracts/chunks text, persists reusable embeddings
-  in SQLite, and loads relevant vectors into a bounded in-memory search index.
-  If the server runs on the same machine, its resource load still affects that machine.
-- Keep exact phrases/technical identifier searches reliable and BM25 available on server failures.
-- Ship BM25 first, then the server-based semantic option after its operational/relevance gates pass.
-- Persistent cache reuse across restarts and export/import into another IDE instance are required
-  in the first semantic release. Regenerate embeddings only for missing/changed/incompatible inputs.
-- Existing default-local/privacy rules now have a narrow user-configured, explicitly enabled server
-  exception. This does not authorize sending private histories to arbitrary servers during development.
-- This planning request does not ask for a new implementation during the planning turn.
-
-### Out of scope for this release
-
-Managed local inference, model/runtime downloads, native helper builds/distribution, automatic server
-installation/startup/model pulling, built-in vendor-hosted inference, telemetry, transcript modification,
-automatic cloud sync of search indexes, persisted raw transcript copies, generated answers/summaries,
-RAG/chat, rerankers,
-arbitrary embedding-model profiles, extraction-limit changes and unrelated session/worktree work.
-Do not require Lucene, a vector database server, Python, Ollama or an external account for default
-search. Reuse the existing sqlite-jdbc dependency for FTS5 lexical retrieval and the later embedding
-cache. Lexical scoring runs in SQLite; semantic vector scoring runs over in-memory float arrays.
-No SQLite vector extension is needed.
-Support one documented embedding HTTP contract initially, rather than every server's proprietary API.
-Keep the evaluated EmbeddingGemma 300M prompt/dimension profile; a configurable model name permits
-server aliases, not an unsupported promise of quality/compatibility with every embedding model.
-
-## 2. Evidence already available — do not turn it into promises
-
-The prototype was committed as `e598a18` and lives only under `src/test/`. `make check` passed:
-462 tests reported, zero failures/errors, four skipped, including the opt-in benchmarks.
-The relevant artifacts are:
-
-- `src/test/kotlin/com/hedworth/seshlog/semantic/SemanticPrototype.kt`
-- `src/test/kotlin/com/hedworth/seshlog/semantic/LlamaEmbedding.kt`
-- `src/test/kotlin/com/hedworth/seshlog/semantic/SemanticSearchBenchmark.kt`
-- `src/test/kotlin/com/hedworth/seshlog/semantic/SemanticPrototypeTest.kt`
-- `src/test/resources/fixtures/semantic/retrieval.json`
-- `docs/semantic-search-prototype.md` — reproduction commands and complete measurement caveats.
-
-The dataset contains 30 synthetic sessions, 90 passages and 44 queries: 24 paraphrases, 12
-literal/identifier queries, four quoted queries, and four unrelated/no-answer queries. Expected
-labels were authored before inference. It is small and deliberately clear, not independently
-held-out evidence of real-history relevance.
-
-| Method | Correct first result, 40 positive queries | Relevant in first five |
-| --- | ---: | ---: |
-| Current literal AND search | 15/40 | 16/40 |
-| Prototype BM25 | 36/40 | 39/40 |
-| EmbeddingGemma, 768 dimensions | 40/40 | 40/40 |
-| Literal + semantic fusion, 768 dimensions | 39/40 | 40/40 |
-| EmbeddingGemma, 256 dimensions | 37/40 | 40/40 |
-| EmbeddingGemma, 128 dimensions | 33/40 | 40/40 |
-
-Paraphrases alone: literal 0/24 first, BM25 21/24, semantic 24/24. Much of the improvement comes
-from better lexical matching, not necessarily from the model. The tested hybrid fused the current
-literal index with semantic rankings; **BM25 + semantic fusion has not yet been measured**.
-Semantic-only returned results for all four unrelated queries. Hybrid returned results for the
-two unquoted unrelated queries. No acceptance threshold was calibrated.
-
-The local CPU benchmark used an Apple M1 Max, 64 GB RAM, four inference threads and llama.cpp
-0.4.0/build 10809/commit `5266f24da`. The model was **EmbeddingGemma 300M Q8_0**, not Gemma 2:
-
-- GGUF: `embeddinggemma-300M-Q8_0.gguf`, 333,590,944 bytes (~334 MB decimal).
-- Distribution: `ggml-org/embeddinggemma-300M-GGUF` at revision
-  `0f741b5a6585bd53aeb15cd1372c56f2a0f65e12`.
-- SHA-256: `b5ce9d77a3fc4b3b39ccb5643c36777911cc4eb46a66962eadfa3f5f60490d63`.
-- Existing local copy, if still present: `build/semantic-models/embeddinggemma-300M-Q8_0.gguf`.
-  It is ignored and is not part of the plugin or repository. Do not assume it survives a clean.
-- Query prefix: `task: search result | query: `.
-- Document format: `title: {title or none} | text: {passage}`.
-- Output: 768 float values, L2-normalized. Truncation requires normalization again.
-
-A bounded sample selected ten recent sessions each from Claude, Codex, Pi and opencode. It embedded
-536 passages from 40 sessions in 43.69 seconds, with ~1.35 GB native peak RSS. Comparison against
-those vectors took ~1 ms. The vectors alone occupied 1,646,592 bytes. This is not total memory.
-32 sessions were clipped at 16 passages; ten had provider-reported partial coverage. No real-data
-quality labels were collected. Do not extrapolate these timings to complete histories as facts.
-
-A fresh process for one query took ~1.0–1.1 seconds, including model load/warmup. There is no
-measurement of a resident worker's query latency yet. Native RSS excludes JVM memory. The first
-2,048-token batch configuration peaked at ~3 GB; using 512 tokens reduced it to ~1.35 GB.
-The 320-byte prototype passages are conservative and short; they are not an established optimal
-chunk size. Smaller output vectors do not reduce the cost of running the model.
-
-### SQLite comparison and Phase 1 decision, 2026-10-25
-
-The follow-up benchmark and correctness tests are under `src/test/.../semantic/Sqlite*`.
-Validation after adding the benchmark: `make check` passed, 469 tests, zero failures/errors, seven
-skipped (including opt-in benchmarks). Both benchmark targets passed; production checks remain pending.
-Reproduction, raw reports and limits are in `docs/sqlite-bm25-benchmark.md`. Same fixture SHA-256:
-`05158f4895ed737472cc2bc26e3a6d5f0985b8253b4aa1e07d0a6713449b7537`.
-The existing local model benchmark was also rerun; its 768-dimensional quality results were unchanged.
-
-| Method | First result | First five | No-answer queries incorrectly returning results |
-| --- | ---: | ---: | ---: |
-| Old and prepared in-memory BM25 | 36/40 | 39/40 | 0/4 |
-| SQLite FTS5, baseline-aligned tokens | 36/40 | 39/40 | 0/4 |
-| SQLite FTS5, native document tokenization | 35/40 | 39/40 | 0/4 |
-| EmbeddingGemma 768 | 40/40 | 40/40 | 4/4 |
-
-On 10,000 repeated synthetic sessions / 30,000 passages, aligned FTS5 took 199 ms to build,
-used 3,350,528 bytes on disk and had 8.85 ms warm p95 query latency. Reopen plus first query took
-3.56 ms with zero reinserted documents. Prepared in-memory BM25 built in 130 ms and had 2.76 ms
-p95; SQLite's benefit is durable reuse and an existing search engine, not a claim that it beats
-an optimized RAM index. Native FTS5 built in 110 ms and scored 35/40; keep baseline-aligned
-normalization as the starting relevance baseline rather than silently accepting that regression.
-
-These are same-process reopen / warm-filesystem measurements on the M1 Max, not cold-boot or
-end-to-end IDE startup numbers. The repeated corpus tests load, not relevance at 10k scale.
-The bounded private-history cost run used 40 sessions / 536 passages, only in RAM: scan/extract/chunk
-3.13 s; aligned FTS5 build 14.1 ms, warm query p95 0.15 ms. It has no relevance labels and the
-selected histories can change. No private lexical database was written.
-
-Both bag-of-words BM25 variants intentionally omit production phrase/exact-match rules. The tests
-prove FTS token phrases can match `database-locked` for `"database locked"`; therefore literal
-verification and original-source navigation are still required. FTS5's BM25 variant is not the
-old prototype formula for all corpora. This evidence approves the architecture; it does not
-complete any production checkbox or the larger evaluation gates.
-
-## 3. Constraints that must survive implementation
-
-- IntelliJ Platform 2026.2/build 262, JDK 25, Kotlin API level 2.3. Inspect the SDK/dependencies
-  before choosing APIs. Do not infer compatibility from the Kotlin 2.4 stdlib bundled by the IDE.
-- Agent roots are read-only, including `~/.claude`, `~/.codex`, `~/.pi/agent` and opencode storage.
-  Never create a model/cache/temp file there. Respect configured roots and existing provider APIs.
-- Raw conversation/tool text, snippets and query caches remain in memory. Phase 1 explicitly
-  permits persistent SQLite FTS5 terms, positions, frequencies, lengths, index versions and source
-  references. Phase 2 adds vectors, input hashes and model/profile identity. No duplicate raw
-  transcripts, query histories or HTTP bodies. Contentless FTS still exposes words and their
-  ordering and can reveal substantial content: it is sensitive derived data, not anonymization.
-  Persist indexes only in Seshlog-managed IDE storage or explicit user-selected exports; never
-  in agent roots or the repository. Source parse caches remain metadata-only.
-- Preferences belong in IDE settings; API keys belong in IntelliJ PasswordSafe or the supported
-  secure credential API, never `seshlog.xml`, project files, logs, environment variables or Git.
-  Existing transcript parse caches remain metadata-only. No model/runtime assets are installed.
-- BM25/default/off state makes no embedding-server requests, including health/model-discovery probes.
-  Explicit Test connection uses synthetic strings only; it does not upload any real session content.
-- Real text may be sent only to the currently configured, applied and explicitly enabled endpoint,
-  after the data-sharing disclosure is accepted for that configuration. No vendor fallback endpoint.
-  Changing the endpoint/model/auth context revokes old authorization and cancels queued requests;
-  reapply the reviewed configuration before further real text is sent. Never persist a credential
-  value/hash in the consent record; use an opaque settings/credential revision.
-- An external server may retain inputs or forward them elsewhere. Do not promise otherwise, even
-  for localhost. Seshlog persists the disclosed embedding cache, not raw text; it cannot enforce
-  server retention or retract inputs that have already been sent.
-- Do not send transcript paths, session IDs, environment variables or unrelated metadata as request
-  fields. Title/content can themselves contain sensitive material; include titles in the disclosure.
-- No request/response bodies, auth headers, API keys, raw query text, snippets or embeddings in
-  logs/diagnostics/exception messages. Remove the current raw-query DEBUG log in ContentSearchService.
-- All extraction, scoring, hashing and HTTP work runs off EDT. Rendering consumes immutable snapshots.
-- Keep scoring/lifecycle pure/testable; inject extractors, stamps, executors, clocks, HTTP transport,
-  credential access and connection-state probes rather than mocking IntelliJ classes.
-
-- JUnit 4 for pure logic; `BasePlatformTestCase` for project/EDT/service tests. New fixtures are
-  synthetic and committed under `src/test/resources/fixtures/`. No real transcript fixture copies.
-- Preserve unreadable/malformed-provider handling, shared extraction limits, filters, continuation
-  handling, subagent coverage, pins/hidden state, session actions and terminal tracking.
-
-## 4. Existing code map and traps
-
-Paths below are relative to `src/main/kotlin/com/hedworth/seshlog/`. Trust symbols, not line numbers.
-
-| Location / symbol | Current behavior and implication |
-| --- | --- |
-| `index/ContentSearchIndex.kt`: `SearchHit`, `search`, `entryFor`, `retainOnly` | Literal AND across titles/cwd/messages, substring phrases, capped occurrence score, title bonus, recency ties. Stores original and folded text under a 32,000,000-character budget. `score` is `Int`; BM25/RRF need non-integer scoring or an explicit rank representation. |
-| `index/TextQuery.kt`: `parse`, `ranges`, `foldCase`, `HINT` | Shared with conversation navigation. One-to-one UTF-16 folding keeps source offsets valid. Hint says all words must match. Do not break viewer highlights by turning this into a retrieval-only tokenizer. |
-| `index/ContentSearchService.kt`: `search`, `dispose` | APP service with one bounded executor and per-caller cancellation. Refreshes content via provider stamps. Logs the raw query at DEBUG; remove that. An empty list currently also represents failure. |
-| `index/SearchRequestScope.kt`: `begin`, `cancel`, `dispose` | Each caller has its own generation. Preserve cross-window independence; do not use a single global query generation to cancel all callers. |
-| `index/SessionIndex.kt`, `model/SessionProvider.kt` | Resolve provider, indexed sessions, `conversationEntries` and `contentStamp`. Reuse these; do not build a separate private-transcript parser. |
-| `model/ConversationMessage.kt`: `ConversationEntry` | Has `sourceId`, `kind`, `truncated`, `searchable`, text and tool metadata. Keep source identity through chunking/ranking/navigation. Coverage entries are not content. |
-| `model/ConversationLimits.kt` | Per entry 32,000 chars; per session 500,000 chars/2,000 entries; records over 1,000,000 chars skipped; source scan bounded to 16,000,000 chars. Shared with viewers. Preserve these limits and their coverage notices. |
-| `settings/SessionOrganisation.kt`: `metadata`, `title` | User title overrides, pins, hidden state. Title changes affect search even when a transcript stamp is unchanged. Organisation currently keys by raw session ID; do not migrate unrelated storage in this work. |
-| `ui/SessionTreePanel.kt`: `runSearch`, `baseFilter`, `renderSearchResults` | Two-character minimum, 300 ms debounce, project/date/provider/hidden/worktree filters. Deduplicates by query + candidate list; add index/settings/model revision invalidation. `searchPartial` currently derives only from hits, so zero-hit partial results need an envelope. |
-| `ui/SessionTreeModel.kt`: `groupRanked` | Preserves hit order inside project groups, with pins affecting group/session presentation. Do not accidentally sort search rows by recent activity again. |
-| `ui/SessionCellRenderer.kt` | Displays hit snippets/highlights; add match-kind presentation without embedding filesystem work. |
-| `ui/SessionPreviewPanel.kt`: `showSession`, `load` | Currently receives session + query, not a winning passage. Its reuse guard must include hit/source/index revision when navigation targets change. |
-| `ui/ConversationSearchPanel.kt`, `ConversationDocument.kt` | Literal source matches and offsets; collapsed tool expansion via `reveal`. A semantic hit can have zero literal matches. |
-| `ui/ConversationEditorTab.kt`, `ui/actions/SessionActions.kt` | Audit the result-to-full-conversation navigation route; carry the winning entry/range rather than always searching query words. |
-| `settings/SeshlogSettings.kt` | APP persistent state in `seshlog.xml`. Put semantic preferences here, never in project `workspace.xml`. |
-| `settings/SeshlogConfigurable.kt`: `createPanel`, `apply` | Settings UI; apply currently refreshes `SessionIndex` and fires `SeshlogSettingsListener`. Avoid rescanning everything just because a semantic status changed. |
-| `settings/SeshlogSettingsListener.kt`: `TOPIC`, `fire` | Broadcasts applied preference changes to open windows. Keep progress/status changes separate from preference changes. |
-| `diagnostics/SessionDiagnostics.kt` and associated field sanitizers | Reuse local bounded diagnostics patterns; report reason codes/counts/timings without content. Review field allowlists before adding events. |
-
-Existing tests to extend: `ContentSearchIndexTest`, `ContentSearchServiceTest`, `SearchRequestScopeTest`,
-`TextQueryTest`, `SessionListViewModelTest`, `WorktreeScopeTest`, `SessionPreviewPanelTest`,
-`ConversationDocumentTest`, `ConversationEditorTabTest`, `SessionFilterActionsTest`,
-`SeshlogToolWindowTest`. Find other `SearchHit` constructors/usages with `rg` before changing its shape.
-
-## 5. Search contract — implement this before tuning scores
-
-### Default lexical behavior
-
-- Unquoted natural-language terms are relevance signals. Matching every word is no longer required.
-  Return candidates with meaningful lexical evidence, rank the best evidence first, omit zero scores.
-- Quoted phrases are mandatory, case-insensitive literal substring constraints in a single field
-  or source entry, using existing folding rules. They cannot span unrelated messages. Multiple
-  phrases must all match somewhere in the session; they may match different fields/entries.
-- For `"database locked" timeout`, the phrase is required; `timeout` boosts relevance but is not
-  a second mandatory filter. For phrase-only queries, use exact evidence and stable ranking.
-- Retain deterministic handling of unmatched quotes consistent with current parser tests. Do not
-  introduce a hidden query language, operators, wildcards, or implicit Boolean syntax.
-- Index provider titles, local title overrides, cwd/project paths and searchable conversation/tool
-  entries. Preserve metadata-only hits when transcript content is absent or temporarily unreadable.
-  The scoped [source-filter follow-up](PLAN-filter.md) selects eligible query sources: default
-  user/assistant dialogue, tools off; titles/paths always included; all-off means metadata only.
-  All supported sources remain indexed within shared bounds. See [implementation evidence](docs/search-source-filters.md).
-- Exact full-query matches in titles, identifiers, file names and paths get strong relevance.
-  Tokenization must not lose `SearchRequestScope.kt`, `foo_bar`, `camelCase`, `a.b.C`, `C++`,
-  `--retry`, `SQLSTATE 40P01`, stack-trace fragments, numeric error codes or Windows paths.
-- Keep raw technical tokens alongside split forms where useful. Split camelCase/snake_case for
-  discovery but deduplicate equivalent contributions so aliases do not multiply the same evidence.
-- Do not apply English stopword removal to phrases, identifier/path tokens or exact matching.
-  Do not blindly stem source symbols. Start without stemming. If all ordinary tokens disappear,
-  use a bounded literal fallback rather than silently making common-word queries impossible.
-- Keep the existing two-character minimum and 300 ms debounce initially. Explain the new behavior
-  in the hint: `Ranked by relevance; use "quoted phrases" to require exact text.`
-- Bound pathological pasted input: initially allow at most 4,096 UTF-16 characters and 128 compiled
-  terms. Above that, show a concise query-too-long message instead of silently dropping terms or
-  phrases. If an otherwise valid query exceeds the supported model profile's input budget, run BM25 only
-  with an availability reason; do not silently truncate the semantic query.
-- Stable tie order: exact-evidence tier, numeric relevance, last activity, provider/session key.
-  Preserve current pin/group presentation as an explicit UI override, not part of relevance metrics.
-
-### Semantic behavior
-
-- Semantic mode supplements BM25. The ordinary search field and project/date/provider/worktree/
-  hidden filters apply to both retrieval paths. Never infer filters from a sentence.
-- For the first release, queries containing any quoted phrase use lexical search only. Pure
-  technical identifier/path queries also stay lexical; use a deterministic, tested classifier.
-  Natural-language queries containing a symbol may use both, while retaining the exact lexical hit.
-- Deliver lexical results promptly, then at most one semantic refinement for the same query and
-  corpus generation. Preserve selection by provider/session key and the user's scroll position.
-  A later index revision may trigger a new request; debounce/coalesce these updates.
-- Do not return a semantic candidate solely because it is in the nearest-neighbor top K. It must
-  pass an independently evaluated relevance/abstention policy before fusion. Show no results when
-  neither lexical evidence nor eligible semantic evidence exists.
-- A semantic result shows the actual supporting passage and a small `Related meaning` label.
-  It must navigate to that passage even if there is no query-word overlap. Do not fabricate literal
-  highlights, exact-match counts, confidence percentages or generated explanations.
-- If semantic setup is missing, indexing is partial/paused, the server is unavailable, or a request times
-  out, BM25 remains usable. Show a concise status explaining reduced semantic availability.
-- Unknown/unindexed/evicted content is not evidence of no match. Report lexical and semantic
-  coverage separately, including when there are no hits.
-
-## 6. Production design and data flow
-
-Names below are suggested new symbols. They do not exist yet. Keep pure code separate from services.
-
-### Shared snapshot and query/result types
-
-Introduce `SearchSessionKey(kind, id)` internally to prevent cross-provider collisions. Do not
-migrate existing organisation persistence as a side effect. Preserve the underlying `Session` on
-results for existing actions. Audit UI maps currently keyed only by `session.id` where results meet.
-
-Introduce a retrieval query plan separate from literal display matching, e.g. `RetrievalQuery`:
-raw input in memory, ordinary terms, exact phrases, technical tokens, query kind and version.
-Use `TextQuery`/folding for literal constraints and source offset matching; share lexical token
-logic between document indexing and query compilation.
-
-Replace the bare result list boundary with an immutable envelope, e.g. `SearchResultSnapshot`:
-request generation, candidate/filter revision, corpus revision, settings/model revision, ordered
-hits, phase (`LEXICAL`/`REFINED`), lexical coverage, semantic coverage and sanitized availability.
-Coverage includes eligible/indexed/skipped/limited counts and reasons, independent of hit count.
-Do not present parse failure as a confident complete empty result.
-
-A hit should carry: provider/session key, Session, rank/score, match kind, title/path match flags,
-source entry ID, original UTF-16 passage range, snippet, content revision and partial flags.
-Use `Double` internally for BM25/fusion, reject non-finite scores, and keep scores out of user UI.
-The chosen passage range must be revalidated against the currently loaded source before scrolling.
-If it changed, refresh the hit or show a truthful unavailable/changed message; do not jump blindly.
-
-### Phase 1: durable SQLite FTS5 BM25 index
-
-Use the existing sqlite-jdbc dependency and contentless-delete FTS5 tables. Keep postings, token
-counts/positions and scoring in SQLite; do not build a second full in-memory inverted index.
-Default search remains offline. The benchmark is a reference, not a production-ready store.
-
-**Schema and scoring:** implement a versioned `LexicalSearchStore` seam, injectable and free of
-IntelliJ UI types. Persist provider-aware source keys, source stamps, content/metadata revisions,
-index/tokenizer/chunker versions and passage identity/original entry/ranges in ordinary tables.
-Use contentless FTS5 tables for lexical fields; they must not retain a raw text content column.
-Keep user, assistant and tool body populations separate from each other and from title/local-title
-and path populations, as specified in PLAN-filter.md, so excluded categories cannot alter active
-body statistics and long bodies do not dilute titles.
-One body row represents a bounded passage. Metadata rows distinguish provider title, local title
-and path; metadata-only sessions are searchable without a body row. SQL combines best body passage
-score with metadata scores, using max(provider-title, local-title), never summing duplicate titles.
-Initial field weights remain title 8, path 3, body 1; exact evidence is a protected tier ahead of
-ordinary lexical scores. Evaluate the separate-field layout, not only the benchmark's combined field.
-
-Use native `bm25()` (`k1=1.2`, `b=0.75`), taking account of its lower-is-better scores. Normalize
-sign consistently before weighted combination; never compare raw BM25 to cosine. Its IDF behavior
-is different from the original `ln(1 + ...)` prototype, so remove any assumption of identical
-numerical scores. Verify SQL ranking with hand-worked examples and frozen relevance labels.
-Start with the prototype's Unicode word/underscore tokens and English stopword list for the
-ordinary-term lane (the aligned variant reproduced 36/40). Version this normalization. Do not
-strip stopwords/punctuation from the separate literal-evidence lane or lose original UTF-16 ranges.
-
-Compile parameterized MATCH expressions from parsed query terms; never interpolate arbitrary input
-as SQL or expose FTS operators accidentally. Bound query size. Scope and all mandatory phrase/exact
-conditions must apply before final top-K. A MATERIALIZED scored CTE avoids using `bm25()` outside
-its MATCH cursor; inspect query plans rather than assuming an aggregate over it is legal/fast.
-Choose the winning passage deterministically and retain its entry/range, with stable session ties.
-
-**Exact/phrase verification:** FTS phrases compare tokens, not original substrings. Re-read/verify
-candidate entries against the existing literal contract, preserving punctuation and Unicode offsets.
-Do not stop after a small candidate cap and silently lose valid exact/phrase hits. Punctuation-only,
-stopword-only, substrings inside identifiers, multiple phrases in different entries and cross-window
-phrases need a separate bounded literal candidate/verification path. It can use source reads and a
-bounded memory cache; never quietly change the contract to fit FTS5. Retain full source coverage
-metadata, report partial work, and cancel background verification promptly. Section 5 is authoritative.
-
-**Ownership and durability:** keep lexical and semantic stores separate to isolate failures/purge:
-`${IDE_CONFIG}/seshlog/search/lexical.sqlite` and the later semantic-cache path below (conceptual;
-verify supported PathManager APIs and Settings Sync exclusions). Phase 1 owns the common durable
-storage/snapshot helpers; item 7 extends them for vectors instead of inventing a second lifecycle.
-Survive restart, plugin upgrades and Invalidate Caches. Never place a live DB in agent/project roots,
-temporary caches or automatic cloud sync. Use restrictive permissions where supported. The index
-can reveal content even without raw transcript copies; explain this in settings/help and export UI.
-
-**Startup and incremental work:** open/schema-check off EDT, reconcile local discovered source keys
-and known stamps, then query saved rows directly. Unchanged compatible sources must not be fully
-extracted/tokenized again. Metadata-only title/path changes update only affected rows. Unknown stamps
-require local validation; missing provider roots are not mass-deletion evidence. Stale/unvalidated
-rows cannot be presented as current evidence. Show progress/coverage while reconciliation runs.
-Rebuild only changed/missing/incompatible sources; changing index format may require a disclosed
-rebuild. Persist completed batches so interrupted indexing resumes. Memory eviction releases snippets/
-source buffers, not durable postings. Deletion/rewrite updates FTS, associations and revision atomically.
-
-**Transactions and limits:** one bounded writer per APP store, short prepared transactions, bounded
-busy timeout, consistent read snapshots and query cancellation. Multiple windows share the store;
-multiple IDE processes must coordinate migrations/import/purge. No provider read or HTTP request
-inside a write transaction. Verify WAL/checkpoint behavior if selected; the benchmark used DELETE
-journaling and FULL synchronous writes. Include WAL/temp/index/maintenance costs in disk accounting.
-Use section 7 budgets; evict/prune coherently and report reduced indexed coverage. Close statements,
-readers and connections on unload. Account for native SQLite memory as well as JVM allocations.
-
-**Failure and controls:** corrupt/locked/read-only/full/newer-schema storage must not hang search or
-trigger a destructive automatic reset. Keep known-good data where usable; otherwise offer bounded
-in-memory SQLite indexing or the retained literal fallback with truthful partial/error status.
-No automatic network fallback. Phase 1 settings include index status/path/size/coverage, refresh
-(revalidate/reuse), explicit rebuild, clear lexical index, export/import and open cache location.
-Clearing lexical data does not delete embeddings or transcripts; rebuilding costs local work only.
-
-**Portability:** Phase 1 includes consistent SQLite snapshot export and validated transactional import
-using the safety/lifecycle rules in the durable-cache subsection below. Exclude raw text/query
-history, foreign absolute paths, credentials and settings/authorization. Reject arbitrary imported
-SQL/triggers/views/extensions and incompatible schemas. Match discovered local provider IDs/relative
-locators and revalidate sources; do not open arbitrary imported paths. Test a moved-root import into
-a fresh store with zero full re-tokenizations for unchanged verifiably matching sources. Where stamps
-are not portable, local source hashing/validation is allowed and measured separately. Missing original
-transcripts cannot be reconstructed/displayed from a contentless index. Never enable semantic mode
-through import. Explain that exported lexical terms/positions themselves contain sensitive data.
-
-
-### Embedding client, HTTP contract and active in-memory index
-
-Define a small `EmbeddingClient` interface independent of ranking/UI: validate/test configuration,
-embed query/documents, cancel, and close. Implement an HTTP client for this release. Inject a fake
-transport for tests; a managed local client is a later alternative behind this same seam.
-
-**Protocol v1:** accept an OpenAI-compatible embeddings base URL, such as
-`http://localhost:11434/v1`, and POST to its `embeddings` child path. Label the field Base URL.
-Preserve an explicitly supplied reverse-proxy path prefix and normalize trailing slashes once.
-Reject a full `/embeddings` URL with corrective help rather than guessing/appending it twice.
-Do not automatically probe arbitrary routes, install a server, pull a model, or use a cloud fallback.
-
-Request shape (model name is the user's configured alias; strings below are synthetic):
-
-```json
-{
-  "model": "embeddinggemma",
-  "input": ["task: search result | query: synthetic connection check"],
-  "encoding_format": "float"
-}
-```
-
-Use JSON encoding, Content-Type application/json and an optional Bearer Authorization header.
-No SDK that silently adds telemetry, retries or a provider endpoint is required. Inspect the IDE's
-supported HTTP/proxy and credential APIs before choosing the implementation; cancellation, response
-size limits and controlled redirects are mandatory regardless of the library.
-
-Expect an object with `data`, each row carrying an integer `index` and numeric `embedding` array.
-Reorder by index; require exactly one unique row per input, no gaps/duplicates/out-of-range indexes,
-768 finite numeric values per row, and a nonzero norm. Normalize client-side before scoring.
-Reject shape/model-contract errors without echoing the response. Handle a missing optional model
-identifier; if a reported identity changes unexpectedly, invalidate and require a compatibility test.
-Do not send `dimensions`, token arrays, streaming flags or proprietary fields in this initial adapter.
-
-An explicit connection test sends a small fixed synthetic single-input and batch probe. It verifies
-URL/auth/API availability, row ordering, vector dimensions/norms and basic retrieval consistency.
-It cannot prove the remote weights are EmbeddingGemma, prove retention policy, or guarantee absence
-of server-side truncation. State this limitation. The server operator must configure the documented
-EmbeddingGemma 300M model/profile. Use an immutable model tag/revision where the server supports it.
-
-Apply the model's query/document prefixes exactly once in Seshlog; verify the supported server does
-not add a second retrieval prefix. Start with the already measured 320-byte body windows, 40 code
-points overlap and 128-byte title prefix cap; each formatted input is at most 480 UTF-8 bytes.
-This conservative profile stays below the model's context even without a tokenizer endpoint.
-Do not make an undocumented tokenization endpoint a prerequisite. Longer token-aware chunks can
-be evaluated later. Valid lexical queries over the semantic budget remain BM25-only with status.
-Preserve original UTF-16 source ranges and entry IDs; excluded/coverage entries stay excluded.
-
-Use one APP-owned client/scheduler shared across windows. This is an HTTP client, not a server
-process owned by Seshlog. Never kill, unload, retune or delete a user's external server/model.
-Start with one background request in flight and one separately available interactive request slot,
-with priority/coalescing and a combined ceiling of two concurrent requests to the configured server.
-Validated vectors and source associations are committed to the durable SQLite cache, then loaded
-into the bounded active in-memory IDE index. SQLite stores/reuses vectors; similarity ranking stays
-in Kotlin. The server computes embeddings, not a remote vector database or search index.
-
-Store normalized 768-dimensional float vectors initially. Use exact dot-product retrieval over
-the bounded local set; do not add ANN/database infrastructure until measurements require it.
-Deduplicate passages and aggregate to session hits before top-K/fusion. Query and document vectors
-must come from the same effective server/model/profile revision.
-
-Separate cache identity from connection authorization. The durable vector key is compatible
-model/profile identity plus SHA-256 of the exact fully formatted UTF-8 embedding input (including
-title/prefix). Source links also include provider/session key, content stamp, entry/range and source
-revision. Connection generations include URL/model/auth and decide whether requests may be sent;
-API keys or credential hashes must never become cache keys or exported metadata.
-
-A URL/credential change cancels pending work and revokes current send authorization. It does not
-needlessly delete reusable vectors: mark the profile unverified until the newly approved server
-passes compatibility checks. Reuse across a changed endpoint only when the declared model/profile
-and recorded synthetic-probe vectors agree within a documented tolerance. Same name/dimensions
-alone are insufficient. Remote APIs cannot generally attest a weight checksum; use one when
-available, immutable revisions when available, plus synthetic probe comparison. Store synthetic
-probe vectors/profile metadata in the cache for restart/import validation. This is evidence of
-compatibility, not cryptographic proof of model identity or a retention guarantee.
-
-Append-aware durable reuse embeds only new/changed inputs. A restarted IDE may rescan/reparse source
-files locally and send small synthetic compatibility probes, but unchanged valid document inputs
-must result in zero document-embedding requests. Unknown stamps require local revalidation and
-input hashing rather than automatic re-embedding. Reject late responses after settings/content/
-scope changes. Revalidate source mappings before navigation; never trust imported absolute paths.
-
-Primary protocol reference checked 2026-10-25:
-[Ollama embeddings compatibility](https://docs.ollama.com/api/openai-compatibility#v1embeddings)
-documents the `/v1/embeddings` route with model and string/array inputs. Its native
-[`/api/embed`](https://docs.ollama.com/api/embed) route has a different response and supports native
-truncation controls; **it is not the protocol implemented here**. Verify actual server/version
-behavior with synthetic probes and the opt-in smoke test before advertising compatibility.
-
-### Durable SQLite embedding cache, restart reuse and portability
-
-This subsection specifies the Phase 2 vector store. Its prohibition on token/posting corpora applies
-to that store; the separate Phase 1 lexical store explicitly permits FTS terms and positions. Share
-safe path/snapshot/transaction helpers from Phase 1, not the data tables or purge/failure domain.
-This is a required first-semantic-release component. Use the existing `org.xerial:sqlite-jdbc` dependency
-in build.gradle.kts, plain tables and float BLOBs; no vector extension, external DB service or FTS
-copy of conversation content. `EmbeddingCacheStore` should be a pure/injectable store behind the
-APP search/index services, accessed on background workers, not by Swing rendering.
-
-**Location/ownership:** default to a dedicated durable Seshlog directory under the IDE config/data
-location, conceptually `${IDE_CONFIG}/seshlog/semantic-cache/cache.sqlite`, resolved with supported
-PathManager APIs. It must survive process restart, plugin updates and Invalidate Caches; do not use
-`build/`, temporary storage, project workspace, agent roots or the transient IDE system-cache tree.
-Verify the chosen directory is excluded from automatic IDE Settings Sync and plugin settings export;
-these content-derived files must not silently sync. Use explicit cache export/import for movement.
-Document the exact resolved path and an Open cache location action. Different IDE profiles may
-have different default paths; export/import is the supported way to transfer, not a shared network DB.
-Apply user-only file permissions where supported. Do not claim an ordinary SQLite file is encrypted.
-
-Initial schema (names illustrative, field meaning and constraints mandatory):
-
-| Table | Required data / invariants |
-| --- | --- |
-| `cache_meta` | Schema/export-format version, random cache ID, creation timestamp; migrations controlled by this plugin. |
-| `profiles` | Model family/name/revision, known checksum if available, dimensions, prompt/chunker/input-format versions, float encoding version, fixed synthetic probe vectors/fingerprint. No credentials or send authorization. |
-| `embeddings` | Profile ID + SHA-256 input hash as unique key; normalized float32 BLOB, dimension and last-used/created metadata. Validate exact byte length (`dimensions * 4`), byte order, finite values and norm on write/read/import. |
-| `sources` | Provider kind + stable session ID, provider-relative source locator/root reference where necessary, content-stamp representation/version and source validation revision. Avoid absolute paths in portable exports. |
-| `passage_links` | Source/profile/revision + entry ID + original UTF-16 range -> input hash, plus truncation/coverage metadata. Foreign keys prevent a link to a missing embedding. |
-
-Input hashes include every part influencing the vector. A title/prefix/chunker/model change cannot
-reuse a mismatched vector. Deduplicate identical inputs within a compatible profile, independently
-of session IDs, so an imported/moved source can reuse vectors after locally rebuilding its links.
-The database must contain no prompt/reply/tool text, snippet, user query, token/posting corpus,
-request/response body, API key or persisted transmission permission. Existing metadata parse-cache
-rules remain unchanged. The synthetic probe strings are fixed public test data, not real content.
-
-**Startup/reuse:** open/validate/migrate the store off EDT; enumerate metadata lazily. If semantics
-is off, do not load the vector working set or contact a server. If enabled, match discovered local
-sources, recheck stamps/profile compatibility, then load relevant persisted vectors into the memory
-budget. Metadata/schema reads and local re-hashing are allowed; re-embedding every document is not.
-Fetch vectors from disk on scope change/memory eviction before scheduling any HTTP work. A cold
-memory miss is not a cache miss. Only missing/changed/incompatible inputs go to the server after
-normal authorization/scope checks. Commit each validated result batch promptly so crashes/restarts
-lose at most in-flight work, not the whole indexing run. Query embeddings/cache remain memory-only.
-
-**Transactions/concurrency:** use prepared statements, foreign keys, versioned migrations and a
-single bounded writer per store. Use short transactions and a bounded busy timeout; WAL mode is
-appropriate for this local database if supported by the chosen JDBC setup. Never hold a transaction
-open during HTTP calls. Atomically publish source revision + passage links only after input/content
-generation checks pass. Checkpoint/compact in bounded background maintenance, not on the EDT.
-Multiple windows share the APP store. If two IDE processes access the same path, coordinate migration,
-import, purge and writes; one cannot delete/replace a live database under another. If exclusive
-maintenance cannot be acquired, fail that action safely and explain how to close the other instance.
-No live SQLite database in a network/cloud-synced folder; transfer closed consistent snapshots.
-
-**Disk and memory are different budgets:** start with a 512 MiB persistent cache budget and at most
-100,000 vector rows across profiles, while the active set keeps the separate 64 MiB/20,000 passage
-limit. Include indexes/links/WAL and bounded transaction/maintenance headroom in disk accounting.
-Memory eviction retains durable entries; it must not trigger server recomputation next time.
-Disk pruning first removes orphan/obsolete-profile entries, then least-recently-used inactive rows;
-show limits/coverage honestly. Avoid immediate re-embedding of disk-evicted inputs in a tight loop.
-A missing provider root during an outage is not proof its cache should be deleted. Reconcile truly
-deleted sources and unreferenced vectors with bounded GC. Hide/scope filtering affects eligibility;
-it does not silently erase portable cache data. Clear saved embeddings is the explicit purge action.
-
-**Failure behavior:** disk full/read-only/locked/corrupt/unsupported-schema cache must not break BM25.
-Keep existing usable rows where possible; pause new document embedding if results cannot be saved
-rather than spending network work repeatedly with no durable result. Provide retry/change-location/
-clear-or-recover guidance appropriate to the actual failure. Never silently delete a potentially
-recoverable database and re-upload every transcript. Migrations are transactional with a recoverable
-previous version; a newer unsupported schema opens unavailable/read-only rather than being downgraded.
-Disable semantics releases in-memory state and stops traffic but retains the durable cache. Clear
-saved embeddings explicitly removes this store and its sidecars under coordination; explain that
-future indexing will resend passages, and that this does not delete anything at the external server.
-
-**Portable export/import, required in v1:** Export embedding cache creates a consistent, self-contained
-SQLite snapshot with schema/profile/encoding metadata and portable source references. Use SQLite's
-online backup API or `VACUUM INTO` through a verified JDBC path; never copy only the live main DB
-and ignore its WAL. Strip connection endpoints, credentials, local absolute paths and consent records
-from the portable format. Include synthetic compatibility probes and vector/input-hash associations.
-Exports are sensitive derived data. Save only to the user's explicitly chosen destination; no
-background sync/upload. Do not write into an agent data root even if selected.
-
-Import opens the selected snapshot read-only, treats it as untrusted data, validates format/schema,
-row/vector/size bounds and referential integrity, then merges compatible entries transactionally
-without overwriting the existing good cache. Do not execute imported SQL, accept arbitrary views/
-triggers/extensions, follow stored paths or restore credentials/enablement. Reject incomplete live-WAL
-copies, newer incompatible schemas and corrupt profiles with useful safe errors. Stage work locally
-inside managed storage; bounded cancellation/failure must leave the existing store usable.
-
-After import, require a configured/authorized compatible server before query inference. Match local
-sources using discovered provider IDs and relative references; moved/missing sources are unresolved
-until matched, not opened from stored foreign absolute paths. Locally re-extract/hash when necessary
-and reuse matching vectors without document HTTP requests. An export does not include the original
-conversations: sessions absent on the new instance cannot be displayed/resumed just from embeddings.
-Revalidate server/model/probe compatibility; imported vectors do not establish connection permission.
-Record counts for reused/new/unresolved/incompatible entries and let the user inspect cache status.
-
-Test portability by exporting during concurrent synthetic writes, importing into a fresh IDE store
-with relocated synthetic source roots, and proving zero document re-embeddings for unchanged inputs.
-Allow the small synthetic compatibility probe and new query embedding separately in that assertion.
-If model/profile differs, keep incompatible cached profiles inactive rather than mixing vector spaces.
-
-References checked 2026-10-25: [SQLite backup methods](https://www.sqlite.org/backup.html) describes
-consistent snapshots and VACUUM INTO; [WAL documentation](https://www.sqlite.org/wal.html) explains
-sidecars, checkpoints and local-host constraints. Verify the concrete JDBC APIs, lock strategy and
-safe schema migration path against the already bundled driver before implementation.
-
-### Hybrid ranking and abstention
-
-Compare BM25-only, semantic-only and BM25+semantic on the same frozen candidate corpus. Start
-with reciprocal rank fusion at session level (`sum(1 / (60 + rank))`, one-based ranks), using
-bounded top-K lists after filtering and semantic eligibility checks. Keep exact lexical evidence
-in a protected first tier; unrelated semantic neighbors must not displace precise symbol hits.
-Use 20 candidates per retrieval path as an initial development value, not a hidden correctness cap
-for phrase filters. Measure recall before increasing or reducing it.
-
-Calibrate semantic acceptance with positive examples AND hard/no-answer negatives on a development
-split; possible inputs are cosine score, top-score margin and query kind. A high cosine score is
-not a probability. Freeze the rule before held-out evaluation. If no useful abstention policy
-passes, leave semantic mode unshipped; do not choose a threshold merely to pass the four old cases.
-Deduplicate sessions and select the passage that actually supports the result's displayed reason.
-
-## 7. Scheduling, cancellation and resource policy
-
-These are starting engineering targets, not measured server guarantees. Keep limits centralized
-and record measured revisions. The old ~1.35 GB observation belongs to the local model process,
-not this plugin's HTTP client. Server hardware, request latency and model retention are external.
-
-| Resource | Starting policy |
-| --- | --- |
-| Lexical working memory | 128 MiB logical budget for source/snippet buffers, query results, metadata and SQLite caches; start with 8 MiB page cache per connection and bound connection count. Measure native scratch allocations too; no full RAM copy of postings. |
-| Persistent lexical index (Phase 1) | 256 MiB initial disk budget, at most 100,000 body passages plus bounded metadata; include FTS/associations/WAL/maintenance headroom. Memory eviction retains disk rows. |
-| Active semantic index | 64 MiB for vectors/associations; shared text charged once. At most 20,000 passages active globally and 256 per session; memory budget takes precedence. |
-| Persistent embedding cache | 512 MiB initial disk budget, at most 100,000 vector rows; disk entries outlive memory eviction and restart. Account for SQLite indexes/WAL and bounded maintenance headroom. |
-| HTTP concurrency | At most two requests: one background batch and one interactive query; global across windows. |
-| Batch/queue | Up to eight document inputs/request and 32 lazily queued passage jobs. Each formatted input at most 480 UTF-8 bytes. |
-| Payload limits | At most 64 KiB request JSON and 1 MiB decompressed response; enforce before unbounded allocation. |
-| Query vector cache | In-memory LRU of at most 32 entries, included in semantic accounting, invalidated with endpoint/model/auth changes. |
-| Result count | At most 100 displayed sessions initially with a limit indication; filter before top-K. |
-| Timeouts | Connect 3 s, interactive query total deadline 2 s, background batch 30 s, explicit synthetic connection test 30 s for a server cold-load. |
-| Retry/backoff | No automatic interactive retries. At most one background retry for transient transport/503 errors, with bounded jitter; 429 honors Retry-After within a 60 s cap and pauses/coalesces work rather than spinning. |
-| Persistent failure | After three consecutive transient failures stop automatic indexing; show Unavailable/Retry. 401/403, invalid shape and incompatible model fail immediately until settings/retest. |
-| Disable/dispose | Cancel local requests/queues and clear vectors/query memory promptly (target two seconds). Cancellation cannot retract data already delivered or guarantee server computation stopped. |
-
-Semantic indexing only: start after applied opt-in/configuration authorization and a compatible synthetic connection
-test. Prioritize current search candidates and recent sessions within requested scopes. Never eagerly
-upload all histories at IDE startup. Index scope defaults to the currently selected project/filter
-scope; All Projects or widening filters explicitly expands the disclosed indexing scope. Recheck
-current eligible candidates and authorization immediately before sending a queued batch. Removing
-scope/hidden sessions cancels unsent work and makes cached vectors ineligible; no stale queued
-upload may escape after a scope restriction takes effect.
-
-Pause is an app-wide indexing preference persisted across restart. It stops new document uploads;
-cached passage vectors remain searchable, which can still send an interactive query to the server.
-Make this distinction clear. Disable stops all new embedding traffic and clears active in-memory semantic state, retaining
-the durable cache. Clear saved embeddings is a separate explicit action.
-There is no model removal/unload action: Seshlog does not own the server or its model assets.
-
-Lexical search has its own executor; slow HTTP cannot monopolize it. Coalesce duplicate passage
-work, debounce index-driven refreshes and ensure fairness across windows. Closing A cancels A's
-delivery/unsent exclusive work without canceling B's useful work. Shared global settings changes
-invalidate every affected request. An HTTP cancellation is not proof that the server received no data.
-
-Check generation/cancellation during extraction, chunking, scoring, queue dispatch, HTTP receipt and
-EDT delivery. Reject out-of-date settings/model/content responses even if cancellation lost a race.
-Enforce memory limits before constructing all chunks. Evict coherently and avoid a resend/evict loop;
-coverage must reflect unavailable/unindexed passages. Restart reloads validated cached vectors
-from SQLite; rebuilding memory must not resend unchanged document inputs. Persist results batch by
-batch, including partial indexing progress, and distinguish disk misses from in-memory misses.
-
-## 8. Server settings, disclosure, credentials and status UX
-
-Add a Search section to **Settings → Tools → Seshlog**. Default BM25 requires nothing. The first
-semantic release exposes only Use my embedding server; do not display a nonfunctional Run locally
-option or a download button. Managed local inference is a later backend in section 16.
-
-Primary checkbox, default false: **Enable semantic search (experimental)**.
-
-Fields/actions:
-
-- Base URL: explicit user value; placeholder `http://localhost:11434/v1` is not an active default.
-- Model name: default suggestion `embeddinggemma`; allow a server alias for the supported 300M profile.
-- Optional model revision/tag when known; document that a model name alone may be mutable.
-- Optional API key: masked editor backed by PasswordSafe; never XML/project storage. Support no-auth
-  localhost servers without requiring a dummy key. Credential removal/replacement is explicit.
-- Test connection: sends only the fixed synthetic probe to the draft URL/model/auth values. It does
-  not save settings, enable indexing, upload histories or broaden an existing authorization.
-- Explicit acknowledgement beside Apply/enable: **Send search queries and conversation passages,
-  including titles, to this server.** Show the reviewed destination and current indexing scope.
-- Pause indexing / Resume indexing, Refresh index, Retry, Export cache, Import cache, Open cache
-  location and Clear saved embeddings, plus status/coverage and disk/memory usage. Refresh locally
-  revalidates/reuses valid rows; forced re-embedding must be a separate clearly named action. Paused
-  indexing can still send search queries for already indexed passages; disabling stops all requests.
-
-Suggested supporting copy:
-
-> Uses your embedding server to find related conversations. Search queries, conversation passages
-> and titles are sent to the server you configure. Its logging and retention depend on its settings.
-> Seshlog saves embeddings and source references locally, and loads them into memory for search.
-> Unchanged passages are reused after restart. New or changed passages use network bandwidth and
-> local processing; a cache export lets you reuse embeddings in another IDE instance. The server handles model memory and CPU; if it runs on this
-> computer, that load still affects this computer. Regular search remains available without it.
-
-Do not claim this mode is always local/private/offline or that disabling deletes anything already
-received by the server. Do not display the local prototype's 334 MB download/1.35 GB RAM as client
-requirements. An informational setup link may discuss running the supported model, but Seshlog
-must not execute installation/pull commands or automatically start a user's server.
-
-Preferences in SeshlogSettings: enabled false, indexingPaused false, base URL, model name/profile,
-optional revision, and a non-secret acknowledgement/configuration revision. Store only an opaque
-credential reference in ordinary settings; the key stays in PasswordSafe. Persist the applied
-configuration acknowledgement in settings so an unchanged configuration survives restart. Keep
-draft test results, active connection validation and indexing progress in memory. Store reusable
-model metadata/synthetic probe fingerprints in the cache, never API keys or send permission.
-Credential storage failure must not silently write a plaintext fallback; report it, keep semantic
-mode unavailable and retain BM25.
-
-Apply/reset/isModified/cancel must work without mutating the active connection while editing.
-Endpoint/model/credential changes cancel the previous generation and mark cached profiles unverified; applying
-requires the disclosure acknowledgement for the new destination/context. Test successes apply only
-to the exact tested draft revision; changed fields invalidate the draft result. Settings broadcasts
-and indexing-progress broadcasts must be separate to avoid rescans/reconnections on every update.
-
-Statuses: Off, Setup required, Testing connection, Connection ready, Indexing, Ready, Indexing paused,
-Limited coverage, Rate limited, or Unavailable with a concise reason and Settings/Retry action.
-Track desired enablement, authorization, connection compatibility and coverage independently.
-A 200 response alone is not readiness. Throttle progress and describe unknown/changing totals
-honestly. Use compact nonmodal tool-window status; preserve focus, selection and scroll on refinement.
-
-### URL, transport and credentials rules
-
-- Accept a user-supplied HTTP(S) base URL only. Reject userinfo, fragments, query parameters, control
-  characters, missing host, invalid ports and unsupported schemes. Tokens belong in the key field.
-- Prefer HTTPS and validate certificates/hostnames normally. Do not add trust-all TLS. Support the
-  IDE's documented proxy/trust configuration without logging credential-bearing exceptions.
-- Plain HTTP is allowed by default only for literal loopback addresses or localhost validated as
-  loopback at connection time. A private/LAN host is an intended valid destination, not a blanket
-  SSRF rejection. Non-loopback HTTP requires an explicit per-endpoint Allow unencrypted HTTP choice
-  with disclosure that request contents/authentication can be observed on that connection.
-- Reject all redirects initially, including 307/308. Do not replay bodies or Authorization headers
-  to a different host/path because a server redirects. Show a sanitized update-base-URL message.
-- Never discover/replace the configured server from transcript content, model output or an error
-  body. Never follow response-provided URLs. DNS/proxy behavior must not silently grant a weaker
-  transport policy; test loopback classification, IPv6 and hostname changes carefully.
-- API keys are sent only in Authorization to the configured endpoint. Redact URLs/auth in logs;
-  the settings UI can show the configured destination for user review. Do not retain raw error
-  bodies: they may echo prompts or secrets. Report status code/reason and safe instructions only.
-- Use a disposable/cancellable HTTP client shared at app scope. Do not add a listening endpoint,
-  launch another application or try to manage remote server limits. Rate-limit our own traffic.
-
-### Compatibility and availability
-
-The first tested contract is OpenAI-compatible `/v1/embeddings` with the EmbeddingGemma 300M
-profile. Document actual tested servers/versions (start with a user-run Ollama-compatible endpoint),
-not a promise that every vaguely compatible server works. The operator supplies compatible weights
-and controls retention/security. Different model families are future profiles requiring their own
-prompt/chunking/relevance checks, not an arbitrary dimensionality dropdown.
-
-HTTP support is JVM-side on the plugin's supported IDE OS/architectures; there is no native-helper
-matrix in this release. Still test credentials, TLS/proxy, IPv6, cancellation and shutdown on macOS,
-Windows and Linux. Server CPU/GPU details affect remote performance, not plugin binary packaging.
-
-## 9. Retrieval and performance evaluation gates
-
-### Expanded synthetic relevance set
-
-Keep the original 44 cases as a smoke comparison; add a separate deterministic corpus with at
-least 200 sessions, 150 positive queries and 50 no-answer/hard-negative queries. Include realistic
-multi-topic conversations, duplicated boilerplate, large tool logs, near-identical sessions,
-misleading titles, rare identifiers, paths, Unicode, mixed languages, spelling variations, stale
-content, quoted phrases and content near extraction/chunk limits. Include multiple relevant
-sessions for some queries. New examples must be synthetic, not lightly edited private transcripts.
-
-Split by underlying scenario/session family into development and evaluation partitions, so near
-copies do not leak across the split. Write relevance labels before tuning. Freeze the evaluation
-partition. Manually review labels and ambiguous cases; do not use the embedding model being tested
-to generate its own ground truth. Record dataset version/hash, tokenizer/scorer/chunker versions,
-server/version, model/profile/revision (checksum only if known), seed, device/threads when known,
-transport conditions and indexing limits with each report.
-
-Report hit@1, recall@5, MRR@5 and nDCG@10 where graded labels exist, separately for query categories.
-Report no-answer false-positive rate, exact-query regressions and coverage, not just one average.
-Count all relevant sessions correctly when computing recall; the original single-answer hit@5
-was not a general recall implementation. Preserve per-case results for synthetic IDs only.
-
-Starting gates to approve the BM25 default on the frozen evaluation set:
-
-- Exact identifier/path and quoted-query acceptance tests all pass; no mandatory phrase violations.
-- No aggregate MRR@5 or recall@5 regression against the old literal baseline, and a clear improvement
-  on natural-language queries. Review every lost top-one technical match before accepting a tradeoff.
-- At least 90% of labelled exact technical queries rank a relevant session first; target at least
-  90% recall@5 across positives. If the corpus shows the target is inappropriate, document why and
-  adjust the implementation/evaluation design; do not delete difficult examples to pass.
-
-Starting gates for semantic opt-in on the same candidates/coverage:
-
-- At least five percentage points better recall@5 than BM25 on the paraphrase/synonym subset,
-  with no exact-query behavior regression. Aggregate metrics alone must not hide category losses.
-- No-answer false-positive rate at most 5% on the held-out negative set, with examples inspected.
-  A setting labelled experimental does not excuse returning arbitrary neighbors for every query.
-- BM25-only fallback is identical when semantic mode is off, unavailable or bypassed by query kind.
-- A qualified semantic-only result always has valid passage evidence and a working navigation target.
-
-These are development/release criteria, not guarantees about every user's search. If a gate fails,
-record the failure and improve the feature or keep that phase unshipped. Do not mark the final
-semantic milestone complete with a known failing gate.
-
-### Resource and latency evaluation
-
-Use an opt-in reproducible benchmark with 1,000 and 10,000 synthetic sessions, long-session/tool
-stress cases, and cold/warm runs. Measure p50/p95 and peak memory over repeated runs rather than
-publishing a single best timing. Run on at least one ordinary lower-memory supported machine as
-well as the M1 Max reference, and record concurrent workload/CPU settings.
-
-For Phase 1, measure source discovery/stamp validation, SQLite open/first result and actual changed
-source extraction separately. Assert zero full re-tokenizations of unchanged known-stamp sources
-across reopen and compatible snapshot import; do not rely only on wall-time thresholds. Include
-scope-filtering and exact/phrase verification costs, long inputs, index growth and failure recovery.
-
-Initial targets: warm BM25 p95 under 100 ms at 10,000 synthetic sessions within the stated budget;
-lexical first-result delivery under 500 ms when indexed. Target warm semantic end-to-end p95 under
-500 ms against a documented responsive reference server, with local scoring p95 under 50 ms at
-the 20,000-passage cap. Record HTTP round-trip, server cold load, indexing throughput and transfer
-bytes separately. Network latency/remote hardware are not under Seshlog's control; a slow or
-unavailable server must not delay lexical delivery or hang the UI.
-
-Prove restart reuse: after successful indexing, close/reopen a fresh client/store and assert zero
-document-embedding requests for unchanged sources. New query and fixed synthetic profile-probe
-requests are counted separately. Repeat after export/import with relocated roots; measure cache
-load time, disk bytes, hits/misses and changed-input request counts. A matching stamp with corrupt
-vector data must be rejected safely; unknown/different stamps may trigger local parsing, not
-automatic retransmission. These are mandatory first-release gates.
-
-Measure cancellation, retry/backoff, rate limiting, JVM heap and partial coverage under identical
-candidate/extraction coverage. If measuring server CPU/RSS, label it as server-side (and include
-it in same-machine impact when appropriate). Do not reuse the local CLI timing as the HTTP client
-benchmark or compare capped semantic coverage with uncapped lexical search as equal workloads.
-
-Real-history benchmarks remain opt-in, read-only and aggregate-output-only. The existing CLI
-benchmark stays local. New HTTP tests use synthetic data by default, even on localhost. Sending
-real histories to any configured test server requires explicit approval for that destination and
-scope; a development URL, API key or Test connection click alone is not such approval. They measure
-cost/robustness, not relevance without independent labels. Normal tests need neither real histories,
-credentials, internet access nor a downloaded model.
-
-## 10. Failure and lifecycle acceptance table
-
-Each row needs deterministic fake/loopback HTTP tests and manual checks where indicated.
-
-| Event | Required behavior |
-| --- | --- |
-| Semantic disabled/default upgrade | No embedding requests or probes; no semantic allocation; BM25 works. |
-| Missing/unreviewed URL/model/credentials | Setup required; no private-text requests; BM25 remains usable. |
-| Test connection before enable/Apply | Only fixed synthetic probes reach the draft endpoint; active settings/consent are unchanged. |
-| 401/403 or credential store failure | Stop retries, redact errors, show settings action; never persist a plaintext fallback key. |
-| 404/incompatible protocol/model | Reject configuration with safe explanation; no guessed endpoint or vendor fallback. |
-| Redirect/TLS failure/unapproved plaintext | Do not replay body/auth or disable verification; show corrective settings action. |
-| 429/503/transport failure | Bounded backoff/circuit behavior; no request storm; lexical queries stay fast. |
-| HTTP timeout/server dies mid-response | Cancel client work, bound resources, reject partial vectors; BM25 remains available. |
-| Oversized/decompression-bomb/malformed JSON response | Enforce byte/shape bounds and sanitized failure before unbounded allocation. |
-| Missing/duplicate indexes, dimension mismatch, NaN/Inf/zero vector | Reject whole batch; never attach vectors to the wrong source passage. |
-| Endpoint/model/auth/profile changes | Revoke old request generation; mark saved profiles unverified and reuse only after compatibility checks. |
-| Same-name model replacement/reconnect fingerprint changes | Revalidate/rebuild, never mix incompatible vectors; explain limits of remote identity checks. |
-| Transcript append/rewrite/truncate/delete | Reindex affected passages, no stale association; recover from transient reads. |
-| Provider root/title/filter changes | Refresh eligible candidates, invalidate affected entries and unsent out-of-scope work. |
-| Query changes while HTTP runs | Old result never delivered; cancellation may not stop server compute or retract sent text. |
-| Two windows search; one closes | Remaining scope works; no global cancellation or leaked registrations. |
-| Pause/disable | Pause stops document uploads; disable stops all new requests and releases semantic client state. |
-| IDE close/restart/plugin unload | Requests/queues/connections released; committed cache retained and validated vectors reloaded without unchanged document uploads. |
-| Memory eviction | Persisted vectors remain reusable; reload before considering HTTP embedding. |
-| Embedding DB full/locked/corrupt/newer schema | Independent lexical DB keeps BM25 working; preserve usable cache, pause unsavable indexing, no silent destructive rebuild/re-upload. |
-| Crash during commit/migration/export/import | Transaction/snapshot guarantees preserve a usable previous state; no partial active source revision. |
-| Import into another IDE with moved roots | Validate profiles, rebind discovered sources, reuse identical input hashes; no credentials/consent imported. |
-| Clear saved embeddings | Coordinated purge of owned DB/sidecars only; explain re-embedding cost, no claim of server deletion. |
-| Eviction/zero hits with incomplete data | Coverage remains visible; unknown content is not declared a complete no-match. |
-| Semantic-only/tool hit navigation | Reveal supporting passage without requiring literal query matches. |
-| Source changes before navigation | Revalidate offsets, refresh/fallback honestly; never jump to unrelated source text. |
-
-## 11. Diagnostics and user-facing documentation
-
-Use existing bounded local diagnostics with safe events/reasons: index revisions/coverage, passage
-counts/eviction, extraction/index/inference durations, request counts/bytes/status categories,
-connection/test/configuration revisions, rate limiting, cancellations and fallback reasons. Endpoint
-references may be hashed; avoid raw private hosts/paths in diagnostic files. No request/response
-bodies, titles, query text, API keys, auth headers, vectors or unsanitized server/transport exceptions.
-Use synthetic marker tests to prove failures cannot echo secrets/content into logs or test reports.
-
-Update README search/quoting/filter semantics and the optional external-server setup. Replace any
-blanket "no network" or "all data always stays local" claim with accurate mode-specific language:
-BM25 is local; opt-in semantic mode sends disclosed inputs to the user-configured server. Explain
-server retention limits, indexing scope, pause vs disable vs purge, saved embeddings, startup reuse
-and explicit cache export/import. No duplicate raw transcript text is stored/exported; lexical
-terms and positions remain sensitive and must be described as such.
-A localhost URL does not prove the server never proxies elsewhere. Keep settings/accessibility,
-release notes and Marketplace source copy consistent. Screenshot fixtures must be synthetic.
-Do not publish/upload a release or Marketplace media without a separate user request.
-
-Keep the prototype report as historical local-runtime evidence, not the current release contract.
-This plan remains the authoritative execution checklist; do not create a competing active roadmap.
-
-## 12. Ordered implementation work items
-
-All boxes below start unchecked. Existing prototype success does not complete a production item.
-Use one commit per item. If an item needs multiple working sessions, record partial progress here
-without checking it. Items 0–4 deliver **Phase 1: SQLite BM25 with durable storage**. Items 5–13 deliver
-**Phase 2: optional external-server semantics**. Section 16 is deferred and is not part of the current completion gate. BM25 never
-depends on an endpoint, credentials, native helper or installed model.
-
-### 0. Freeze behavior and build the evaluation harness
-
-- [x] **Deliverable:** encode section 5 as explicit test cases; expand/split the synthetic corpus
-  per section 9; add a common evaluator for production literal/BM25 and optional model methods.
-- Add labels with multiple relevant sessions, hard negatives, exact/phrase categories and a frozen
-  evaluation split. Include query cases with two phrases in different entries, a phrase crossing
-  an entry boundary (must fail), an unmatched quote and all-stopword input.
-- Verify metric implementations with hand-calculated rankings: zero hits, missing labels, multiple
-  relevant sessions, ties, truncated top-K and no-answer cases. Reject duplicate IDs and invalid
-  relevance references. Do not assert every retrieval method must get every labelled query right.
-- Preserve the original literal baseline as a test-only adapter/snapshot before changing production.
-  Keep the original 44-case report reproducible. Avoid relying on whatever new implementation
-  happens to occupy `ContentSearchIndex` when comparing against the old algorithm.
-- **Done when:** deterministic metric/fixture tests and `make check` pass; corpus/version/split and
-  baseline results are recorded here; no model is needed for the ordinary evaluation tests.
-
-Item 0 evidence (2026-10-25): `make check` passed. Frozen literal implementation and its
-regression tests now live in the test source set; both original benchmarks use that adapter.
-`fixtures/search/retrieval-v1.json` v1/seed 0 contains 200 synthetic sessions, 150 positive queries
-(including multi-label cases), 50 negatives, family-separated 100/100 development/evaluation queries.
-SHA-256 `1ccad9157d44ee0a76a27097276c4b90e25d29df92c7151b87610a2e03d031fa`.
-Old baseline: hit@1/recall@5 0.6667, no-answer false-positive rate 0. This generated corpus is
-intentionally a contract/load scaffold, not independently judged evidence of real-history quality;
-manual label review and broader resource/manual release gates remain owed. Exact boundary cases
-are frozen separately in `fixtures/search/query-contract.json`. Metrics validate references,
-duplicate IDs/rankings, missing rankings, multiple relevant labels and empty/truncated results.
-
-### 1. Implement query compilation and SQLite ranking semantics
-
-- [x] **Deliverable:** pure query/tokenizer/compiler components and a testable SQLite FTS5 ranking
-  adapter under `index/` (a subpackage is fine). Keep IntelliJ types out. FTS5 computes BM25;
-  do not spend this item implementing another custom inverted index/scorer.
-- Implement ordinary-term scoring, mandatory quoted phrases, technical-token exact lane, title/
-  local-title/path fields, aliases, body passage aggregation and stable tie behavior from section 5.
-- Use FTS5's `k1=1.2`, `b=0.75` and initial title/path/body weights 8/3/1. Tune on the development partition only; record the chosen
-  constants, why they exist and their version. Never compare raw cosine directly with BM25 scores.
-- Keep original source offsets. If token normalization changes character lengths, explicitly map
-  normalized tokens back to source ranges; do not apply normalized offsets to original text.
-- **Tests:** score examples with known numbers; rare vs common terms; length normalization; empty
-  corpus; stopword-only queries; identifiers/path punctuation; Unicode/case folding; aliases not
-  double-counted; phrase boundaries; huge repetitive tool output not overwhelming a title; finite
-  scores; deterministic ties independent of map iteration; metadata-only matches.
-- **Done when:** pure tests and `make check` pass and development-set behavior is documented.
-  The default UI need not switch yet.
-
-Item 1 evidence (2026-10-25): `make check` passed with pure FTS5/contract tests. Version 1 uses
-Unicode word/underscore normalization, the historical small stop list, no stemming, document aliases,
-and distinct raw query tokens (aliases cannot multiply a compound query's evidence). Independent
-contentless title/path/body populations use weights 8/3/1, max title variant and max body passage.
-SQLite's negative BM25 is sign-normalized. A one-document hand calculation asserts 9e-6 for one
-identical title/body term; repeated body output cannot overwhelm the matching title. Literal phrase
-verification is entry-local and retains original UTF-16 offsets. Query limits are 4096/128.
-These constants are the specified defaults; no evaluation-partition tuning was performed.
-
-### 2. Implement the durable SQLite lexical store and incremental indexing
-
-- [x] **Deliverable:** production contentless FTS5 store with source/metadata associations, schema
-  versions, short atomic writes, startup reuse, bounded resources and portable export/import.
-- Implement the entire Phase 1 store contract in section 6, including durable path/Settings Sync
-  verification, multi-window/process coordination, error recovery, cache controls and snapshot helpers.
-- Introduce the provider-aware key and query/result envelope. Update consumers found with
-  `rg 'SearchHit|ContentSearchIndex' src`; retain floating-point scores and winning entry/ranges.
-- Index metadata separately, preserve parent/subagent/continuation rules, and revalidate source and
-  index versions before publishing hits. Null stamps/failed reads/partial coverage must be explicit.
-- Replace one source atomically, including FTS rows and associations. Avoid rescanning/re-tokenizing
-  unchanged sources after reopen, or reindexing disk rows simply because a memory buffer was evicted.
-- **Tests:** reopen without source extraction/tokenization for unchanged known stamps; append/rewrite/
-  delete; metadata-only rename; provider ID collision; unknown stamps; missing roots; read failures;
-  rollback after interrupted replacement; source change during indexing; consistent SQL statistics;
-  limits/pruning; cancellation/stale generations; disk full/corrupt/busy/newer schema; coordinated
-  migration/purge; export during writes; validated import/relocated roots; original text absent from
-  content columns; no query history/secrets/automatic sync; connection cleanup and bounded scratch use.
-- **Done when:** `make check` passes and reproducible cold-build/warm-query/reopen/incremental/import
-  benchmarks prove durable reuse. The SQLite store is usable without any semantic settings or server.
-
-Item 2 implementation evidence (2026-10-25): `make check` passed. Schema v1 persists only source
-hashes/references and contentless title/path/body indexes. 2048-character passages overlap by 128,
-with original entry hashes and UTF-16 ranges. Source buffers are capped at 32M characters; disk
-postings survive eviction. Compatible stamps reuse postings; moved imports validate bounded hashes
-of discovered local files without transcript extraction. Null stamps and read failures are explicit
-coverage states. Missing candidates/roots do not mass-delete saved data; only scoped validated rows
-are searched. A lifetime file lease prevents a second IDE from mutating or purging an active DB;
-it uses a temporary SQLite fallback. DELETE/FULL journaling, 250ms busy timeout, 8MiB page cache,
-in-memory SQL scratch, 100k passages/50k sources and a conservative 112MiB main-file ceiling reserve
-room within the 256MiB policy for rollback/maintenance. Explicit clear compacts owned data.
-Snapshots use VACUUM INTO; import checks exact schema, integrity, row/string limits and versions,
-reconstructs normalized postings in memory and transactionally merges missing sources. Existing
-sources win; imported stamps are invalidated. Tests cover moved-root zero-extraction metadata reuse,
-rollback, competing leases, unsafe schema, corruption/newer schema preservation, provider collisions,
-no stored text/query markers and verification beyond 100 candidates. Resource benchmarks and the
-production config-path wiring are recorded in items 3–4; release/manual gates remain unchecked.
-
-### 3. Wire BM25 into the service, tree and passage navigation
-
-- [ ] **Deliverable:** BM25 is the normal session search with the new hint, correct snippets and
-  source navigation. Default settings do not make embedding-server requests or create semantic state.
-- Update `ContentSearchService` to deliver envelopes, preserve per-scope cancellation and remove
-  raw-query logging. Treat empty results, errors and partial results distinctly.
-- Wire Phase 1 lexical cache status/refresh/rebuild/clear/export/import controls. Settings must work
-  without configuring embeddings; explain local term/position persistence and sensitive exports.
-- Include corpus/title/settings revisions in `SessionTreePanel` deduplication and delivery guards.
-  Keep filters before ranking, pins/group behavior, selected identity and scroll stable.
-- Carry the winning entry/range into preview and full conversation actions. Preserve literal
-  next/previous-match behavior separately from opening the chosen passage. Handle collapsed tools,
-  title/path-only hits, truncated entries and changed sources without false highlights.
-- Update tooltips, README search semantics and accessibility wording in this item so the UI never
-  promises all-terms AND after the behavior changes.
-- **Tests:** independent scopes; filters changed with an identical query; local title change;
-  stale result rejection; rank order survives grouping; hidden/provider/date/worktree filters;
-  metadata-only and body snippets; correct Unicode offsets; tool expansion; selection stability;
-  zero-hit partial/error status. Extend the platform/UI tests named in section 4.
-- **Done when:** `make check` passes and the BM25 portion of the manual matrix in section 14 is
-  checked in `make run`. Record any manual check still owed instead of marking it passed.
-
-Item 3 implementation evidence (2026-10-25): integration tests and `make check` passed.
-The APP worker opens `${PathManager.getConfigDir()}/seshlog/search/lexical.sqlite` lazily off EDT.
-Platform 262 sources were inspected: `PathManager.getConfigDir` is public; Settings Sync initial
-snapshots use registered exportable component storages, and stream-provider writes require a
-roamable storage. This unregistered directory has no `@State`, exportable component or stream-
-provider writes, so IDE Settings Sync/settings export do not include it. User-only POSIX permissions
-are applied where supported. README and Settings disclose sensitive lexical persistence/exports.
-Service delivery carries coverage/request/candidate/corpus revisions, sanitizes failures and removes
-raw-query logging. Per-caller scopes remain independent. Query/candidate/scan/maintenance guards
-reject stale results; title edits invalidate searches. Tree maps and selection use provider-aware
-keys; grouping/pins remain presentation overrides. Preview and editor tabs open the winning source
-range after background entry-hash validation, including collapsed tools. Changed entries show a
-refresh message. Zero-hit partial envelopes, tool navigation and provider-collision selection have
-platform regression tests. Settings provide status/path/size/coverage, refresh/retry/rebuild/clear,
-export/import and reveal. Rebuild preserves one recovery DB; Clear also purges owned recovery files,
-under the process lease. Healthy complete scans prune validated deleted rows; missing roots and
-unresolved imports do not. SQL progress callbacks cancel superseded queries.
-Manual `make run` checks in section 14 are still owed, so this release checkbox remains open.
-
-### 4. Validate and prepare the BM25 milestone
-
-- [ ] **Deliverable:** expanded held-out relevance report and resource measurements using production
-  BM25, plus a release-ready default-search change independent of semantic infrastructure.
-- Run the BM25 gates in section 9, inspect lost technical top-one cases, and fix implementation
-  defects. If tuning changes, rerun development validation before consuming a new held-out split;
-  document evaluation iteration rather than pretending repeatedly tuned cases stayed held-out.
-- Compare old/new cold build, warm query, saved-index reopen and incremental update timings on
-  identical coverage. Measure source reconciliation separately from DB opening; do not advertise the
-  3.56 ms prototype reopen as full IDE startup. Prove unchanged-source restart/import reuse.
-- Run large synthetic histories, long tool outputs, multiple windows, rapid typing and DB failure
-  recovery. Measure disk/native/JVM memory and confirm no EDT filesystem/SQL work.
-- Run `make check`, `./gradlew verifyPlugin`, and `make release` as appropriate for the completed
-  production change. Inspect the ZIP: no model, helper, test-only benchmark or private data leaked in.
-- **Done when:** BM25 relevance/resource/compatibility gates and relevant manual acceptance pass.
-  This is an independently shippable milestone; do not publish or upload it without a user request.
-
-Item 4 validation record (2026-10-25): implementation and automated preparation are complete;
-manual/platform release acceptance is **not** marked complete. See `docs/production-bm25.md` and
-`docs/benchmarks/production-bm25-2026-10-25.jsonl` for all synthetic cases/measurements and caveats.
-The 2026-10-25 milestone validated schema **2** (superseded by source-filter schema **3**, documented
-in PLAN-filter.md and docs/search-source-filters.md): Unicode-word preprocessing feeds the ASCII FTS tokenizer so
-newer Unicode letters survive SQLite token boundaries; Unicode/source and identifier-substring
-literal lanes retain the original contract. Field aggregation and winner selection run in SQL.
-Older/incompatible schemas are preserved and use temporary fallback until explicit rebuild.
-
-`make lexical-bench` passed three 1k/10k synthetic builds. On the M1 Max/64 GiB, 10k warm p95 was
-84–89 ms, reopen/reconcile/metadata query 75–87 ms with zero source extractions, changed-title work
-zero extractions and a one-source append one extraction. Import took 1.39–1.47 s; main DB size
-7,630,848 bytes. These use cheap synthetic stamps and a warmed JVM/filesystem; they are not full
-IDE-startup or real-history costs. Whole-JVM/RSS samples do not isolate search/native memory.
-Frozen evaluation metrics improved over the preserved literal baseline; original 44-query smoke
-was 32/40 first and 39/40 top-five, with no lost previously-correct literal technical/phrase top-one.
-Perfect scores on the generated expanded scaffold do not establish real-history relevance.
-
-The user's additional **256 valid passages × 350 tokens** export/import reproduction is fixed:
-import now retries a smaller document batch when its 64k-token/4M-character buffer fills, without
-lifting either memory bound. The regression checks exact scores/entry identity, existing-source
-preservation, idempotence and reopening. Additional regressions cover known-number multi-document
-BM25, Unicode/technical substrings, empty scopes, SQLite full/busy rollback and temporary fallback,
-source races, cancellation, missing-root/deletion/import distinctions, whole-source-set hashing
-bounds, recovery-file accounting, managed-path symlinks and export destination preservation.
-Source fingerprinting is cancellable, at most 16 MB across 2,000 files. Exports start with private
-permissions; a creation race cannot delete another file. Normal tests need no model or endpoint.
-
-Validation: `make check`/`make release` passed (496 tests, zero failures/errors, eight opt-in skips).
-Final ZIP integrity/content inspection passed: only main/searchable-options jars and sqlite-jdbc;
-no transcripts, DBs, models, formatter, test corpora or benchmark classes. `./gradlew verifyPlugin
---offline` passed against cached IU-262.10968.63 and IU-263.7307.44, with existing terminal API
-warnings; no compatibility problems. Initial online verifier resolution stalled and was stopped.
-A sandbox launch was attempted with synthetic project/profile arguments; the launcher did not
-apply the profile overrides, and computer-use could not attach to its Java application. It was
-closed without treating any manual row as passed. The normal installed IDE was not changed.
-
-Still owed: the section 14 manual matrix, supported OS checks, lower-memory/reference long-history
-profiling and broader realism/human review of relevance labels. Items 3–4 therefore remain open
-as release acceptance gates. No publishing/upload was performed. Phase 2 remains untouched.
-
-Implementation commits: item 0 `6d504cd`, item 1 `8544261`, item 2 `442e4ab`, item 3 `41ac887`.
-Item 4 is the commit titled `test(search): validate and harden the persistent BM25 milestone`.
-
-### 5. Implement the bounded HTTP embedding client
-
-- [ ] **Deliverable:** EmbeddingClient seam and one production OpenAI-compatible HTTP adapter,
-  using the section 6 protocol and injected transport/credential access. No native runtime work.
-- Implement explicit base-URL validation/path composition, conditional Bearer auth, HTTPS validation,
-  proxy behavior, redirect rejection, cancellation, request/response limits and safe status parsing.
-- Validate/reorder response indexes, dimensions/norms and profile compatibility. Never silently
-  select another model, ignore failed rows or attach partial results to the wrong chunk.
-- Build reusable loopback fake-server fixtures in tests with synthetic inputs; they do not need
-  internet, a real server/model or an API key. Close sockets/threads deterministically.
-- **Tests:** URL prefix/trailing-slash/IPv6/userinfo/query/fragment cases; missing key/no-auth;
-  exact body and auth destination; redirects that try to steal body/key; 401/403/404/429/503;
-  delayed/partial/oversized/compressed/malformed replies; reordered/duplicate indexes; wrong/zero/
-  NaN/Inf vectors; cancellation, deadline and no content/key leakage on any error path.
-- **Done when:** `make check` passes; the adapter returns validated normalized vectors from a
-  synthetic protocol server and never blocks lexical work. It performs no implicit discovery.
-
-### 6. Implement reviewed connection settings and synthetic testing
-
-- [ ] **Deliverable:** app-level server configuration, PasswordSafe credential management,
-  per-configuration disclosure/acknowledgement and synthetic Test connection flow from section 8.
-- Add missing-state defaults so old installations remain off. Editing fields/testing a draft must
-  not mutate the applied endpoint. Apply/reset/cancel/isModified and key removal must work correctly.
-- Test connection validates a fixed synthetic single/batch probe, including compatibility checks;
-  it is not permission to send histories. Editing the draft after a test invalidates that test result.
-- Endpoint/model/auth changes invalidate old send authorization and require cached-profile revalidation. Require review
-  of the updated destination before Apply can enable real-text requests. No content in persisted
-  consent records; use non-secret configuration/credential revisions.
-- Implement HTTPS/loopback/plaintext policy and the explicit non-loopback unencrypted-HTTP option.
-  Protect credentials with the IDE secure store and provide actionable failure if unavailable.
-- **Tests:** default-off/migration; key never in XML/logs; credential access denied; draft test only
-  sends synthetic strings; no network on settings-open/cancel; stale test response; repeated apply;
-  endpoint/credential changes with work in flight; unacknowledged settings cannot dispatch content.
-- **Done when:** `make check` passes and settings can connect to a fake endpoint and a real
-  user-supplied compatible server using synthetic probes. No model is installed or downloaded.
-
-### 7. Extend durable storage and portable snapshots for embeddings
-
-- [ ] **Deliverable:** EmbeddingCacheStore with versioned schema, explicit vector encoding, atomic
-  writes, disk budget/GC, durable managed path and export/import. Use the existing JDBC dependency.
-- Reuse Phase 1's storage/snapshot/locking helpers, keeping a separate semantic database so clearing
-  or corrupting embeddings cannot remove the lexical index. Extend the helpers for vector profiles.
-- Implement the section 6 store/profile/source/input-hash design. Keep raw text, queries, endpoints,
-  auth and consent out of exported caches; never persist transcript bodies/snippets in any cache.
-- Prove the default path survives IDE restart/plugin upgrade/Invalidate Caches and is not silently
-  included in Settings Sync. Inspect actual supported platform storage APIs before choosing the path.
-- Implement single-writer short transactions, migration/maintenance coordination, bounded busy
-  handling, crash-safe snapshot export, validated read-only import and merge without clobbering good data.
-- Implement durable input-hash reuse across different source roots and compatible endpoint/model
-  configurations; a memory eviction must be reloadable from disk with no new embedding request.
-- **Tests:** float encoding/endianness, dimensions/norm corruption, FK/dedup invariants, partial writes,
-  migration rollback/newer schema, crash/reopen, busy readers/writers/two instances, disk full,
-  memory vs disk eviction, incomplete WAL copy, export while writing, import cancellation/corruption/
-  oversized rows/unsafe schema, portable source remapping, missing sources, incompatible profiles,
-  absence of text/key markers and no automatic external traffic during export/import.
-- **Done when:** `make check` passes; a fresh store can import a consistent synthetic export and
-  reuse all unchanged compatible vectors without a server call. Export/import never enables semantics
-  or restores a credential, endpoint authorization or arbitrary external path.
-
-### 8. Implement bounded semantic indexing and its lifecycle
-
-- [ ] **Deliverable:** APP-owned semantic index/scheduler using shared extraction snapshots and the
-  HTTP embedding client plus durable cache, with complete startup/active-memory lifecycle,
-  authorization and coverage state.
-- Implement conservative bounded chunks with source ranges, versioned cache keys, append-aware
-  reuse, metadata/title invalidation, exact vector scoring and per-session aggregation.
-- Enforce the section 7 budgets/queue/caps during enumeration, including transient work. Prioritize
-  active candidates/recent sessions and avoid evict/re-embed loops. Load reusable durable vectors
-  before sending misses, and commit validated batches transactionally before reporting saved coverage.
-- Implement pause/resume, disable, endpoint/model/auth replacement, scope removal, reconnect,
-  restart and explicit retry. Reindex only affected inputs; reuse durable work across sessions/instances.
-  Model/endpoint changes mark profiles unverified until rechecked rather than erasing the store.
-- **Tests:** fake deterministic embeddings with known nearest sessions; multi-topic/overlap/tool
-  chunk mapping; special tokens/Unicode/input bounds; append vs rewrite; deleted sessions; unknown
-  stamps; title/model/chunker changes; eviction; bounded lazy enumeration of huge inputs; two scopes;
-  pause/restart/disable and late response rejection; queued scope changes preventing unintended
-  uploads; memory/disk accounting; restart and fresh-instance import make zero unchanged-document
-  HTTP requests; corrupt/missing/incompatible rows trigger only the appropriate bounded recovery.
-- **Done when:** `make check` passes; opt-in HTTP indexing on synthetic data demonstrates incremental reuse, bounded requests/memory
-  and correct coverage. Real-history uploads require separate destination/scope approval.
-
-### 9. Implement semantic eligibility, abstention and hybrid ranking
-
-- [ ] **Deliverable:** production BM25 + qualified semantic fusion, with exact-query protection and
-  calibrated no-answer behavior. Replace the prototype's unconditional nearest-neighbor return.
-- Define and test the technical-query classifier and quoted-query bypass. Apply scope/phrase
-  constraints before top-K/fusion. Keep session deduplication and exact-evidence tiers deterministic.
-- Calibrate candidate count/fusion weights/abstention on development data; freeze the policy and
-  version it alongside endpoint/model/profile/chunker identity. Evaluate the held-out set once frozen.
-- Audit regressions by category, including high-cosine but irrelevant neighbors, generic boilerplate,
-  near-duplicate sessions and real identifier queries that embeddings might misinterpret.
-- **Tests:** RRF with one/both/empty lists; duplicated passages; scope filtering before truncation;
-  pure exact and mixed technical/natural-language queries; false-neighbor rejection; successful
-  semantic-only match; zero semantic availability identical to BM25; no bogus score percentages.
-- **Done when:** `make check` and semantic relevance gates pass, with report/version stored as
-  synthetic/aggregate evidence. If abstention fails, do not enable a nearest-neighbor-only feature.
-
-### 10. Complete progressive search and server-status UI
-
-- [ ] **Deliverable:** lexical-first/refined search, complete server status/coverage, pause/resume,
-  refresh/retry, cache usage/export/import/purge and passage navigation, using the reviewed settings
-  from item 6 and the durable store from item 7.
-- Wire configuration changes separately from progress broadcasts. Guard deliveries by all relevant
-  request/scope/content/settings/profile generations. Preserve focus, grouping, selection and scroll.
-- Show the actual supporting passage for semantic-only results, including collapsed tools; no
-  fabricated literal match highlights. Handle changed/deleted source evidence when opening a hit.
-- Distinguish indexing paused (queries may still be sent) from off (no traffic), rate limited,
-  setup needed and incompatible/unreachable server. No repeated modal errors or hidden retries.
-- Ensure the disclosure/load copy describes external-server processing and local indexing cost,
-  without pretending the model is installed/managed by Seshlog or always on another machine.
-- **Tests:** delayed/out-of-order enrichment; identical query under new endpoint/filter; empty and
-  partial status; semantic-only source/tool navigation; unavailable server with prompt BM25 results;
-  keyboard/accessibility; progress in two windows; reset/rebuild and late request response rejection.
-- **Done when:** `make check` passes and the complete sandbox flow works against a real compatible
-  server with synthetic sessions. Screenshots contain only synthetic data.
-
-### 11. Harden HTTP failure handling, resource limits and privacy
-
-- [ ] **Deliverable:** all section 10 failure rows covered and resource/traffic policy enforced.
-- Audit client/queue/socket cleanup, settings/disposal races, pending retry timers and stale
-  connection results. Verify zero requests after disable/cancel when no request was already sent.
-- Test server errors that echo synthetic prompts/API keys; confirm markers never reach logs,
-  exception reports, XML, temp files or diagnostic output. Review proxy/TLS failures for leakage.
-- Exercise slow/misbehaving/rate-limited servers and memory/disk budgets without slowing lexical
-  delivery. Check crash/restart/import reuse and safe behavior when durable writes become unavailable.
-  Confirm reconnect/model changes cannot mix vector spaces and changed scopes cancel unsent uploads.
-- **Tests:** deterministic fault injection for every failure row, cross-window cancellation, bounded
-  retries/backoff, rejected redirects, body limits, credential storage failure and model drift.
-- **Done when:** `make check` passes, failure/privacy evidence is recorded, and dropping the server
-  mid-index recovers to BM25 without restart, request storms or a new destination being selected.
-
-### 12. Validate real-server compatibility, platforms and documentation
-
-- [ ] **Deliverable:** tested server/version/profile matrix, final quality/resource report and
-  accurate README/settings/Marketplace-source privacy language. Native distribution is deferred.
-- Run opt-in synthetic smoke/retrieval tests against a real EmbeddingGemma-compatible server,
-  initially Ollama's compatible endpoint. Record version, model tag/revision, prefix behavior,
-  vector dimensions, transport and whether the server was on this machine. Do not claim untested
-  servers are supported solely because they advertise compatibility.
-- Validate HTTP/PasswordSafe/TLS/proxy/IPv6 and shutdown on supported macOS/Windows/Linux IDEs.
-  Avoid assuming `/dev/stdin`, Homebrew or another platform-specific runtime exists.
-- Repeat frozen-corpus evaluation using production BM25 + HTTP embeddings. Record latency p50/p95,
-  request counts/bytes, indexing time, JVM memory, coverage and fallback behavior. Remote resource
-  measurements, when available, must be labelled server-side.
-- Update docs/disclosures to state what is transmitted, when, to where and under which controls.
-  Keep unrelated plugin behavior and historical prototype results intact.
-- Run `make check`, `./gradlew verifyPlugin`, `make release`, opt-in real-server tests and the
-  manual matrix below. Inspect the ZIP for absence of keys, models, helpers and private data.
-- **Done when:** current release gates and relevant platform/manual checks pass. Lack of a managed
-  local backend is an intentional later phase, not an incomplete external-server release.
-
-### 13. Final review and completion
-
-- [ ] **Deliverable:** a clean, reviewable change set and an honest handoff showing both milestones.
-- Re-read sections 1, 3, 5 and 8 against the actual implementation. Check default behavior on a
-  clean IDE profile with no configured server, then the reviewed opt-in server flow.
-- Ensure no embedding traffic occurs when off; a user can configure/test/review the server, enable
-  the feature, see progress, find a semantic-only passage, pause, disable and reclaim client memory.
-- Confirm only the authorized endpoint receives inputs, durable vector reuse without raw text storage, exact phrases,
-  filters, read-only providers and unchanged resume/fork/restore actions.
-- Record final commit IDs, commands, metrics, platform matrix and remaining optional follow-ups.
-  Do not mark the whole plan complete if a supported platform or mandatory acceptance check is owed.
-- **Done when:** items 0–13 and the current release acceptance checks are complete. Section 16 remains deferred.
-  Publishing/deployment is
-  a separate user-authorized action; preparing a verified release artifact does not upload it.
-
-## 13. Commands, checkpoints and troubleshooting
-
-```sh
-# Inspect the actual current code rather than trusting old line numbers:
-rg -n 'SearchHit|ContentSearchIndex|TextQuery|sourceMatches|groupRanked' src/main src/test
-rg -n 'search|Search|semantic|Semantic' src/main/kotlin/com/hedworth/seshlog/settings
-
-# Required normal test suite; real-server/model/real-data suites must remain opt-in:
-make check
-
-# Focused examples while implementing (adjust names for new tests):
-./gradlew test --tests '*ContentSearchIndexTest' --tests '*TextQueryTest'
-./gradlew test --tests '*ContentSearchServiceTest' --tests '*SearchRequestScopeTest'
-./gradlew test --tests '*SemanticPrototypeTest' --tests '*SqliteBm25PrototypeTest'
-
-# SQLite comparison: persisted synthetic data only; real history option keeps private indexes in RAM:
-make sqlite-bench
-SESHLOG_SQLITE_REAL=1 make sqlite-bench
-
-# Existing prototype comparison, not proof that new production integration works:
-SESHLOG_EMBED_MODEL="$PWD/build/semantic-models/embeddinggemma-300M-Q8_0.gguf" make semantic-bench
-
-# Optional bounded local histories, read-only and aggregate output only:
-SESHLOG_EMBED_MODEL="$PWD/build/semantic-models/embeddinggemma-300M-Q8_0.gguf" \
-  SESHLOG_SEMANTIC_REAL=1 make semantic-bench
-
-# Platform integration and release verification:
-make run
-./gradlew verifyPlugin
-make release
-
-git diff --check
-git status --short
-```
-
-If Gradle cannot reach dependency services, use `./gradlew test --offline` or the corresponding
-Gradle command with `--offline`. The existing semantic target already uses offline Gradle and a
-local model. Gradle may need permission to write locks/caches outside the checkout; use the normal
-sandbox escalation mechanism rather than changing agent storage permissions or recreating caches.
-
-The existing semantic target writes `build/semantic-bench.log`; the original real-data run was
-also saved locally as `build/semantic-bench-real.log`. These ignored files may be absent after a
-clean. Do not rely on them as the only evidence or copy their real-data source material anywhere.
-The committed prototype report records aggregate observations. Add corresponding opt-in targets
-for the production HTTP client/evaluator as implementation develops, and document them here.
-An HTTP smoke target must take an explicit endpoint/model and use synthetic inputs only. Do not
-reuse SESHLOG_SEMANTIC_REAL as automatic permission to send private text to a remote server.
-
-When debugging tracking rather than search, follow the diagnostics instructions in `AGENTS.md`.
-Do not change transcripts to manufacture failures. For search tests, use injected fake providers,
-HTTP transports and synthetic files. Avoid broad `idea.log` inspection unless a specific platform/client
-failure requires it; raw historical logs may contain unrelated sensitive information.
-
-## 14. Manual acceptance matrix
-
-Use `make run` with synthetic sessions first. Record IDE/build, OS/arch, helper/model identity,
-configuration, pass/fail, and date. An unchecked box means unverified, not implicitly passing.
-
-### Phase 1: SQLite BM25 milestone
+# Current work plan
+
+Updated 2026-10-27. This is the authoritative execution checklist. Read [AGENTS.md](AGENTS.md)
+before editing; inspect `git status --short`, preserve user work, and re-find symbols rather than
+trusting historical line numbers. Take the open items below in order unless the user directs otherwise.
+
+## Current status and next work
+
+| Area | Status | Evidence / next action |
+| --- | --- | --- |
+| Persistent SQLite FTS5 BM25 | Implemented and automatically tested; release acceptance open | [Production report](docs/production-bm25.md); finish responsiveness, relevance/resource and manual checks below. |
+| Source filters and match provenance | Implemented and automatically tested; release acceptance open | [Source-filter report](docs/search-source-filters.md); all physical UI checks remain unverified. |
+| External-server semantic search | Agreed, unimplemented | Start items 5–13 only after Phase 1 acceptance; [detailed design](docs/semantic-search-design.md). |
+| Managed local inference | Deferred until separately requested after server-backed evaluation | [Later-phase scope](docs/semantic-search-design.md#deferred-managed-local-inference). |
+| Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout; quick session/worktree switcher is the first candidate after current work. |
+
+### Performance decision: small wins only
+
+User direction, 2026-10-27: take small, measured optimizations, then drop the broader performance
+item. Conversation (user + assistant, tools off) is the normal workload. The historical **warm p95
+<100 ms at 10,000 sessions** target remains a comparison point, not a release or next-feature blocker.
+This is a prioritization decision, not a claim that the target passed. Keep actual UI responsiveness,
+cancellation, coverage and resource behavior in the manual checks below; reopen profiling if those
+checks reveal a practical problem. Do not change exact/phrase/source semantics to improve timings.
+
+- [ ] Validate the small literal-verification change: fold each eligible field once per call and
+  find only the first range needed for evidence; retain original Unicode offsets and source rules.
+  Run the unchanged synthetic scale/long-tool benchmark and `make check`, record results in the
+  [source-filter report](docs/search-source-filters.md), then close this follow-up without a larger
+  SQL/index redesign or a requirement to force every benchmark below 100 ms.
+
+### 1. Complete Phase 1 acceptance
+
+- [ ] Finish both physical checklists below in a verified synthetic sandbox profile. Record the
+  actual IDE/build, OS/arch, configuration, date and result. No row is passed by this consolidation.
+- [ ] Validate supported macOS/Windows/Linux behavior; Plugin Verifier compatibility alone does not
+  establish operating-system or UI acceptance.
+- [ ] Profile allocation/native SQLite scratch and long-history/tool stress on the reference machine
+  and at least one ordinary lower-memory supported machine. Prove the resource budgets below;
+  whole-test-JVM heap/RSS samples do not isolate search memory.
+- [ ] Broaden synthetic relevance realism and manually review labels/ambiguous cases. The repeated
+  200-session scaffold's perfect scores are contract evidence, not representative history quality.
+  Preserve frozen historical fixtures/reports; split by scenario family, label before tuning and
+  record evaluation iterations. New fixtures must be synthetic, not edited private transcripts.
+- [ ] Meet the relevance gates: all technical/phrase acceptance tests pass; no aggregate MRR@5 or
+  recall@5 regression against the preserved literal baseline; clear natural-language improvement;
+  at least 90% technical hit@1 and 90% positive recall@5. Review every lost technical top-one case.
+  Report hit@1, recall@5, MRR@5, nDCG@10 where applicable, negatives and coverage by category.
+- [ ] After changes, run `make check`, Plugin Verifier and `make release`; inspect the ZIP for test,
+  fixture, transcript, database, model or helper leakage. Record actual warnings and artifact hash.
+  A verified artifact does not authorize publication or installation into the daily IDE.
+- [ ] Mark Phase 1 release-accepted only after the responsiveness/relevance/resource/platform checks
+  and applicable physical checks pass. This closes the former PLAN.md items 3–4 and source-filter
+  acceptance; Phase 2 is independent and is not required to ship BM25.
+
+Earlier sandbox attempts did not establish a verified synthetic profile: one failed on the wrong
+JDK, the JDK-25 retry used repository-default paths, and UI attachment failed. The task sandbox was
+stopped without counting any manual row as passed; the daily IDE was not changed. Verify effective
+config/system/log paths and loaded build before testing. Do not alter agent data to create examples.
+
+### Phase 1 physical checks: persistent BM25
 
 - [ ] Clean/default profile: search works without model files, native binaries or network.
 - [ ] Natural-language query finds a session despite one or more missing ordinary query words.
-- [ ] Quoted and mixed quoted/unquoted queries obey section 5; no cross-message phrase matches.
+- [ ] Quoted and mixed quoted/unquoted queries obey the search contract below; no cross-message phrase matches.
 - [ ] Exact symbol, filename, error code, path and Unicode queries navigate/highlight correctly.
 - [ ] Title override, metadata-only session, tool-only result and large/partial history work honestly.
 - [ ] Project/date/provider/hidden/worktree filters and pinned/grouped rows retain expected behavior.
@@ -1341,106 +78,200 @@ configuration, pass/fail, and date. An unchecked box means unverified, not impli
 - [ ] Multiple windows/processes, cancellation, migrations and snapshot writes remain consistent.
 - [ ] Lexical terms/positions are disclosed as sensitive local data; no raw transcript copies/query history or silent sync.
 
-### Phase 2: external-server semantic milestone
+### Phase 1 physical checks: source controls and navigation
 
-- [ ] Off by default after install/upgrade; no background embedding or connection-probe requests.
-- [ ] Base URL/model/key and destination/data-sharing disclosure are clear before enabling.
-- [ ] Test connection uses only synthetic strings and does not apply settings or upload histories.
-- [ ] Key is stored securely; settings cancel/reset/removal works without plaintext leakage.
-- [ ] HTTP path prefixes, trailing slashes, IPv6, proxy/TLS and plaintext policy work as specified.
-- [ ] Invalid URL, 401/403/404, incompatible model and unavailable server explain fallback to BM25.
-- [ ] Redirects cannot replay inputs/auth to another destination; server error bodies remain private.
-- [ ] Enable and index: scope/coverage is accurate; lexical search stays responsive.
-- [ ] Semantic-only query reveals the actual passage with no fake literal highlighting.
-- [ ] Unrelated query abstains under the accepted relevance policy.
-- [ ] Exact/quoted queries retain lexical behavior; filters apply before semantic ranking.
-- [ ] Narrowing scope/hiding sessions cancels unsent out-of-scope passage work.
-- [ ] Pause stops document uploads but permits disclosed query requests; disable stops all new traffic.
-- [ ] Endpoint/model/auth change requires review; only compatible verified saved profiles are reused.
-- [ ] Same-name model replacement can be detected/rebuilt; limitations are documented.
-- [ ] Timeout, 429/503 and connection drops trigger bounded retry/backoff, not request storms.
-- [ ] Two windows share bounded client scheduling; closing one leaves the other usable.
-- [ ] Source changes before click cannot navigate stale offsets into unrelated text.
-- [ ] Restart loads saved embeddings; unchanged document inputs are not re-sent to the server.
-- [ ] Export during writes/import into a fresh IDE with moved roots reuses matching vectors; no credentials or consent transfer.
-- [ ] SQLite persistence contains only allowed derived data/metadata, no raw text or query history.
-- [ ] Disk-full/corrupt/locked/newer-schema cache keeps BM25 available and does not silently erase/re-upload data.
-- [ ] Disable retains disk cache; Clear saved embeddings removes owned cache files under coordination.
-- [ ] Invalidate Caches/plugin upgrade does not erase the durable store; automatic Settings Sync does not upload it.
-- [ ] API keys/raw prompts never enter logs, XML, diagnostics or crash error messages. Embedding caches
-  exclude raw text; lexical caches contain the disclosed terms/positions, never duplicate raw transcripts.
-- [ ] IDE close/plugin unload releases requests, connections, queues, timers and callbacks.
-- [ ] Real compatible-server smoke/quality tests pass; actual server/model versions are recorded.
-- [ ] HTTP/credentials/privacy flow validated on supported macOS, Windows and Linux IDEs.
+- [ ] Fresh/old-settings profile shows Conversation: user and assistant on, tools off.
+- [ ] All eight source combinations work; Titles & paths is explicit, valid and remembered.
+- [ ] Title override, provider title and path matches have truthful labels and excerpts.
+- [ ] User/assistant/tool-call/tool-result labels match the opened source; Claude subagent results
+  appear only with Tool activity enabled, and Pi does not imply missing tool support is an error.
+- [ ] Rapid typing/toggling/clearing never displays a stale-source hit or snippet.
+- [ ] Two windows synchronize the preference and keep independent query text/search lifecycle.
+- [ ] Selection, pins, project grouping and scroll remain usable after a toggle.
+- [ ] Keyboard menu use, accessible labels, dark/light themes and narrow layouts work.
+- [ ] Exact/quoted queries obey selected sources; excluded tools cannot rescue a required phrase.
+- [ ] Preview and full conversation open the displayed match. Next/previous navigation excludes
+  disabled sources while normal Find and full displayed context remain available.
+- [ ] Opening outside search, copying and completion/unread behaviour remain correct.
+- [ ] Older index produces a clear rebuild status and correct temporary search; rebuild/restart
+  and new-format export/import retain classifications and saved preference behaves independently.
+- [ ] Partial/no-match/index-error states are distinguishable; tool exclusion alone is not partial.
+- [ ] Search/toggling remains responsive at the tested scale; no EDT I/O and no source-filter
+  setting change causes a full provider scan or unchanged-source rebuild.
 
-## 15. Decision and validation record — fill as work progresses
+## Search contracts to preserve
 
-Keep evidence here so the next session does not reconstruct decisions from chat. Existing local
-prototype evidence remains valid as historical measurements, not proof of the new HTTP transport.
+These are implemented behavior and accepted constraints, not new implementation tasks. See
+[README](README.md), the [production report](docs/production-bm25.md), the
+[source-filter report](docs/search-source-filters.md) and regression tests for evidence.
 
-| Area | Decision / evidence | Status |
-| --- | --- | --- |
-| Product direction | Phase 1 SQLite FTS5 BM25; Phase 2 optional user-supplied embedding server; Phase 3 managed local backend. | Agreed |
-| Storage | Phase 1 durable contentless FTS5 terms/positions/source metadata and portable snapshots; Phase 2 separate vector cache with in-memory vector retrieval. No raw transcript/query copies. | Agreed, supersedes memory-only lexical design |
-| SQLite benchmark | Same 44-query fixture: aligned FTS5 36/40 first, 39/40 top-five; 10k-session p95 8.85 ms, reopen+first query 3.56 ms with warm filesystem. See docs/sqlite-bm25-benchmark.md. | Complete, test-only |
-| Prototype | `e598a18`; section 2 and docs/semantic-search-prototype.md. | Complete, local/test-only |
-| Evaluation corpus | Frozen v1: 200 sessions / 200 queries, family-separated split, preserved literal adapter and metric checks. See item 0; broader realism/human review remains a release gate. | Automated scaffold complete |
-| BM25 scorer | Schema 3, Unicode-word preprocessing + ASCII FTS; separate title/path/user/assistant/tool populations, selected-source best-body max, 8/3/1, exact tier, native SQL BM25. See PLAN-filter.md. | Implemented/tested; resource/manual limits in source-filter report |
-| Lexical persistence | Durable IDE config path, contentless schema 3, validated restart/import reuse, classified associations, bounded atomic writes, controls, snapshots and recovery. Older formats preserved until explicit rebuild. | Implemented/tested |
-| BM25 release | Automated suite/release/262+263 verifier and three-run synthetic benchmarks passed. Manual matrix, broader corpus review and lower-memory/native profiling remain owed. | Acceptance pending |
-| HTTP protocol/client | Record supported API, input/response bounds, URL/TLS/proxy behavior and tests. | Pending item 5 |
-| Settings/credentials/authorization | Record PasswordSafe API, config revisions, test-only probes and disclosure/Apply tests. | Pending item 6 |
-| Persistent cache | Record durable path/schema/encoding, transactions, migrations, disk limits, export/import and unchanged-input restart tests. | Pending item 7 |
-| Semantic index | Record chunk/profile versions, memory limits, cache reuse, reconnection validation and coverage. | Pending item 8 |
-| Hybrid/abstention | Record frozen acceptance policy and held-out category/negative results. | Pending item 9 |
-| Progressive UI | Record passage navigation, status, selection/focus and fallback tests. | Pending item 10 |
-| Failure/privacy | Record HTTP fault matrix, traffic controls, marker checks and cleanup. | Pending item 11 |
-| Server/platform matrix | Record actual servers/versions/model profiles plus macOS/Windows/Linux checks. | Pending item 12 |
-| Final release | Record commits, commands, verifier/build, metrics and optional limitations. | Pending item 13 |
-| Managed local backend | Separate later phase described below; not a current release gate. | Deferred by user |
+### Query, source selection and ranking
 
-### Phase 1 completion: the first shippable release
+- Natural-language terms are relevance signals; matching every unquoted word is not required.
+  Quoted phrases are mandatory case-insensitive literal substrings within one eligible field/entry;
+  multiple phrases may match different entries, but none spans entries. In `"database locked" timeout`,
+  the phrase is required and `timeout` boosts relevance. Preserve unmatched-quote/parser behavior.
+- Preserve technical full-query evidence, punctuation, Unicode offsets, filenames/paths, C++/C#,
+  error codes and identifier substrings. Do not use token phrases as proof of literal phrases.
+  Split forms may aid discovery without multiplying equivalent contributions; no blind stemming.
+  Stopwords never remove phrase/technical/exact evidence; all-stopword queries retain literal fallback.
+- Keep the two-character minimum, 300 ms debounce and 4,096 UTF-16-character / 128 compiled-term
+  limits. Reject overlong queries clearly rather than dropping terms. No hidden FTS/operator syntax;
+  compile parameterized MATCH expressions, and keep scores finite and out of the user-facing UI.
+- `SearchSources.DEFAULT` is Conversation: user and assistant on, tools off. All eight combinations
+  are valid; all-off is Titles & paths. Provider/local titles and paths always remain eligible.
+  Apply selection to candidates, population statistics, scores, exact/phrase/substring fallback,
+  snippets and navigation before the final top-100 presentation limit.
+  Keep session-scope filters before truncation, and never impose an early candidate cap that
+  loses valid exact/phrase hits to improve latency.
+- Classify by entry kind before role: coverage never matches; tool calls/results always belong to
+  Tool activity, including USER-role results and Claude subagent dialogue. Pi's dialogue-only reader
+  stays unchanged. Source eligibility must not change copy/completion/changed-file behavior.
+- All supported lexical sources remain indexed within shared retention limits. Toggling sources
+  neither rescans providers nor re-tokenizes unchanged sources. Preferences live app-wide in
+  `seshlog.xml`, survive unrelated Settings Apply and all-false serialization, and synchronize
+  windows through the dedicated event; imports/exports never carry the preference.
+- Schema 3, classification/normalization 1: separate title/path/user/assistant/tool FTS populations.
+  SQL uses max(provider/local title), path and max enabled body passage, weighted **8/3/1**.
+  Disabled text cannot affect active BM25 statistics or scores; echoed body categories do not sum.
+  Keep MATCH/BM25 cursors materialized and scoring in SQLite, with no duplicate RAM postings index.
+- Genuine protected full-query evidence precedes ordinary scores. Preserve score/activity/provider/
+  session ties; primary-evidence ties use Title, Project path, You, Assistant, Tool call, Tool result,
+  then stable entry/range. Pins/grouping remain explicit presentation overrides.
+- The displayed label, excerpt, source category, entry/range/hash or metadata variant must agree.
+  Prefer protected full-query evidence when selecting the explanation, otherwise the largest
+  weighted contribution. A partial metadata winner cannot suppress protected body verification.
+  A displayed snippet need not contain every mandatory phrase; never imply otherwise.
 
-A user gets default local SQLite FTS5 BM25 search with the exact/technical contract, filters,
-navigation and honest coverage. Indexing is incremental and survives restart. Durable storage,
-cache controls, snapshot export/import and DB failure recovery work without a model or endpoint.
-No raw transcript copy/query history is stored. Complete items 0–4 and the Phase 1 manual matrix;
-Phase 2 is not a blocker for this release. No production boxes are completed by the prototype.
+### Delivery, coverage and navigation
 
-### Phase 2 completion: the first semantic release
+- Use immutable captured query/source options and provider-aware session keys. Include options,
+  query, candidates, corpus/content/settings revisions and per-caller generation in reuse/delivery
+  guards. A source change invalidates old work immediately and reruns each window independently;
+  typing/clearing/closing one window must not cancel another. Clear stale hits while searching.
+- No source reads, SQL, hashing or process work on EDT/render paths. Render immutable snapshots;
+  deliver on EDT after rechecking identity. Dispose subscriptions and queued callbacks normally.
+- Metadata-only evidence survives failed body reads, without claiming the body was indexed/validated.
+  Intentional category exclusion is not partial coverage; real shared-retention loss still is.
+  Keep complete no-match, partial coverage and index failure distinguishable even with zero hits.
+- Validate original entry ID, category, UTF-16 range, hash and revision before opening a body hit;
+  changed evidence gets refresh/unavailable, never an unrelated jump. Expand eligible collapsed tools.
+  Metadata-primary hits explain the matched title/path and have no fabricated conversation target.
+- Preview follows current context; opened full editors retain their captured query/options.
+  Seshlog highlights/counts/F3 use eligible original-entry ranges mapped into displayed text,
+  excluding headings/dates/tool labels/coverage. Next/previous starts from the opened passage,
+  even without a literal navigation match. Full context and ordinary IDE Find remain available;
+  copy, read-only editors, latest-reply positioning and unread/completion behavior remain intact.
 
-The user keeps the Phase 1 persistent BM25 search with exact phrases and technical queries preserved.
-They can explicitly configure/test/review their own embedding server, understand what is sent,
-enable semantic enhancement, see/pause indexing and navigate meaningful passages. Server failure
-leaves BM25 usable. Disabling stops new embedding requests and frees Seshlog's active in-memory semantic index,
-while keeping the reusable durable cache;
-it does not claim to delete already transmitted data or stop the user's server.
-Agent data stays read-only. SQLite durably stores embeddings, hashes, model identity and source
-references; the IDE loads relevant vectors into memory and reads raw passages from original sources.
-Unchanged inputs survive restarts and explicit export/import without re-embedding. No raw transcript
-text, API keys or query history is stored in that cache. Server retention remains outside our control.
+### Persistence, failure isolation and bounds
 
-## 16. Deferred later phase — managed local inference
+- Store only contentless lexical terms/positions/frequencies/lengths, versions and source references
+  durably under `${IDE_CONFIG}/seshlog/search/lexical.sqlite`. No raw transcript copies, snippets or
+  query history on disk. Terms/order expose sensitive content; exports are not anonymized or encrypted.
+  No automatic Settings Sync/upload, project/agent-root DBs or transient-cache-only persistence.
+- Reuse unchanged compatible rows after restart/plugin upgrade/Invalidate Caches. Metadata changes
+  do not re-extract bodies. Atomically replace changed source postings/associations/category moves;
+  missing roots are not mass-deletion evidence. Eviction releases buffers, not durable postings.
+- Preserve schema-2 and future/unknown databases. Known v2 requires explicit local Rebuild with
+  recovery under the process lease; temporary search must still obey current source filters.
+  Never infer roles from old postings, silently downgrade/reset a store or erase recoverable data.
+- One bounded writer with short transactions, busy/cancellation limits and coordinated cross-process
+  maintenance; no source reads or HTTP inside writes. Close statements/connections on unload.
+  Lexical DB failures preserve usable data or use bounded temporary SQLite/literal fallback with
+  truthful status. Refresh/rebuild/clear/status/export/import must work without semantics.
+- Export consistent private snapshots to explicit destinations; import is untrusted, read-only
+  validation followed by bounded transactional merge preserving existing good sources. Validate
+  exact schema/versions/field-category associations/integrity/bounds; never execute imported SQL,
+  triggers/views/extensions or follow imported paths. No credentials or authorization in exports.
+  Unknown/old snapshots require rebuild/re-export in the original IDE, without changing the active DB.
+- Rebind discovered local provider IDs/relative locators and validate stamps/fingerprints, including
+  moved roots; absent sources remain unresolved. Imports do not reconstruct original conversations.
+  Hashing is bounded/cancellable (16 MB across at most 2,000 files); unverifiable imports need local
+  extraction. Adapt dense import batches to token/character bounds rather than rejecting valid exports.
+  Preserve the 256 passages × 350 tokens round-trip/reopen/idempotence regression for every category.
+- Preserve the lifetime process lease and safe temporary fallback for competing IDEs; DELETE/FULL
+  journaling, in-memory scratch and bounded SQL progress callbacks remain current implementation.
+  Lexical working memory target: **128 MiB**, including source/snippet/results/metadata/SQLite caches;
+  start with an **8 MiB** page cache and account for native scratch/connection count.
+  Persistent policy: **256 MiB**, **100,000 shared body passages**, **50,000 sources**. Include recovery,
+  journal and maintenance headroom; the current main-file ceiling starts at **112 MiB**, reduced by
+  recovery files. Rebuild preserves one recovery copy; Clear removes owned recovery files too.
 
-This is intentionally not part of items 0–13 or the external-server release acceptance gate.
-Do not implement it until the server-backed option has been delivered/evaluated and the user asks
-for this phase. The prior detailed local-first plan is available at `34363dc:PLAN.md`.
+## Phase 2: external embedding server (pending)
 
-Preserve the EmbeddingClient seam so a later Run locally option can share indexing/ranking/UI.
-That later phase would require:
+The agreed direction remains: disabled-by-default experimental semantics using a user-supplied
+EmbeddingGemma 300M OpenAI-compatible server, reviewed destination/data-sharing settings and
+PasswordSafe credentials. BM25 remains independent. Persist reusable vectors/input hashes/profile
+metadata in a **separate SQLite store**, load relevant vectors into bounded memory and support
+portable export/import in the first release. No raw text/query persistence, implicit telemetry,
+model download/server management, remote search service, generated answers or automatic sync.
+An endpoint/test credential alone never authorizes private-history uploads during development.
 
-- A supervised resident native runtime with bounded process protocol, tokenizer access, cancellation,
-  crash handling, idle unload and actual RSS/CPU measurement on supported machines.
-- Reproducible platform binaries, current model/runtime license review, verified explicit downloads,
-  asset ownership/removal/upgrade, code signing and OS-specific launch validation.
-- Accurate model download and local RAM/CPU/battery disclosure; the measured 334 MB/~1.35 GB values
-  are prototype evidence, not automatic promises for a future production runtime.
-- One app-owned model worker, resource limits, graceful fallback, real offline operation and tests
-  proving no private inputs are sent externally when that local mode is selected.
-- A deliberate settings mode choice with backend-specific disclosure and vector invalidation on
-  switching. The current external option must remain supported and BM25 must remain independent.
+The [design reference](docs/semantic-search-design.md) retains the complete protocol, transport,
+authorization, cache, scheduling, relevance/resource, failure/privacy and manual acceptance
+requirements. It also specifies tests and done conditions for each item below. All remain pending;
+its manual requirements are unverified. Keep the existing item numbers for historical continuity.
 
-The persistent SQLite embedding cache is already required in the first external-server release;
-reuse it for a later local backend when model/profile compatibility is established. Switching backend
-must revalidate vector compatibility and authorization rather than mixing spaces or discarding all
-cached work automatically. Persisting raw conversation text or query history remains out of scope.
+- [ ] **5. HTTP client:** bounded embedding requests and synthetic loopback protocol/failure tests.
+- [ ] **6. Settings:** reviewed destination, PasswordSafe credentials and draft-only synthetic testing.
+- [ ] **7. Vector store:** separate durable cache, safe migrations, limits and portable snapshots.
+- [ ] **8. Indexing:** bounded app-wide work, incremental/restart/import reuse and scope/authorization lifecycle.
+- [ ] **9. Ranking:** qualified semantic eligibility, frozen abstention and fusion with exact-query protection.
+- [ ] **10. UI:** lexical-first/refined delivery, honest status/cache controls and validated navigation.
+- [ ] **11. Hardening:** full failure/privacy/lifecycle matrix, bounded resources and no content/key leakage.
+- [ ] **12. Validation:** real-server synthetic evidence, supported-platform checks and accurate disclosures.
+- [ ] **13. Completion:** all acceptance gates, recorded commits/metrics/artifact and honest remaining limits.
+
+At completion, users can configure/test/review/enable the server, find a semantic-only supporting
+passage, pause document uploads, disable all new traffic and reclaim active semantic memory.
+Unchanged valid documents survive restart/import without re-embedding. Server failure leaves BM25
+usable. Disable retains disk cache; explicit purge removes only owned local embeddings and cannot
+retract data already sent. Do not mark Phase 2 complete with failing relevance/platform/manual gates.
+
+## Validation commands and completion records
+
+```sh
+make check
+make lexical-bench
+./gradlew verifyPlugin --offline
+make release
+make run
+
+git diff --check
+git status --short
+```
+
+For a focused synthetic source-scale rerun:
+
+```sh
+SESHLOG_LEXICAL_BENCH=1 ./gradlew test --offline \
+  --tests '*SourceLexicalSearchBenchmark.classifiedScaleAndReuse' --rerun -i
+```
+
+Use offline Gradle when dependency access is unavailable. Keep real-history/model/server suites
+opt-in; normal tests require none. `make sqlite-bench` and the local-model `make semantic-bench`
+remain historical experiments, documented in their reports. Their flags never authorize HTTP uploads.
+Follow AGENTS.md for diagnostics and sandbox/cache permissions. No transcript edits to enable logging.
+
+Record completed item commits, actual commands, metrics, platform versions and remaining manual
+checks in the relevant report, with a short status update here. Tick only after required regressions
+pass under `make check`; a release checkbox also needs its stated acceptance evidence. Use one
+focused commit per work item without co-authorship/generated-by trailers. Do not automatically
+publish/upload, install into the daily IDE or start deferred/backlog work.
+
+### Recorded evidence (historical, not new validation)
+
+- BM25 implementation: `6d504cd` (evaluation), `8544261` (query/ranking), `442e4ab` (durable store),
+  `41ac887` (service/UI); [production report](docs/production-bm25.md) records later hardening,
+  schema-2 evaluation and its acceptance limits. Current schema is 3.
+- Source controls/provenance: `b3a041b`, `5004ebc`, `1bebda9`, `6356e97`, `9fe89c4`;
+  review fixes `5d12013` and `fcd0d57`. [Source-filter report](docs/search-source-filters.md)
+  holds frozen fixture identities, metrics, warnings, artifact hashes and remaining checks.
+- Latest recorded automated validation: 2026-10-26, **536 tests, zero failures/errors, 10 opt-in
+  skips**; offline build/verification against IU-262.10968.63 and IU-263.7307.44, ZIP integrity passed.
+  This is the prior implementation's evidence, not a rerun for this documentation consolidation.
+- [SQLite experiment](docs/sqlite-bm25-benchmark.md) and [local semantic prototype](docs/semantic-search-prototype.md)
+  remain historical measurements with their original caveats and reproducible commands.
+- Historical worktree work and unfinished checks remain in Git at `e598a18:PLAN.md`; the earlier
+  local-inference plan is `34363dc:PLAN.md`. This consolidation does not complete that work or
+  resume it. The completed source-filter handoff is preserved at `fcd0d57:PLAN-filter.md`.

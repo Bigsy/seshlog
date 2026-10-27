@@ -1,8 +1,10 @@
 # Search source filters — implementation and validation, 2026-10-26
 
-This implements the scoped follow-up in [PLAN-filter.md](../PLAN-filter.md). It does not complete
-PLAN.md's broader Phase 1 release gates or implement semantic search. The original frozen corpus
-and [2026-10-25 report](production-bm25.md) remain unchanged.
+This records the implemented source controls and match provenance. [PLAN.md](../PLAN.md) tracks
+the current acceptance checks and performance decision, consolidated from the completed
+source-filter handoff (`fcd0d57:PLAN-filter.md` in Git). This report does not complete the broader
+Phase 1 release gates or implement semantic search. The original frozen corpus and
+[2026-10-25 report](production-bm25.md) remain unchanged.
 
 ## Behavior and provenance
 
@@ -177,7 +179,7 @@ At the original implementation validation, automated checks passed: `make check`
 for-removal usages per IDE, 14/17 deprecated usages and 65/58 experimental usages respectively.
 The ZIP contains the production plugin, SQLite JDBC and searchable-options jars; inspection found
 no tests, evaluation/benchmark classes, fixtures or transcript resources. The final counts and
-artifact hash are recorded in PLAN-filter.md alongside the implementation commits.
+artifact hash are recorded in the review-fix section above; implementation commits are listed below.
 
 The isolated sandbox attempt did not establish usable manual evidence. The first Groovy init-script
 launch failed with `Unsupported class file major version 71`. Retrying on the required JDK 25
@@ -194,6 +196,6 @@ is part of this work.
 
 Implementation work items are recorded in these focused commits: `b3a041b` (source domain and
 frozen contracts), `5004ebc` (classified durable retrieval), `1bebda9` (saved control and delivery),
-`6356e97` (provenance and captured navigation), followed by the commit titled
-`test(search): evaluate and document source-filter acceptance` (this report, final regressions and
-validation). No publication, daily-IDE installation or Phase 2 work was performed.
+`6356e97` (provenance and captured navigation), `9fe89c4` (evaluation, report and acceptance),
+`5d12013` (protected body evidence), and `fcd0d57` (navigation from the opened passage).
+No publication, daily-IDE installation or Phase 2 work was performed.

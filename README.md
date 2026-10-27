@@ -235,6 +235,8 @@ make lexical-bench     # Opt-in synthetic BM25 quality/durability benchmark
 Issues and pull requests are welcome. New parsing behaviour needs a synthetic fixture in
 `src/test/resources/fixtures/`; never commit real transcripts.
 See [AGENTS.md](AGENTS.md) for development conventions and [PLAN.md](PLAN.md) for current work.
+The agreed, unimplemented embedding-server requirements are in the
+[semantic search design](docs/semantic-search-design.md).
 The [production BM25 report](docs/production-bm25.md) records relevance, durability and resource evidence and its remaining acceptance limits.
 The [source-filter report](docs/search-source-filters.md) records the new schema, selected-source
 evaluation, synthetic performance and remaining manual checks.

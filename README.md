@@ -26,6 +26,8 @@ Click a screenshot to view it full size.
 - **Open Worktree and Fork Session** starts an independent conversation fork in that window's
   terminal while the original session keeps running.
 - Groups sessions by project, with titles, branches and recent activity.
+- **Seshlog: Switch Session / Worktree** searches session metadata across projects in a compact
+  keyboard popup, focuses an associated terminal, or offers explicit Resume for a stopped session.
 - Starts, resumes or forks a session in an IDE terminal; focuses its tab if it is already running.
 - Searches titles, project paths and conversations, with highlighted matches and a message preview.
 - Filters by agent, project and date. Pin, rename or hide sessions to keep the list manageable.
@@ -110,6 +112,29 @@ sessions in tree order. It expands the target project and opens the associated t
 reply. The shortcut is unassigned by default and does not change your filters. The tool-window icon also
 shows unread attention, and the optional **Seshlog attention** status bar widget shows counts and
 opens the next session needing attention.
+
+### Quick session / worktree switcher
+
+Use **Find Action → Seshlog: Switch Session / Worktree**, or assign it a shortcut under
+**Settings → Keymap** (unassigned by default). An open project is required. Empty search shows
+recently active sessions; type words from a local or agent title, project name/path, or recorded or
+observed branch. All words must match somewhere in that metadata, case-insensitively. Conversation
+text is not searched. Up/Down selects a row; Enter focuses its verified associated terminal and
+project window. Activity and unread badges use the existing session state; selecting a row alone
+does not mark it read.
+
+For stopped sessions, Enter moves focus to the explicit **Resume** button; activate it to launch.
+**Resume** opens or focuses a verified linked worktree before launching there. Other directories
+resume in a matching open project, or in the invoking project's terminal using the recorded cwd.
+**Open Worktree** opens/focuses an eligible linked checkout without starting an agent. Missing or
+uncertain locations block launches; unverified locations are checked before Resume. Running sessions
+without an associated IDE terminal are labelled and never silently resumed.
+
+The popup searches across indexed projects and agents, respects locally hidden sessions, and leaves
+tool-window filters unchanged. It shows up to 200 matches; narrow the query to find older sessions.
+Existing rows retain their order during updates, and selection follows the session identity.
+Reopening the popup sorts by recent activity again. Changed or unverifiable targets require a fresh
+selection instead of navigating to a different session. No query history is saved.
 
 ### Agent worktrees
 

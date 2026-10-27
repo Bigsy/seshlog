@@ -7,7 +7,7 @@ import java.nio.file.Path
 import java.time.Instant
 
 class WorktreeOpeningTest {
-    private class Harness(forkSession: Boolean = false) {
+    private class Harness(forkSession: Boolean = false, launchVerb: String = "fork") {
         val root = Path.of("/synthetic/worktree")
         val checkout = Checkout(root, Path.of("/synthetic/main/.git/worktrees/topic"), Path.of("/synthetic/main/.git"), Checkout.Kind.LINKED, "topic", null)
         val selected = Session(AgentKind.CODEX, "id", "Session", root.resolve("src"), "old", null,
@@ -21,6 +21,8 @@ class WorktreeOpeningTest {
         var throwOpening = false
         var throwFork = false
         var directoryProblem: String? = null
+        var allowed = true
+        var uiAllowed = true
         var openEffect: () -> Unit = {}
         var refreshEffect: () -> Unit = {}
         var resolveEffect: () -> Unit = {}
@@ -46,11 +48,14 @@ class WorktreeOpeningTest {
                     "destination"
                 } else null
             }, worker = { workers += it }, ui = { deliveries += it }, active = { alive }, report = { reports += it },
-            fork = if (forkSession) { destination, source ->
+            launch = if (forkSession) { destination, source ->
                 if (throwFork) error("terminal failure")
                 forked += destination to source
             } else null,
-            forkProblem = { _, _ -> directoryProblem },
+            launchProblem = { _, _ -> directoryProblem },
+            launchVerb = launchVerb,
+            allowed = { allowed },
+            uiAllowed = { uiAllowed },
         )
         fun openWindow() {
             controller.request(selected)
@@ -270,5 +275,28 @@ class WorktreeOpeningTest {
         assertTrue(h.opened.isEmpty())
         assertTrue(h.forked.isEmpty())
         assertEquals(listOf(h.directoryProblem), h.reports)
+    }
+
+    @Test fun `resume after opening uses the same destination and rechecks running and hidden guards`() {
+        for (case in 0..3) {
+            val h = Harness(forkSession = true, launchVerb = "resume")
+            h.openWindow()
+            if (case == 1) h.allowed = false // Became live while project opening was in progress.
+            if (case == 2) h.uiAllowed = false // Hidden or acquired an owned terminal.
+            if (case == 3) { h.workers.removeFirst()(); h.uiAllowed = false }
+            h.drain()
+            assertEquals(if (case == 0) 1 else 0, h.forked.size)
+            assertEquals(if (case == 0) 0 else 1, h.reports.size)
+        }
+    }
+
+    @Test fun `hidden session does not open another project after queued validation`() {
+        val h = Harness()
+        h.controller.request(h.selected)
+        h.workers.removeFirst()()
+        h.uiAllowed = false
+        h.drain()
+        assertTrue(h.opened.isEmpty())
+        assertEquals(1, h.reports.size)
     }
 }

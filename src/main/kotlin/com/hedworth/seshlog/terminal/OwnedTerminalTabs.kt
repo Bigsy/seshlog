@@ -169,6 +169,35 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** Cached process evidence; collecting it must never block the EDT. */
     fun runningSessionIds(): Set<String> = running.intersect(registry.sessionIds)
 
+    /** Capture on EDT, inspect on a worker, then validate again on EDT before focusing. */
+    internal class NavigationTarget(
+        val inspect: () -> Boolean,
+        val current: () -> Boolean,
+        val focus: () -> Boolean,
+    )
+
+    internal fun navigationTarget(session: Session, sessionCurrent: () -> Boolean): NavigationTarget? {
+        val expected = registry.association(session.id) ?: return null
+        val terminal = terminalFor(session.id) ?: return null
+        val shell = terminal.shellPid() ?: return null
+        val commands = executables()
+        val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
+        val current = {
+            !disposed && !project.isDisposed && sessionCurrent() && !Disposer.isDisposed(expected.tab) && registry.matches(expected) &&
+                terminalFor(session.id)?.shellPid() == shell
+        }
+        return NavigationTarget(
+            inspect = {
+                // Duplicate provider ids cannot be safely addressed by the older id-only tab registry.
+                val sessions = SessionIndex.getInstance().sessions
+                sessions.count { it.id == session.id } == 1 &&
+                    SessionProcess.inspect(shell, sessions, commands, codexHome).sessionIds.singleOrNull() == session.id
+            },
+            current = current,
+            focus = { current() && focus(session.id, current) },
+        )
+    }
+
     private fun refreshRunning() {
         if (disposed || processInspection.isRunning) return
         acknowledgeVisibleCompletion()
@@ -354,14 +383,21 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 
     /** Bring the tab running [sessionId] to the front. Returns false when we do not own one. */
-    fun focus(sessionId: String): Boolean {
+    fun focus(sessionId: String): Boolean = focus(sessionId) { true }
+
+    private fun focus(sessionId: String, stillCurrent: () -> Boolean): Boolean {
         val content = undisposedContent(sessionId) ?: return false.also { trace.event("focus_failed", "session" to DiagnosticRef.of(sessionId), "reason" to "no_owned_tab") }
+        val expected = registry.association(sessionId) ?: return false
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
             ?: return false
         val manager = content.manager
         if (manager == null || manager.isDisposed) return false.also { trace.event("focus_failed", "session" to DiagnosticRef.of(sessionId), "reason" to "manager_unavailable") }
         trace.event("tab_focused", "session" to DiagnosticRef.of(sessionId), "tab" to DiagnosticRef.tab(content))
-        toolWindow.activate({ manager.setSelectedContent(content, true) }, true)
+        toolWindow.activate({
+            if (stillCurrent() && !project.isDisposed && !Disposer.isDisposed(content) &&
+                registry.matches(expected) && content.manager === manager && !manager.isDisposed)
+                manager.setSelectedContent(content, true)
+        }, true)
         return true
     }
 

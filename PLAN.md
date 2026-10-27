@@ -12,7 +12,39 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Source filters and match provenance | Implemented and automatically tested; release acceptance open | [Source-filter report](docs/search-source-filters.md); all physical UI checks remain unverified. |
 | External-server semantic search | Agreed, unimplemented | Start items 5–13 only after Phase 1 acceptance; [detailed design](docs/semantic-search-design.md). |
 | Managed local inference | Deferred until separately requested after server-backed evaluation | [Later-phase scope](docs/semantic-search-design.md#deferred-managed-local-inference). |
-| Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout; quick session/worktree switcher is the first candidate after current work. |
+| Quick session/worktree switcher | Implemented and automatically validated; physical UI checks open | [Implementation and validation](docs/session-switcher.md); item below. |
+| Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
+
+### 0. Quick session/worktree switcher (priority override, 2026-10-27)
+
+User direction: implement this before the remaining search acceptance work. All unchecked search
+acceptance rows below remain owed; the search performance follow-up stays closed.
+
+- [x] Implement and validate one focused switcher item:
+  - Register **Seshlog: Switch Session / Worktree** in Find Action/Keymap, without a default shortcut
+    that could conflict with an existing keymap. Use a compact keyboard-accessible popup.
+  - Search local/provider titles, project names, recorded paths and observed branches, across all
+    indexed projects/providers, excluding locally hidden sessions. Empty query uses recent activity.
+    Do not read conversations or mutate tool-window filters. Show agent, path, activity/unread and
+    checkout availability from immutable snapshots.
+  - Filter on a bounded worker with per-popup generations; reject stale delivery, retain selection
+    by provider/id and retain existing order across refresh. Dispose work/listeners with the popup.
+  - Enter focuses a validated associated terminal and its project. Stopped rows expose explicit
+    Resume; linked worktrees reuse verified opening and revalidation after trust/import. Missing,
+    uncertain and externally running sessions explain unavailable actions. Recheck session/source,
+    tab generation/process evidence and checkout identity before delayed effects.
+  - Add pure race/policy tests and platform UI/action tests. Run `make check`, Plugin Verifier and
+    package checks; document actual results and remaining manual checks in
+    `docs/session-switcher.md`. Commit this item once, following AGENTS.md.
+  Completed 2026-10-27 in the focused commit **Add metadata session and worktree switcher**:
+  `make check` / `make release` passed **552 tests, zero failures/errors, 10 opt-in skips**.
+  Offline Plugin Verifier reports compatibility on IU-262.10968.63 and IU-263.7307.44.
+  ZIP checks, artifact hash, warning counts and limitations are in the implementation report.
+- [ ] Manual switcher acceptance in a verified synthetic `make run` profile: shortcut/Find Action,
+  rapid typing and refreshing, keyboard selection/scroll, cross-window focus with both terminal
+  engines, explicit Resume (including unopened worktree/trust cancellation), hidden sessions,
+  missing/replaced/uncertain paths, unread acknowledgement, accessibility and light/dark/narrow UI.
+  Record IDE/build and platform; automated tests and Plugin Verifier do not pass these checks.
 
 ### Performance decision: small wins only
 

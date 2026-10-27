@@ -36,6 +36,16 @@ class TabRegistry<T : Any> {
 
     fun snapshot(): Map<String, T> = synchronized(bySession) { LinkedHashMap(bySession) }
 
+    data class Association<T>(val sessionId: String, val tab: T, val generation: Long)
+
+    fun association(sessionId: String): Association<T>? = synchronized(bySession) {
+        bySession[sessionId]?.let { Association(sessionId, it, generation(it)) }
+    }
+
+    fun matches(expected: Association<T>): Boolean = synchronized(bySession) {
+        bySession[expected.sessionId] == expected.tab && generation(expected.tab) == expected.generation
+    }
+
     private fun bump(tab: T) {
         generationByTab[tab] = ++nextGeneration
     }

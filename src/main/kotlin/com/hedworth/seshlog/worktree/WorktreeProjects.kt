@@ -54,13 +54,24 @@ object WorktreeProjects {
 
     fun openAndFork(source: Project, session: Session) = open(source, session, forkSession = true)
 
-    private fun open(source: Project, session: Session, forkSession: Boolean) {
+    internal fun openFromSwitcher(source: Project, session: Session, allowed: (Session) -> Boolean) =
+        open(source, session, forkSession = false, uiAllowed = allowed)
+
+    /** Resume uses the same checkout/open/trust revalidation as a fork, with a caller-supplied final guard. */
+    internal fun openAndResume(source: Project, session: Session, allowed: (Session) -> Boolean,
+                               uiAllowed: (Session) -> Boolean,
+                               resume: (Project, Session) -> Unit) =
+        open(source, session, forkSession = false, resume = resume, allowed = allowed, uiAllowed = uiAllowed)
+
+    private fun open(source: Project, session: Session, forkSession: Boolean,
+                     resume: ((Project, Session) -> Unit)? = null, allowed: (Session) -> Boolean = { true },
+                     uiAllowed: (Session) -> Boolean = { true }) {
         val app = ApplicationManager.getApplication()
         val index = SessionIndex.getInstance()
         val trace = SessionDiagnostics.trace("worktree", "request" to SessionDiagnostics.nextId(),
             "project" to DiagnosticRef.of(source.basePath), "session" to DiagnosticRef.of(session.id))
         WorktreeOpening(
-            current = index::sessionById,
+            current = { id -> index.sessions.firstOrNull { it.id == id && it.kind == session.kind } },
             refresh = { index.scanNow() },
             resolve = { path, previous -> GitRepository.checkout(path, previous) },
             projects = ::capture,
@@ -84,14 +95,17 @@ object WorktreeProjects {
                     .createNotification(message, NotificationType.WARNING).notify(source)
             },
             pending = pending,
-            fork = if (forkSession) { destination, selected ->
+            launch = if (forkSession) { destination, selected ->
                 trace.event("worktree_fork_requested", "destination" to DiagnosticRef.of(destination.basePath),
                     "cwd" to DiagnosticRef.path(selected.cwd))
                 TerminalTabs.fork(destination, selected, index.forkCommand(selected),
                     index.sessions.mapTo(HashSet()) { it.id }.also { it.add(selected.id) })
                 Unit
-            } else null,
-            forkProblem = { selected, checkout ->
+            } else resume,
+            launchVerb = if (forkSession) "fork" else "resume",
+            allowed = allowed,
+            uiAllowed = uiAllowed,
+            launchProblem = { selected, checkout ->
                 val directory = SessionFilter.canonical(selected.cwd)
                 if (!Files.isDirectory(directory) || !directory.startsWith(checkout.root) ||
                     GitRepository.checkout(directory)?.let(checkout::sameIdentity) != true)

@@ -71,6 +71,30 @@ class LexicalRankingTest {
     }
 
     @Test
+    fun `literal evidence keeps shortest first Unicode range and protected phrase in repeated text`() {
+        val text = "😀 " + "İSTANBUL istanbul ".repeat(200)
+        val entries = listOf(
+            ConversationEntry(ConversationMessage(Role.USER, "istanbul i", null), "tool", EntryKind.TOOL_RESULT),
+            ConversationEntry(ConversationMessage(Role.USER, text, null), "user"),
+        )
+        val words = LiteralEvidence.verify(RetrievalQuery.compile("istanbul i"), emptyList(), "", entries)
+        assertTrue(words.allowed)
+        assertEquals("user", words.entry?.sourceId)
+        assertEquals(3..3, words.range)
+        assertEquals("İ", text.substring(words.range!!))
+        assertEquals(1, words.matches.size)
+        assertFalse(words.matches.single().fullExact)
+
+        val phrase = LiteralEvidence.verify(RetrievalQuery.compile("\"istanbul\""), emptyList(), "", entries)
+        assertTrue(phrase.allowed)
+        assertTrue(phrase.exact)
+        assertEquals(3..10, phrase.range)
+        assertEquals("İSTANBUL", text.substring(phrase.range!!))
+        assertEquals(1, phrase.matches.size)
+        assertTrue(phrase.matches.single().fullExact)
+    }
+
+    @Test
     fun `query syntax is literal bounded and aliases are deduplicated`() {
         val q =
             RetrievalQuery.compile(

@@ -23,11 +23,18 @@ This is a prioritization decision, not a claim that the target passed. Keep actu
 cancellation, coverage and resource behavior in the manual checks below; reopen profiling if those
 checks reveal a practical problem. Do not change exact/phrase/source semantics to improve timings.
 
-- [ ] Validate the small literal-verification change: fold each eligible field once per call and
+- [x] Validate the small literal-verification change: fold each eligible field once per call and
   find only the first range needed for evidence; retain original Unicode offsets and source rules.
   Run the unchanged synthetic scale/long-tool benchmark and `make check`, record results in the
   [source-filter report](docs/search-source-filters.md), then close this follow-up without a larger
   SQL/index redesign or a requirement to force every benchmark below 100 ms.
+
+Completed 2026-10-27: `make check` passed (537 tests, 0 failures/errors, 10 opt-in skips), as did
+the unchanged synthetic scale/long-tool benchmark and focused search evaluation. At 10k, default
+median query time changed from 85.97–88.30 ms to 60.35–61.79 ms; p95 remains 103.06–106.51 ms.
+The long-tool All activity p95 changed from 36.47 ms to 10.14 ms. All warm source-read/tokenization
+and unchanged reopen/import reuse assertions passed. [Full comparison and limitations](docs/search-source-filters.md#small-literal-verification-optimization-2026-10-27).
+This follow-up is closed; no larger performance project is scheduled.
 
 ### 1. Complete Phase 1 acceptance
 
@@ -267,9 +274,12 @@ publish/upload, install into the daily IDE or start deferred/backlog work.
 - Source controls/provenance: `b3a041b`, `5004ebc`, `1bebda9`, `6356e97`, `9fe89c4`;
   review fixes `5d12013` and `fcd0d57`. [Source-filter report](docs/search-source-filters.md)
   holds frozen fixture identities, metrics, warnings, artifact hashes and remaining checks.
-- Latest recorded automated validation: 2026-10-26, **536 tests, zero failures/errors, 10 opt-in
-  skips**; offline build/verification against IU-262.10968.63 and IU-263.7307.44, ZIP integrity passed.
-  This is the prior implementation's evidence, not a rerun for this documentation consolidation.
+- Latest unit/platform test run: 2026-10-27, `make check`, **537 tests, zero failures/errors,
+  10 opt-in skips**. The small literal-verification optimization and its synthetic before/after
+  benchmark are recorded in the source-filter report.
+- Latest recorded packaged compatibility evidence: 2026-10-26, 536 tests with 10 opt-in skips;
+  offline build/verification against IU-262.10968.63 and IU-263.7307.44, ZIP integrity passed.
+  Packaging/Plugin Verifier were not rerun for the internal literal-verification optimization.
 - [SQLite experiment](docs/sqlite-bm25-benchmark.md) and [local semantic prototype](docs/semantic-search-prototype.md)
   remain historical measurements with their original caveats and reproducible commands.
 - Historical worktree work and unfinished checks remain in Git at `e598a18:PLAN.md`; the earlier

@@ -21,6 +21,11 @@ data class QueryTerm(val text: String, val phrase: Boolean) {
         return result
     }
 
+    internal fun firstRangeFolded(foldedSource: String): IntRange? {
+        val at = foldedSource.indexOf(folded)
+        return if (at < 0) null else at until at + folded.length
+    }
+
     fun matches(source: String): Boolean = matchesFolded(foldCase(source))
 
     internal fun matchesFolded(foldedSource: String): Boolean = foldedSource.indexOf(folded) >= 0

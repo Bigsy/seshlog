@@ -172,6 +172,43 @@ IU-262.10968.63 and IU-263.7307.44, with the same scheduled-for-removal, depreca
 API counts recorded below. The rebuilt ZIP passed `unzip -tq`; its SHA-256 is
 `24b2ea6a46723ddaa2a18d578dc6f8e43a840a278b9ea5a59d70f5451cce58e5`.
 
+## Small literal-verification optimization, 2026-10-27
+
+The user requested quick wins only, with the larger performance item dropped rather than a rewrite
+to force the historical 100 ms benchmark target. Literal verification now folds each eligible
+metadata/body field once per call, reuses the folded text for all checks, and finds only the first
+occurrence needed for primary evidence. It previously folded repeatedly and collected all ranges
+before selecting the first. Folded text is temporary; no new persistent or cross-query text cache
+was added. SQL ranking, source classification/selection, exact/phrase eligibility, Unicode offsets,
+coverage, navigation and extraction/index limits are unchanged.
+
+The unchanged synthetic scale and long-tool benchmarks ran before and after on the same local
+workstation. Each scale still has three builds and 12 warm samples per mode. Runs are sequential
+in separate warmed test JVMs; GC/background activity were uncontrolled. The
+[comparison JSONL](benchmarks/search-literal-verification-2026-10-27.jsonl) preserves all 52 aggregate
+measurements, including metadata controls, reuse counters and whole-JVM memory samples.
+
+| Workload | Before warm p50 | After warm p50 | Before warm p95 | After warm p95 |
+| --- | --- | --- | --- | --- |
+| 1k Conversation | 8.49–14.36 ms | 6.01–9.66 ms | 10.63–19.75 ms | 10.87–13.50 ms |
+| 10k Conversation | 85.97–88.30 ms | 60.35–61.79 ms | 102.44–114.34 ms | 103.06–106.51 ms |
+| 1k All activity | 20.95–27.42 ms | 13.63–15.51 ms | 45.09–50.28 ms | 43.66–46.86 ms |
+| 10k All activity | 208.59–215.47 ms | 129.52–130.70 ms | 437.91–456.67 ms | 434.41–439.41 ms |
+| Long-tool All activity | 32.29 ms | 9.63 ms | 36.47 ms | 10.14 ms |
+
+The default 10k median improved by about 30%; tail latency remains above the historical target.
+Warm queries and toggles still perform zero source reads/tokenizations; unchanged reopen/import
+reuse assertions pass. These retained-source synthetic timings do not establish cold-source,
+real-provider, UI, lower-memory or supported-platform behavior. No broader performance work is
+scheduled solely to meet 100 ms; practical responsiveness remains a manual acceptance check.
+
+Validation: the focused benchmark/search tests passed, including the frozen selected-source
+evaluation. `make check` passed with **537 tests, 0 failures/errors, 10 opt-in skips**. New coverage
+checks first/shortest original Unicode ranges, protected phrases and excluded tools in repeated
+text; existing phrase, exact, source-filter, provenance and navigation tests remain passing.
+`git diff --check` passed. Plugin Verifier/release packaging and physical UI checks were not rerun
+for this internal optimization; their prior evidence and remaining limits are separate below.
+
 ## Acceptance and handoff
 
 At the original implementation validation, automated checks passed: `make check`, `make lexical-bench`,

@@ -24,33 +24,39 @@ object LiteralEvidence {
         sources: SearchSources = SearchSources.DEFAULT,
     ): Evidence {
         val searchable = entries.filter { it.eligibleFor(sources) }
-        val fields = titles + path + searchable.map { it.text }
-        val required = query.phrases.all { phrase -> fields.any(phrase::matches) }
+        // Reuse one-to-one folded text within this verification only. Repeated terms and tool
+        // output must not allocate a fresh folded copy or every occurrence for each check.
+        val foldedTitles = titles.map(::foldCase)
+        val foldedPath = foldCase(path)
+        val foldedEntries = searchable.map { foldCase(it.text) }
+        val fields = foldedTitles + foldedPath + foldedEntries
+        val required = query.phrases.all { phrase -> fields.any(phrase::matchesFolded) }
         val full = query.literal.terms.joinToString(" ") { it.text }
         val exactTerm = QueryTerm(full, false)
-        val title = full.isNotBlank() && titles.any(exactTerm::matches)
+        val title = full.isNotBlank() && foldedTitles.any(exactTerm::matchesFolded)
         val exact = title ||
-            (query.technical && full.isNotBlank() && fields.any(exactTerm::matches)) ||
+            (query.technical && full.isNotBlank() && fields.any(exactTerm::matchesFolded)) ||
             query.phrases.isNotEmpty()
         val pureTechnical = query.phrases.isEmpty() && query.literal.terms.all { LexicalTokens.technical(it.text) }
         val literalRequired = if (pureTechnical || query.tokens.isEmpty())
-            query.literal.terms.any { term -> fields.any(term::matches) } else true
+            query.literal.terms.any { term -> fields.any(term::matchesFolded) } else true
         val terms = (query.phrases + query.literal.terms +
             if (query.technical) emptyList() else query.tokens.map { QueryTerm(it, false) }).distinct()
-        fun match(text: String, primary: SearchPrimaryMatch): Match? {
-            val fullRange = if (full.isNotBlank()) exactTerm.ranges(text).firstOrNull() else null
+        fun match(text: String, folded: String, primary: SearchPrimaryMatch): Match? {
+            val fullRange = if (full.isNotBlank()) exactTerm.firstRangeFolded(folded) else null
             val protected = fullRange != null && (primary.source == SearchMatchSource.TITLE || query.technical || query.phrases.isNotEmpty())
-            val range = if (protected) fullRange else terms.flatMap { it.ranges(text) }.minWithOrNull(compareBy({ it.first }, { it.last }))
+            val range = if (protected) fullRange else terms.mapNotNull { it.firstRangeFolded(folded) }
+                .minWithOrNull(compareBy({ it.first }, { it.last }))
             return range?.let { Match(primary.copy(range = it), text, protected) }
         }
         val matches = buildList {
             titles.forEachIndexed { i, text ->
-                match(text, SearchPrimaryMatch(SearchMatchSource.TITLE, metadataVariant =
+                match(text, foldedTitles[i], SearchPrimaryMatch(SearchMatchSource.TITLE, metadataVariant =
                     if (i == 0) SearchMetadataVariant.PROVIDER_TITLE else SearchMetadataVariant.LOCAL_TITLE))?.let(::add)
             }
-            match(path, SearchPrimaryMatch(SearchMatchSource.PROJECT_PATH, metadataVariant = SearchMetadataVariant.PROJECT_PATH))?.let(::add)
-            searchable.forEach { entry ->
-                match(entry.text, SearchPrimaryMatch(entry.searchSource!!.matchSource, entry.sourceId,
+            match(path, foldedPath, SearchPrimaryMatch(SearchMatchSource.PROJECT_PATH, metadataVariant = SearchMetadataVariant.PROJECT_PATH))?.let(::add)
+            searchable.forEachIndexed { i, entry ->
+                match(entry.text, foldedEntries[i], SearchPrimaryMatch(entry.searchSource!!.matchSource, entry.sourceId,
                     toolName = entry.toolName))?.let(::add)
             }
         }.sortedWith(compareBy({ it.primary.source.ordinal }, { it.primary.entryId.orEmpty() }, { it.primary.range?.first ?: 0 }, { it.primary.range?.last ?: 0 }, { it.primary.metadataVariant?.ordinal ?: 0 }))

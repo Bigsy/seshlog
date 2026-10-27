@@ -22,6 +22,7 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.KeyboardFocusManager
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import java.time.Instant
@@ -43,7 +44,15 @@ internal object SessionSwitcher {
 }
 
 /** Popup-local state: no tool-window filters, query history, transcript reads or attention acknowledgement. */
-internal class SessionSwitcherPanel(private val project: Project, private val live: Boolean = true) :
+internal class SessionSwitcherPanel(
+    private val project: Project,
+    private val live: Boolean = true,
+    private val focusButton: (JButton) -> Unit = { it.requestFocusInWindow() },
+    private val traverseFocus: (JButton, Boolean) -> Unit = { button, forward ->
+        val manager = KeyboardFocusManager.getCurrentKeyboardFocusManager()
+        if (forward) manager.focusNextComponent(button) else manager.focusPreviousComponent(button)
+    },
+) :
     JPanel(BorderLayout(JBUI.scale(6), JBUI.scale(6))), Disposable {
     internal val query = JBTextField().apply { emptyText.text = "Search titles, projects, paths or branches" }
     internal val list = JBList<SwitcherRow>(DefaultListModel<SwitcherRow>())
@@ -91,6 +100,7 @@ internal class SessionSwitcherPanel(private val project: Project, private val li
         bind(list, "ENTER") { enter() }
         bind(resume, "ENTER") { if (resume.isEnabled) resume.doClick() }
         bind(open, "ENTER") { if (open.isEnabled) open.doClick() }
+        bindButtonNavigation()
         resume.addActionListener { act { navigation.resume(it.session, it.checkout) } }
         open.addActionListener { act { navigation.openWorktree(it.session) } }
         if (live) {
@@ -173,7 +183,7 @@ internal class SessionSwitcherPanel(private val project: Project, private val li
         if (row.associated) act { navigation.focus(it.session, it.checkout) }
         else if (resume.isEnabled) {
             status.text = "Choose Resume to start this session"
-            resume.requestFocusInWindow()
+            focusButton(resume)
         } else status.text = row.status
     }
 
@@ -211,6 +221,29 @@ internal class SessionSwitcherPanel(private val project: Project, private val li
         debounce.stop(); poll.stop()
         future?.cancel(true)
         executor.shutdownNow()
+    }
+
+    private fun bindButtonNavigation() {
+        // Some macOS focus policies skip buttons during Tab traversal. Route between these two
+        // explicitly, then hand traversal back to the platform at the ends.
+        for (button in listOf(open, resume)) {
+            val forward = KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS
+            val backward = KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS
+            button.setFocusTraversalKeys(forward, button.getFocusTraversalKeys(forward)
+                .filterNot { it == KeyStroke.getKeyStroke("TAB") }.toSet())
+            button.setFocusTraversalKeys(backward, button.getFocusTraversalKeys(backward)
+                .filterNot { it == KeyStroke.getKeyStroke("shift TAB") }.toSet())
+        }
+        bind(resume, "LEFT") { if (open.isEnabled) focusButton(open) }
+        bind(open, "RIGHT") { if (resume.isEnabled) focusButton(resume) }
+        bind(resume, "shift TAB") {
+            if (open.isEnabled) focusButton(open) else traverseFocus(resume, false)
+        }
+        bind(open, "TAB") {
+            if (resume.isEnabled) focusButton(resume) else traverseFocus(open, true)
+        }
+        bind(open, "shift TAB") { traverseFocus(open, false) }
+        bind(resume, "TAB") { traverseFocus(resume, true) }
     }
 
     private fun bind(component: JComponent, key: String, action: () -> Unit) {

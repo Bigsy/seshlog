@@ -45,6 +45,8 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   engines, explicit Resume (including unopened worktree/trust cancellation), hidden sessions,
   missing/replaced/uncertain paths, unread acknowledgement, accessibility and light/dark/narrow UI.
   Record IDE/build and platform; automated tests and Plugin Verifier do not pass these checks.
+  The user confirmed the shortcut opens the popup in the macOS synthetic sandbox; the remaining
+  checks, including button navigation after the follow-up below, remain open.
 
 - [x] Switcher review hardening (one focused follow-up commit): fail closed on unsuccessful or
   unhealthy action rescans, including after worktree opening; resolve nested project destinations
@@ -90,6 +92,12 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   Completed 2026-10-27: the full offline test suite passed 581 tests, zero failures/errors and 10
   opt-in skips. Plugin Verifier reports Compatible on IU-262.10968.63 / IU-263.7307.44 with
   unchanged API warning counts. The previously running sandbox needs restarting to load these changes.
+
+- [x] Make switcher action buttons keyboard accessible when macOS Tab traversal skips buttons:
+  allow Left/Right and Shift+Tab/Tab between enabled Resume and Open Worktree buttons, and return
+  to platform traversal at the ends. Cover focus routing, disabled buttons and accidental launches;
+  the full offline test suite passes (582 tests, 10 opt-in skips). Physical keyboard acceptance in
+  the synthetic sandbox remains owed after restarting it to load the fix.
 
 ### Search settings layout cleanup (user priority, 2026-10-27)
 

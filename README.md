@@ -125,6 +125,7 @@ project window. Activity and unread badges use the existing session state; selec
 does not mark it read.
 
 For stopped sessions, Enter moves focus to the explicit **Resume** button; activate it to launch.
+Use Left/Right or Shift+Tab/Tab to move between **Resume** and **Open Worktree** when both are enabled.
 **Resume** opens or focuses a verified linked worktree before launching there. Other directories
 resume in the most specific containing open project within the same observed checkout, or in the
 invoking project's terminal using the recorded cwd. A failed or incomplete rescan blocks Resume.

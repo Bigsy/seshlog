@@ -43,12 +43,13 @@ in Keymap settings. It requires an open project. No provider parsers or search p
   terminal activation callback checks generation again, rejecting same-tab/same-id reuse.
   Updated location source/record/timestamp alone is not a new target; directory, checkout/source-file
   identity, evidence presence and uncertainty still guard navigation.
-- Enter on a stopped row focuses **Resume**, without launching. Resume is also reachable by Tab or
-  its platform button mnemonic. The explicit action rescans on a worker, validates the recorded
-  directory and Git identity, and rechecks live/owned/hidden state before launching. Linked worktrees
-  reuse `WorktreeOpening`, including protected-root checks, trust/import, window coalescing and
-  validation after opening. The existing fork flow shares this launch validation; its diagnostics
-  retain their original event names. Resume adds `worktree_resume_launched`.
+- Enter on a stopped row focuses **Resume**, without launching. Left/Right and Shift+Tab/Tab move
+  between Resume and Open Worktree when both are enabled; normal traversal continues at the ends.
+  Resume is also reachable by its platform button mnemonic. The explicit action rescans on a worker,
+  validates the recorded directory and Git identity, and rechecks live/owned/hidden state before
+  launching. Linked worktrees reuse `WorktreeOpening`, including protected-root checks, trust/import,
+  window coalescing and validation after opening. The existing fork flow shares this launch
+  validation; its diagnostics retain their original event names. Resume adds `worktree_resume_launched`.
   `requireFreshScan` requires a completed, published scan with READY health for the selected provider,
   including the rescan after opening. Timeout, failure, discarded results and unavailable providers
   block launch. Claude live-marker directory enumeration and individual marker inspection failures

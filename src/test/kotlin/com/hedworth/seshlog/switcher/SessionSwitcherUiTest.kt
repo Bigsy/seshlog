@@ -7,12 +7,71 @@ import com.intellij.openapi.actionSystem.KeyboardShortcut
 import com.intellij.openapi.keymap.KeymapManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import java.awt.KeyboardFocusManager
+import java.awt.event.ActionEvent
+import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.KeyStroke
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JLabel
 
 class SessionSwitcherUiTest : BasePlatformTestCase() {
+    fun `test keyboard moves between enabled worktree and resume buttons without launching`() {
+        val focused = mutableListOf<JButton>()
+        val traversed = mutableListOf<Pair<JButton, Boolean>>()
+        val panel = SessionSwitcherPanel(project, live = false,
+            focusButton = { focused += it }, traverseFocus = { button, forward -> traversed += button to forward })
+        try {
+            val row = SwitcherRow(switchSession())
+            panel.results.apply(panel.results.begin(""), listOf(row))
+            panel.render()
+            assertTrue(panel.resume.isEnabled)
+            assertTrue(panel.open.isEnabled)
+            var launched = 0
+            panel.resume.addActionListener { launched++ }
+            panel.open.addActionListener { launched++ }
+
+            fun press(button: JButton, key: String) {
+                val binding = button.getInputMap(JComponent.WHEN_FOCUSED).get(KeyStroke.getKeyStroke(key))
+                assertNotNull("No binding for $key", binding)
+                val action = button.actionMap.get(binding)
+                assertNotNull("No action for $key", action)
+                action!!.actionPerformed(ActionEvent(button, ActionEvent.ACTION_PERFORMED, key))
+            }
+
+            panel.enter()
+            assertEquals(listOf(panel.resume), focused)
+            press(panel.resume, "LEFT")
+            press(panel.open, "RIGHT")
+            press(panel.resume, "shift TAB")
+            press(panel.open, "TAB")
+            assertEquals(listOf(panel.resume, panel.open, panel.resume, panel.open, panel.resume), focused)
+            for (button in listOf(panel.open, panel.resume)) {
+                assertTrue(button.focusTraversalKeysEnabled)
+                assertFalse(KeyStroke.getKeyStroke("TAB") in button.getFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS))
+                assertFalse(KeyStroke.getKeyStroke("shift TAB") in button.getFocusTraversalKeys(KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS))
+            }
+            assertEquals(0, launched)
+
+            press(panel.open, "shift TAB")
+            press(panel.resume, "TAB")
+            assertEquals(listOf(panel.open to false, panel.resume to true), traversed)
+
+            val noWorktree = row.copy(session = row.session.copy(checkout = null))
+            panel.results.apply(panel.results.begin("other"), listOf(noWorktree))
+            panel.render()
+            assertFalse(panel.open.isEnabled)
+            focused.clear()
+            traversed.clear()
+            press(panel.resume, "LEFT")
+            press(panel.resume, "shift TAB")
+            assertTrue(focused.isEmpty())
+            assertEquals(listOf(panel.resume to false), traversed)
+            assertEquals(0, launched)
+        } finally { Disposer.dispose(panel) }
+    }
+
     fun `test default shortcuts are registered for macOS and other platforms`() {
         assertNotNull(ActionManager.getInstance().getAction("Seshlog.SwitchSession"))
         val keymaps = KeymapManager.getInstance()

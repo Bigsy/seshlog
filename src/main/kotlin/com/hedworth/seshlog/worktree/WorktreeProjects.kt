@@ -28,15 +28,16 @@ object WorktreeProjects {
     fun capture(): OpenProjectSnapshot<Project> {
         val projects = projectSet()
         val git = GitRepository.Snapshot()
-        val roots = projects.mapNotNull { project ->
+        val directories = projects.mapNotNull { project ->
             project.basePath?.let { raw ->
                 runCatching {
                     val path = SessionFilter.canonical(Path.of(raw))
-                    project to (git.resolve(path)?.root ?: path)
+                    project to path
                 }.getOrNull()
             }
         }.toMap()
-        return OpenProjectSnapshot(projects, roots)
+        val roots = directories.mapValues { (_, path) -> git.resolve(path)?.root ?: path }
+        return OpenProjectSnapshot(projects, roots, directories)
     }
 
     fun protectedRoots(): Set<Path> {
@@ -50,9 +51,9 @@ object WorktreeProjects {
             .mapTo(HashSet(), SessionFilter::canonical)
     }
 
-    fun open(source: Project, session: Session) = open(source, session, forkSession = false)
+    fun open(source: Project, session: Session) { open(source, session, forkSession = false) }
 
-    fun openAndFork(source: Project, session: Session) = open(source, session, forkSession = true)
+    fun openAndFork(source: Project, session: Session) { open(source, session, forkSession = true) }
 
     internal fun openFromSwitcher(source: Project, session: Session, allowed: (Session) -> Boolean) =
         open(source, session, forkSession = false, uiAllowed = allowed)
@@ -65,14 +66,17 @@ object WorktreeProjects {
 
     private fun open(source: Project, session: Session, forkSession: Boolean,
                      resume: ((Project, Session) -> Unit)? = null, allowed: (Session) -> Boolean = { true },
-                     uiAllowed: (Session) -> Boolean = { true }) {
+                     uiAllowed: (Session) -> Boolean = { true }): Boolean {
         val app = ApplicationManager.getApplication()
         val index = SessionIndex.getInstance()
         val trace = SessionDiagnostics.trace("worktree", "request" to SessionDiagnostics.nextId(),
             "project" to DiagnosticRef.of(source.basePath), "session" to DiagnosticRef.of(session.id))
-        WorktreeOpening(
+        return WorktreeOpening(
             current = { id -> index.sessions.firstOrNull { it.id == id && it.kind == session.kind } },
-            refresh = { index.scanNow() },
+            refresh = {
+                if (resume != null) index.requireFreshScan(session.kind) else index.scanNow()
+                Unit
+            },
             resolve = { path, previous -> GitRepository.checkout(path, previous) },
             projects = ::capture,
             projectSet = ::projectSet,

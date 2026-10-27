@@ -91,8 +91,8 @@ internal class SessionSwitcherPanel(private val project: Project, private val li
         bind(list, "ENTER") { enter() }
         bind(resume, "ENTER") { if (resume.isEnabled) resume.doClick() }
         bind(open, "ENTER") { if (open.isEnabled) open.doClick() }
-        resume.addActionListener { act { navigation.resume(it) } }
-        open.addActionListener { act { navigation.openWorktree(it) } }
+        resume.addActionListener { act { navigation.resume(it.session, it.checkout) } }
+        open.addActionListener { act { navigation.openWorktree(it.session) } }
         if (live) {
             val bus = ApplicationManager.getApplication().messageBus.connect(this)
             bus.subscribe(SessionIndex.TOPIC, object : SessionIndex.SessionIndexListener {
@@ -118,9 +118,8 @@ internal class SessionSwitcherPanel(private val project: Project, private val li
         val associated = projects.flatMap { OwnedTerminalTabs.getInstance(it).sessionIds }.toSet()
         val names = index.openProjectRoots.filterKeys { it in projects }.entries.groupBy({ it.value }, { it.key.name })
         val unread = SessionAttentionState.getInstance().unreadIds
-        return index.sessions.map { s -> SwitcherRow(s, organisation.title(s),
-            names[s.checkout?.root ?: s.cwd].orEmpty(), organisation.metadata(s.id).hidden,
-            s.id in associated, s.id in unread) }
+        return switcherRows(index.sessions, index.resolvedPaths, names, associated, unread,
+            organisation::title, { organisation.metadata(it.id).hidden })
     }
 
     private fun refresh(force: Boolean = false) {
@@ -171,19 +170,19 @@ internal class SessionSwitcherPanel(private val project: Project, private val li
     internal fun enter() {
         val row = list.selectedValue ?: return
         if (results.pending || acting) return
-        if (row.associated) act { navigation.focus(it) }
+        if (row.associated) act { navigation.focus(it.session, it.checkout) }
         else if (resume.isEnabled) {
             status.text = "Choose Resume to start this session"
             resume.requestFocusInWindow()
         } else status.text = row.status
     }
 
-    private fun act(effect: (Session) -> Unit) {
+    private fun act(effect: (SwitcherRow) -> Unit) {
         val row = list.selectedValue ?: return
         if (results.pending || acting) return
         acting = true
         updateActions()
-        effect(row.session)
+        effect(row)
     }
 
     private fun updateActions() {

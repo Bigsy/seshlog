@@ -16,7 +16,9 @@ no default shortcut. It requires an open project. No provider parsers or search 
   1.5 seconds while open. Filtering uses one bounded worker with 100 ms debounce. Popup generations
   reject older query/metadata results, cancellation stops superseded filtering, and disposal removes
   subscriptions, timers and queued work. Separate popups have separate lifetimes.
-- `SwitcherResults` preserves existing match order during refresh, appending new matches. Selection
+- `SwitcherResults` preserves surviving match order during refresh, appending new matches. At the
+  200-row limit, current recency determines membership while the selected matching row is protected;
+  recent arrivals evict lower-priority unselected rows. Selection
   uses provider/id, not row index. Removing the selected row clears selection and disables actions.
   A new query can choose the first result. Reopening uses fresh recency order. The viewport is retained
   on refresh. Pins and unread do not change ranking; there is no separate navigation-history store.
@@ -24,17 +26,29 @@ no default shortcut. It requires an open project. No provider parsers or search 
   Activity/unread stay beside the title so long paths do not push them out of view. Accessible names
   include the full row and action state. Selecting/filtering never acknowledges a completion; existing
   terminal visibility/receipt handling still owns acknowledgement.
+  Pi/opencode rows use the index's already-resolved checkout snapshot for branch/path search and
+  presentation, without inventing agent location provenance or enabling worktree opening from it.
+  Explicit continuation links are collapsed before hidden filtering, using the main list's policy;
+  independently live/associated predecessors remain visible and missing links/cycles stay usable.
 - Enter focuses an associated terminal, including another open project's window. It captures the
   terminal's registry generation and shell, verifies process identity on a worker using existing
   inspection, then checks the session source/location/checkout and tab again before focusing. The
   terminal activation callback checks generation again, rejecting same-tab/same-id reuse.
+  Updated location source/record/timestamp alone is not a new target; directory, checkout/source-file
+  identity, evidence presence and uncertainty still guard navigation.
 - Enter on a stopped row focuses **Resume**, without launching. Resume is also reachable by Tab or
   its platform button mnemonic. The explicit action rescans on a worker, validates the recorded
   directory and Git identity, and rechecks live/owned/hidden state before launching. Linked worktrees
   reuse `WorktreeOpening`, including protected-root checks, trust/import, window coalescing and
   validation after opening. The existing fork flow shares this launch validation; its diagnostics
   retain their original event names. Resume adds `worktree_resume_launched`.
-- Non-linked directories use an already-open matching root, falling back to the invoking project's
+  `requireFreshScan` requires a completed, published scan with READY health for the selected provider,
+  including the rescan after opening. Timeout, failure, discarded results and unavailable providers
+  block launch. Busy worktree requests explicitly return rejection and leave the popup open for
+  retry; distinct resumes are never silently treated as the same request. Opening remains serialized
+  per checkout, and rejected requests are not automatically queued.
+- Non-linked directories use the most specific containing project directory, requiring the same
+  checkout root when Git identity is known, and falling back to the invoking project's
   terminal with the recorded cwd. **Open Worktree** remains limited to verified linked checkouts.
   Uncertain/missing checkouts disable launches; absent Git/location evidence is labelled unverified
   and directory availability is checked on explicit Resume. A missing checkout can still focus an
@@ -48,7 +62,7 @@ no default shortcut. It requires an open project. No provider parsers or search 
 
 ## Automated validation
 
-`make check` passed, followed by `make release` on the final implementation: **552 tests,
+Original implementation (`df82fa0`): `make check` passed, followed by `make release`: **552 tests,
 zero failures/errors, 10 opt-in skips** (15 additional regression tests). Synthetic tests cover metadata fields and hidden filtering,
 recency/limits/provider keys, stable selection, cold scans, stale delivery/disposal, session/source/
 checkout replacement, tab generation reuse, stopped Enter, literal accessible rendering, preserved
@@ -77,6 +91,33 @@ the downloaded IDE distributions; both plugin verdicts are Compatible. The Kotli
 the same deprecated `Disposer.isDisposed` API family. `git diff --check` passed.
 
 Implementation commit subject: **Add metadata session and worktree switcher** (one plan item).
+
+## Review hardening, 2026-10-27
+
+The seven review findings are addressed in one follow-up item, **Harden switcher validation and
+metadata navigation**. Permanent synthetic coverage adds failed/timed-out/discarded scans and
+provider health, pre/post-open refresh failures, nested project selection and checkout boundaries,
+benign location evidence updates, Pi/opencode branch metadata, explicit busy-request rejection and
+retry, continuation hiding/live predecessors/broken links/cycles, and full-list arrival/selection.
+The initial run caught stale incremental UI-test bytecode after the row constructor changed; tests
+were recompiled with `./gradlew compileTestKotlin --offline -Pkotlin.incremental=false --rerun`.
+Final full-suite, package and verifier results follow; earlier results above are historical.
+
+`make check` passed **564 tests, zero failures/errors, 10 opt-in skips**: 12 new regressions beyond
+the original 552-test suite. `make release` passed, as did ZIP integrity and nested-JAR checks for
+fixtures, test classes, transcripts, databases and models. The development version remains 0.8.1;
+the updated ZIP is **13,280,399 bytes**, SHA-256
+`f6f94d055077e30d26cf9561695c19c10a0b19e8242523d4a480284260c43ed9`.
+
+`./gradlew verifyPlugin --offline` passed with Verifier 1.411 on IU-262.10968.63 and IU-263.7307.44.
+Both verdicts are **Compatible**. Warning counts are unchanged from the table above: 2 scheduled
+for removal each, 16/19 deprecated and 65/58 experimental usages. The optional IDE layout warnings
+remain; the clean Kotlin compilation also reports existing deprecations, unnecessary null assertions
+and the `WatchRootRegistration` generated-copy visibility warning. `git diff --check` passed.
+
+A successful scan is not an atomic lock against an independent external CLI starting afterwards;
+the fix removes the known failure path that accepted stale state after an unsuccessful rescan.
+Physical UI/platform acceptance is still owed. No daily IDE installation or publication occurred.
 
 ## Manual acceptance still owed
 

@@ -125,7 +125,9 @@ does not mark it read.
 
 For stopped sessions, Enter moves focus to the explicit **Resume** button; activate it to launch.
 **Resume** opens or focuses a verified linked worktree before launching there. Other directories
-resume in a matching open project, or in the invoking project's terminal using the recorded cwd.
+resume in the most specific containing open project within the same observed checkout, or in the
+invoking project's terminal using the recorded cwd. A failed or incomplete rescan blocks Resume.
+If another operation is using the worktree, the popup stays open with a retry message.
 **Open Worktree** opens/focuses an eligible linked checkout without starting an agent. Missing or
 uncertain locations block launches; unverified locations are checked before Resume. Running sessions
 without an associated IDE terminal are labelled and never silently resumed.
@@ -133,6 +135,8 @@ without an associated IDE terminal are labelled and never silently resumed.
 The popup searches across indexed projects and agents, respects locally hidden sessions, and leaves
 tool-window filters unchanged. It shows up to 200 matches; narrow the query to find older sessions.
 Existing rows retain their order during updates, and selection follows the session identity.
+Recent arrivals can replace lower-priority unselected rows when the list is full. Claude continuation
+chains show their current part, while independently running earlier parts remain accessible.
 Reopening the popup sorts by recent activity again. Changed or unverifiable targets require a fresh
 selection instead of navigating to a different session. No query history is saved.
 

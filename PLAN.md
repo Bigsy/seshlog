@@ -46,6 +46,19 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   missing/replaced/uncertain paths, unread acknowledgement, accessibility and light/dark/narrow UI.
   Record IDE/build and platform; automated tests and Plugin Verifier do not pass these checks.
 
+- [x] Switcher review hardening (one focused follow-up commit): fail closed on unsuccessful or
+  unhealthy action rescans, including after worktree opening; resolve nested project destinations
+  without crossing checkout boundaries; tolerate location evidence timestamps/record updates;
+  use existing resolved Git metadata for every provider's branch search; report busy worktree
+  requests and retain the popup for retry; collapse continuations before hiding/filtering; admit
+  recent arrivals at the 200-row limit while retaining selection and surviving relative order.
+  Add permanent regressions for all seven findings, run `make check`, package/compatibility checks,
+  and update `docs/session-switcher.md`. Existing physical/search checks remain open.
+  Completed 2026-10-27 in **Harden switcher validation and metadata navigation**: 564 tests,
+  zero failures/errors, 10 opt-in skips; `make release` and offline Plugin Verifier passed on
+  IU-262.10968.63 / IU-263.7307.44 with unchanged warning counts. Report records artifact hash
+  and the explicit retry behavior for busy worktrees; no physical acceptance rows were passed.
+
 ### Performance decision: small wins only
 
 User direction, 2026-10-27: take small, measured optimizations, then drop the broader performance

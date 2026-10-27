@@ -98,4 +98,18 @@ class SwitcherModelTest {
         state.apply(state.begin(""), listOf(row))
         assertEquals(row.key, state.selected)
     }
+
+    @Test fun `recent arrivals enter a full popup without evicting selection or reordering survivors`() {
+        val original = (1..200).map { SwitcherRow(switchSession("id-$it", (201 - it).toLong())) }
+        val state = SwitcherResults()
+        state.apply(state.begin(""), original)
+        state.selected = original.last().key // Protect the oldest row, not just a convenient top match.
+        val fresh = SwitcherRow(switchSession("new", 500))
+        state.apply(state.begin(""), listOf(fresh) + original)
+        assertEquals(200, state.rows.size)
+        assertTrue(state.rows.any { it.key == fresh.key })
+        assertEquals(original.last().key, state.selected)
+        assertFalse(state.rows.any { it.key == original[198].key })
+        assertEquals(original.filter { it.key != original[198].key }, state.rows.filter { it.key != fresh.key })
+    }
 }

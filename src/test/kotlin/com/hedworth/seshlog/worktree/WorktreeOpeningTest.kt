@@ -7,10 +7,11 @@ import java.nio.file.Path
 import java.time.Instant
 
 class WorktreeOpeningTest {
-    private class Harness(forkSession: Boolean = false, launchVerb: String = "fork") {
+    private class Harness(forkSession: Boolean = false, launchVerb: String = "fork",
+                          pending: MutableSet<Path> = mutableSetOf(), id: String = "id") {
         val root = Path.of("/synthetic/worktree")
         val checkout = Checkout(root, Path.of("/synthetic/main/.git/worktrees/topic"), Path.of("/synthetic/main/.git"), Checkout.Kind.LINKED, "topic", null)
-        val selected = Session(AgentKind.CODEX, "id", "Session", root.resolve("src"), "old", null,
+        val selected = Session(AgentKind.CODEX, id, "Session", root.resolve("src"), "old", null,
             Instant.EPOCH, null, false, null, null, 1, true,
             location = SessionLocation(LocationSource.CODEX_CONTEXT, 2), checkout = checkout)
         var latest: Session? = selected
@@ -56,6 +57,7 @@ class WorktreeOpeningTest {
             launchVerb = launchVerb,
             allowed = { allowed },
             uiAllowed = { uiAllowed },
+            pending = pending,
         )
         fun openWindow() {
             controller.request(selected)
@@ -72,8 +74,10 @@ class WorktreeOpeningTest {
 
     @Test fun `opens checkout root and coalesces repeated clicks while validating`() {
         val h = Harness()
-        h.controller.request(h.selected)
-        h.controller.request(h.selected)
+        assertTrue(h.controller.request(h.selected))
+        assertFalse(h.controller.request(h.selected))
+        assertEquals(1, h.reports.size)
+        h.reports.clear()
         assertEquals(1, h.workers.size)
         h.drain()
         assertEquals(listOf(h.root), h.opened)
@@ -180,7 +184,9 @@ class WorktreeOpeningTest {
         h.openWindow()
         assertEquals(listOf(h.root), h.opened)
         assertTrue(h.forked.isEmpty()) // Must revalidate after opening, before launching.
-        h.controller.request(h.selected)
+        assertFalse(h.controller.request(h.selected))
+        assertEquals(1, h.reports.size)
+        h.reports.clear()
         assertEquals(1, h.workers.size) // Still coalesced while the fork is pending.
         h.drain()
         assertEquals(listOf("destination" to h.selected), h.forked)
@@ -298,5 +304,46 @@ class WorktreeOpeningTest {
         h.drain()
         assertTrue(h.opened.isEmpty())
         assertEquals(1, h.reports.size)
+    }
+
+    @Test fun `different resumes sharing a checkout explicitly reject busy request and permit retry`() {
+        val pending = mutableSetOf<Path>()
+        val first = Harness(true, "resume", pending, "first")
+        val second = Harness(true, "resume", pending, "second")
+        assertTrue(first.controller.request(first.selected))
+        assertFalse(second.controller.request(second.selected))
+        assertTrue(second.workers.isEmpty())
+        assertTrue(second.reports.single().contains("please try again"))
+        first.drain()
+        second.openProjects = first.openProjects
+        assertTrue(second.controller.request(second.selected))
+        second.drain()
+        assertEquals("second", second.forked.single().second.id)
+        assertTrue(second.opened.isEmpty())
+    }
+
+    @Test fun `resume rejects failed refresh before opening and after trust flow`() {
+        for (afterOpen in listOf(false, true)) {
+            val h = Harness(true, "resume")
+            if (afterOpen) h.openWindow()
+            h.refreshEffect = { error("refresh failed or timed out") }
+            if (!afterOpen) h.controller.request(h.selected)
+            h.drain()
+            assertTrue(h.forked.isEmpty())
+            assertEquals(1, h.reports.size)
+            h.refreshEffect = {}
+            assertTrue(h.controller.request(h.selected))
+            h.drain()
+            assertEquals(1, h.forked.size)
+        }
+    }
+
+    @Test fun `fresh location record does not prevent opening or launching the same checkout`() {
+        val h = Harness(true, "resume")
+        h.refreshEffect = { h.latest = h.selected.copy(location = h.selected.location!!.copy(record = 999,
+            timestamp = Instant.ofEpochSecond(100))) }
+        h.controller.request(h.selected); h.drain()
+        assertEquals(1, h.forked.size)
+        assertTrue(h.reports.isEmpty())
     }
 }

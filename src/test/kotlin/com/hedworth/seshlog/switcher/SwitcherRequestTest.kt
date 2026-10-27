@@ -80,4 +80,23 @@ class SwitcherRequestTest {
         registry.forget("tab")
         assertFalse(registry.matches(fresh))
     }
+
+    @Test fun `new context records in the same directory do not reject delayed focus`() {
+        val h = Harness()
+        h.start(); h.workers.removeFirst()()
+        h.current = h.selected.copy(location = h.selected.location!!.copy(record = 1234,
+            timestamp = java.time.Instant.ofEpochSecond(500), explanation = "fresh evidence",
+            source = com.hedworth.seshlog.model.LocationSource.CODEX_DATABASE))
+        h.deliver()
+        assertEquals(listOf(h.current), h.effects)
+        assertTrue(h.reports.isEmpty())
+    }
+
+    @Test fun `failed scan validation never launches from the retained stopped session`() {
+        val h = Harness()
+        h.request.run(h.selected, { error("rescan timed out") }, { true }, { h.effects += it })
+        h.deliver()
+        assertTrue(h.effects.isEmpty())
+        assertEquals(1, h.reports.size)
+    }
 }

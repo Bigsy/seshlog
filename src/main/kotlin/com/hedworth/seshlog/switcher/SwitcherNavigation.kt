@@ -4,6 +4,7 @@ import com.hedworth.seshlog.index.GitRepository
 import com.hedworth.seshlog.index.SessionFilter
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.model.Checkout
 import com.hedworth.seshlog.restore.SessionRestoreManager
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
@@ -26,7 +27,8 @@ internal class SwitcherNavigation(
     private fun owners(s: Session) = WorktreeProjects.projectSet().filter { OwnedTerminalTabs.getInstance(it).owns(s.id) }
     private fun unique(s: Session) = index.sessions.count { it.id == s.id } == 1
     private fun stopped(s: Session) = current(s)?.isLive == false && owners(s).isEmpty() && unique(s) &&
-        !SessionOrganisation.getInstance().metadata(s.id).hidden
+        !SessionOrganisation.getInstance().metadata(s.id).hidden &&
+        switcherSessions(index.sessions, emptySet()).any { it.kind == s.kind && it.id == s.id }
 
     private fun request() = SwitcherRequest(::current,
         { SessionOrganisation.getInstance().metadata(it.id).hidden },
@@ -34,7 +36,7 @@ internal class SwitcherNavigation(
         { ApplicationManager.getApplication().invokeLater(it) },
         { active() && !source.isDisposed }, report)
 
-    fun focus(s: Session) {
+    fun focus(s: Session, observed: Checkout? = s.checkout) {
         val project = owners(s).singleOrNull()
         val target = project?.let {
             OwnedTerminalTabs.getInstance(it).navigationTarget(s) {
@@ -44,7 +46,7 @@ internal class SwitcherNavigation(
         if (target == null || !unique(s)) { report("No unambiguous associated terminal; refresh and try again"); return }
         request().run(s,
             validate = {
-                if (!target.inspect()) "Terminal identity could not be verified; refresh and try again" else checkoutProblem(s, focusOnly = true)
+                if (!target.inspect()) "Terminal identity could not be verified; refresh and try again" else checkoutProblem(s, observed, focusOnly = true)
             },
             ready = { unique(s) && target.current() },
             effect = {
@@ -55,24 +57,26 @@ internal class SwitcherNavigation(
 
     fun openWorktree(s: Session) {
         request().run(s, { checkoutProblem(s) }, { unique(s) }, {
-            WorktreeProjects.openFromSwitcher(source, it) { candidate ->
+            val accepted = WorktreeProjects.openFromSwitcher(source, it) { candidate ->
                 unique(candidate) && !SessionOrganisation.getInstance().metadata(candidate.id).hidden
             }
-            done()
+            if (accepted) done() else report("Worktree is busy or unavailable; please try again")
         })
     }
 
-    fun resume(s: Session) {
+    fun resume(s: Session, observed: Checkout? = s.checkout) {
         var projects: OpenProjectSnapshot<Project>? = null
-        var directory: java.nio.file.Path? = null
+        var destination: Project? = null
         var command: String? = null
         request().run(s,
             validate = {
-                index.scanNow()
-                val problem = checkoutProblem(s)
+                index.requireFreshScan(s.kind)
+                val problem = checkoutProblem(s, observed)
                 if (problem == null) {
                     projects = WorktreeProjects.capture()
-                    directory = SessionFilter.canonical(s.cwd)
+                    val directory = SessionFilter.canonical(s.cwd)
+                    val checkout = observed ?: GitRepository.checkout(directory)
+                    destination = switcherDestination(directory, checkout, projects) ?: source
                     command = index.resumeCommand(s)
                 }
                 problem
@@ -80,7 +84,7 @@ internal class SwitcherNavigation(
             ready = { stopped(s) && (projects == null || projects.projects == WorktreeProjects.projectSet()) },
             effect = { latest ->
                 if (latest.checkout?.linked == true) {
-                    WorktreeProjects.openAndResume(source, latest,
+                    val accepted = WorktreeProjects.openAndResume(source, latest,
                         // WorktreeOpening calls this on workers too: use only index identity here.
                         allowed = { candidate -> !candidate.isLive && sameSwitchTarget(latest, candidate) },
                         uiAllowed = ::stopped,
@@ -91,14 +95,14 @@ internal class SwitcherNavigation(
                             }
                             launch(destination, selected, command!!)
                         })
+                    if (accepted) done() else report("Worktree is busy or unavailable; please try again")
                 } else {
-                    val root = latest.checkout?.root ?: directory
-                    val destination = projects!!.roots.entries.firstOrNull { it.value == root }?.key ?: source
-                    check(!destination.isDisposed)
-                    ProjectUtil.focusProjectWindow(destination, true)
-                    launch(destination, latest, command!!)
+                    val target = destination!!
+                    check(!target.isDisposed)
+                    ProjectUtil.focusProjectWindow(target, true)
+                    launch(target, latest, command!!)
+                    done()
                 }
-                done()
             })
     }
 
@@ -108,9 +112,8 @@ internal class SwitcherNavigation(
     }
 
     /** Worker only. Missing locations may still focus their existing terminal; never launch there. */
-    private fun checkoutProblem(s: Session, focusOnly: Boolean = false): String? {
+    private fun checkoutProblem(s: Session, checkout: Checkout? = s.checkout, focusOnly: Boolean = false): String? {
         if (!focusOnly && s.location?.uncertain == true) return "Location uncertain; refresh after the agent records its directory"
-        val checkout = s.checkout
         if (checkout != null) {
             val verified = GitRepository.checkout(checkout.root, checkout)
             if (verified?.available == true) {

@@ -4,10 +4,12 @@ import com.hedworth.seshlog.diagnostics.DiagnosticRef
 import com.hedworth.seshlog.diagnostics.DiagnosticTrace
 import com.hedworth.seshlog.model.Checkout
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.model.sameLocationEvidence
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
-data class OpenProjectSnapshot<P>(val projects: Set<P>, val roots: Map<P, Path>)
+data class OpenProjectSnapshot<P>(val projects: Set<P>, val roots: Map<P, Path>,
+                                  val directories: Map<P, Path> = roots)
 
 data class WorktreeActionPresentation(val visible: Boolean, val enabled: Boolean, val text: String, val description: String) {
     companion object {
@@ -55,22 +57,24 @@ internal class WorktreeOpening<P : Any>(
     private val launchProblem: (Session, Checkout) -> String? = { _, _ -> null },
     private val trace: DiagnosticTrace = DiagnosticTrace.NONE,
 ) {
-    fun request(selected: Session) {
-        val checkout = selected.checkout ?: return
-        if (!checkout.linked || !checkout.available || selected.location?.uncertain != false || !active()) return
+    fun request(selected: Session): Boolean {
+        val checkout = selected.checkout ?: return false
+        if (!checkout.linked || !checkout.available || selected.location?.uncertain != false || !active()) return false
         trace.event("worktree_requested", "session" to DiagnosticRef.of(selected.id),
             "root" to DiagnosticRef.path(checkout.root), "fork" to (launch != null && launchVerb == "fork"),
             "operation" to if (launch == null) "open" else launchVerb)
         if (!pending.add(checkout.root)) {
             trace.event("worktree_coalesced")
-            return
+            report("Another operation is already opening or launching in this worktree; please try again")
+            return false
         }
         validate(selected, checkout, 0)
+        return true
     }
 
     private fun unchanged(selected: Session, checkout: Checkout): Boolean {
         val latest = current(selected.id) ?: return false
-        return active() && allowed(latest) && latest.kind == selected.kind && latest.transcriptPath == selected.transcriptPath && latest.startedAt == selected.startedAt && latest.cwd == selected.cwd && latest.location == selected.location &&
+        return active() && allowed(latest) && latest.kind == selected.kind && latest.transcriptPath == selected.transcriptPath && latest.startedAt == selected.startedAt && latest.cwd == selected.cwd && sameLocationEvidence(latest.location, selected.location) &&
             latest.location?.uncertain == false && latest.checkout?.let { it.available && checkout.sameIdentity(it) } == true
     }
 

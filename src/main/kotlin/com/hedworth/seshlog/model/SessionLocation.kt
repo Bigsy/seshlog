@@ -16,6 +16,10 @@ enum class LocationSource {
     INITIAL, CLAUDE_CONTEXT, CLAUDE_WORKTREE_STATE, CODEX_CONTEXT, CODEX_DATABASE,
 }
 
+/** Evidence source/offset/time can advance without changing the recorded directory or confidence. */
+internal fun sameLocationEvidence(a: SessionLocation?, b: SessionLocation?): Boolean =
+    if (a == null || b == null) a == b else a.uncertain == b.uncertain
+
 /** An immutable, local Git observation. All fields are safe to read while rendering. */
 data class Checkout(
     val root: Path,

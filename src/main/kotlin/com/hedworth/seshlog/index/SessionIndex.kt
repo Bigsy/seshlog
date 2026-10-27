@@ -153,6 +153,17 @@ class SessionIndex : Disposable {
         return sessions
     }
 
+    /** Launch validation must never treat the legacy cached fallback as a successful rescan. Worker only. */
+    internal fun requireFreshScan(kind: AgentKind, timeoutMillis: Long = 10_000) {
+        val generation = configurationGeneration.get()
+        val result = ActionScanSnapshot.await(timeoutMillis) {
+            executor.submit(java.util.concurrent.Callable { scanOnce() })
+        }
+        check(!disposed.get() && configurationGeneration.get() == generation && result?.ready(kind) == true) {
+            "Session refresh failed, timed out or was incomplete; refresh and try again"
+        }
+    }
+
     private fun runScan() {
         try {
             scanOnce()
@@ -163,8 +174,8 @@ class SessionIndex : Disposable {
         }
     }
 
-    private fun scanOnce() {
-        if (disposed.get()) return
+    private fun scanOnce(): ActionScanSnapshot? {
+        if (disposed.get()) return null
         val generation = configurationGeneration.get()
         val trace = SessionDiagnostics.trace("index", "scan" to SessionDiagnostics.nextId(), "generation" to generation)
         trace.event("scan_started")
@@ -189,7 +200,7 @@ class SessionIndex : Disposable {
         val protectedRoots = WorktreeProjects.protectedRoots()
         if (disposed.get() || configurationGeneration.get() != generation) {
             trace.event("scan_discarded", "reason" to "disposed_or_settings_changed")
-            return
+            return null
         }
         openProjectRoots = openProjects.roots
         protectedDataRoots = protectedRoots
@@ -207,6 +218,7 @@ class SessionIndex : Disposable {
                     app.messageBus.syncPublisher(TOPIC).sessionsUpdated(associated)
             })
         }
+        return ActionScanSnapshot(diagnostics.mapValues { it.value.health })
     }
 
     private fun publishScanState(scanning: Boolean) {

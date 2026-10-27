@@ -124,6 +124,16 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   full-size and thumbnail renders inspected. Pixel comparison confines changes in cards 1–3 to
   the footer counts. No Marketplace upload was performed.
 
+### README cleanup (user priority, 2026-10-27)
+
+- [x] Rewrite the README as a short user-facing introduction with install steps, everyday
+  workflows, shortcuts, worktrees and plain-language privacy. Keep the screenshot gallery and
+  move detailed instructions, limitations and diagnostics into a linked usage guide.
+  Instructions checked against current UI labels, keymap and click handlers. All 18 relative
+  links/anchors validated and the screenshot gallery verified unchanged. README is about 78%
+  shorter; detailed user instructions now live in `docs/usage.md`. Documentation-only change;
+  no runtime tests needed.
+
 ### Search settings layout cleanup (user priority, 2026-10-27)
 
 - [x] Simplify the Search settings section: a concise status/empty state, one refresh action,

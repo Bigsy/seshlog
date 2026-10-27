@@ -34,13 +34,14 @@ object LiveSessionReader {
     fun read(sessionsDir: Path, isAlive: ((Long) -> Boolean)? = null): Map<String, LiveSession> =
         readWithDiagnostics(sessionsDir, isAlive).sessions
 
-    /** An absent optional directory is normal; failed enumeration is incomplete liveness evidence. */
+    /** Missing markers are normal; failed enumeration or inspection is incomplete liveness evidence. */
     internal fun readWithDiagnostics(
         sessionsDir: Path,
         isAlive: ((Long) -> Boolean)? = null,
         listFiles: (Path) -> List<Path> = { directory ->
             Files.list(directory).use { stream -> stream.filter { it.fileName.toString().endsWith(".json") }.toList() }
         },
+        readText: (Path) -> String = { Files.readString(it) },
     ): LiveSessionScan {
         val result = HashMap<String, LiveSession>()
         val files = try {
@@ -52,16 +53,31 @@ object LiveSessionReader {
             LOG.debug("Cannot list $sessionsDir", e)
             return LiveSessionScan(emptyMap(), "Cannot list live-session directory: $sessionsDir")
         }
+        var problem: String? = null
+        val onFailure: (Path) -> Unit = { problem = "Cannot inspect live-session marker: $it" }
         for (file in files) {
-            val live = parse(file) ?: continue
-            if (!(isAlive?.invoke(live.pid) ?: isCurrent(file, live))) continue
+            val live = readMarker(file, readText, onFailure) ?: continue
+            if (!(isAlive?.invoke(live.pid) ?: isCurrent(file, live, readText, onFailure))) continue
             result[live.sessionId] = live
         }
-        return LiveSessionScan(result)
+        return LiveSessionScan(result, problem)
     }
 
-    fun parse(file: Path): LiveSession? = try {
-        val obj = JsonParser.parseString(Files.readString(file)).asJsonObject
+    fun parse(file: Path): LiveSession? = readMarker(file, { Files.readString(it) }, {})
+
+    private fun readMarker(file: Path, readText: (Path) -> String, onFailure: (Path) -> Unit): LiveSession? {
+        val text = try {
+            readText(file)
+        } catch (e: Exception) {
+            markerFailure(file, e, onFailure)
+            return null
+        }
+        return parseText(file, text)
+    }
+
+    // Malformed records remain tolerant; distinguish them from failures to read the file itself.
+    private fun parseText(file: Path, text: String): LiveSession? = try {
+        val obj = JsonParser.parseString(text).asJsonObject
         val pid = obj.get("pid")?.asLong ?: return null
         val sessionId = obj.get("sessionId")?.asString ?: return null
         LiveSession(
@@ -73,20 +89,33 @@ object LiveSessionReader {
                 ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong?.let(Instant::ofEpochMilli),
         )
     } catch (e: Exception) {
-        LOG.debug("Skipping unreadable live-session file $file", e)
+        LOG.debug("Skipping malformed live-session file $file", e)
         null
     }
 
     /** A reused PID starts after the old marker was written and must not be shown or killed. */
     fun isCurrent(file: Path, expected: LiveSession): Boolean =
+        isCurrent(file, expected, { Files.readString(it) }, {})
+
+    private fun isCurrent(file: Path, expected: LiveSession, readText: (Path) -> String,
+                          onFailure: (Path) -> Unit): Boolean =
         try {
-            if (parse(file) != expected) false else {
+            if (readMarker(file, readText, onFailure) != expected) false else {
                 val process = ProcessHandle.of(expected.pid).orElse(null)
                 val started = process?.info()?.startInstant()?.orElse(null)
                 process?.isAlive == true && (started == null ||
                     !started.isAfter(Files.getLastModifiedTime(file).toInstant()))
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            markerFailure(file, e, onFailure)
             false
         }
+
+    private fun markerFailure(file: Path, error: Exception, onFailure: (Path) -> Unit) {
+        // A marker removed during scanning is an ordinary exit. Unknown accessibility and broken
+        // symlinks must not be mistaken for removal (notExists returns false for either).
+        if (error is NoSuchFileException && Files.notExists(file, LinkOption.NOFOLLOW_LINKS)) return
+        LOG.debug("Cannot inspect live-session marker $file", error)
+        onFailure(file)
+    }
 }

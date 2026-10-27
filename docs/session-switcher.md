@@ -46,8 +46,9 @@ no default shortcut. It requires an open project. No provider parsers or search 
   retain their original event names. Resume adds `worktree_resume_launched`.
   `requireFreshScan` requires a completed, published scan with READY health for the selected provider,
   including the rescan after opening. Timeout, failure, discarded results and unavailable providers
-  block launch. Claude live-marker directory enumeration failures also mark provider health as ERROR,
-  preserving readable history while preventing Resume. A genuinely absent optional marker directory
+  block launch. Claude live-marker directory enumeration and individual marker inspection failures
+  also mark provider health as ERROR, preserving readable history while preventing Resume.
+  A genuinely absent optional marker directory
   remains valid; a non-directory or dangling symlink does not. Busy worktree requests explicitly
   return rejection and leave the popup open for
   retry; distinct resumes are never silently treated as the same request. Opening remains serialized
@@ -148,6 +149,31 @@ IU-263.7307.44. Warning counts remain 2 scheduled for removal each, 16/19 deprec
 experimental usages; the optional IDE layout warnings remain. `git diff --check` passed.
 Physical UI acceptance remains outstanding, along with all existing search acceptance checks;
 the performance follow-up stays closed. No daily-IDE installation or publication was performed.
+
+## Individual marker read failures, 2026-10-27
+
+**Reject incomplete individual Claude marker reads** extends the incomplete-liveness safeguard to
+individual files. Initial reads, identity re-reads and metadata inspection report failures through
+the same provider-health gate. Successfully read history and other live markers remain available;
+Resume is blocked until a healthy refresh. Missing files during a scan are ordinary marker removal,
+while dangling symlinks remain incomplete evidence. Malformed JSON retains the existing tolerant
+parsing behavior. The public parse/identity helpers still return null/false on unreadable markers.
+
+Permanent synthetic tests cover denied initial and identity reads, preservation of another live
+marker, provider-to-action rejection and recovery, ordinary removal and a broken marker symlink.
+The provider regression failed against the previous implementation before this change. No agent-owned
+data was modified. A completed scan still cannot lock out a later independent external CLI startup.
+
+`make check` and `make release` passed **571 tests, zero failures/errors, 10 opt-in skips** (three
+new tests). ZIP integrity and nested-JAR content checks passed without test/fixture/transcript/
+database/model leakage. The 0.8.1 ZIP is **13,284,417 bytes**, SHA-256
+`0b3822dff173a2dcf44d16b9d2de7c28c84a6790ca79aaa2a7724b06c020245c`.
+
+`./gradlew verifyPlugin --offline` passed with Verifier 1.411: **Compatible** on IU-262.10968.63 and
+IU-263.7307.44. Warning counts remain 2 scheduled for removal each, 16/19 deprecated and 65/58
+experimental usages; optional IDE layout warnings remain. `git diff --check` passed.
+Physical UI and search acceptance remain outstanding, and the search performance follow-up remains
+closed. No daily-IDE installation or publication was performed.
 
 ## Manual acceptance still owed
 

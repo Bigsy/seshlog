@@ -70,6 +70,17 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   Plugin Verifier reports Compatible on IU-262.10968.63 / IU-263.7307.44 with unchanged warnings.
   ZIP integrity/content inspection passed; the report records the artifact hash and remaining limits.
 
+- [x] Individual Claude marker read failures (one focused commit): propagate file-read failures,
+  including the identity re-read, as incomplete provider health so Resume fails closed. Preserve
+  tolerant malformed-data handling and readable history/markers. Add permanent synthetic regressions
+  for first-read and revalidation failures, recovery and provider-to-action eligibility; run
+  `make check`, package and compatibility checks and update `docs/session-switcher.md`.
+  Physical switcher/search acceptance stays open; the performance follow-up stays closed.
+  Completed 2026-10-27 in **Reject incomplete individual Claude marker reads**: `make check` and
+  `make release` passed 571 tests, zero failures/errors, 10 opt-in skips. Offline Plugin Verifier
+  reports Compatible on IU-262.10968.63 / IU-263.7307.44 with unchanged warnings; ZIP integrity
+  and nested-JAR content checks passed. Artifact hash and limits are recorded in the report.
+
 ### Performance decision: small wins only
 
 User direction, 2026-10-27: take small, measured optimizations, then drop the broader performance

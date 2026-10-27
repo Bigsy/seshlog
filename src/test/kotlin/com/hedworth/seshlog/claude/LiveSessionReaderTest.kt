@@ -14,6 +14,39 @@ class LiveSessionReaderTest {
     val tmp = TemporaryFolder()
 
     @Test
+    fun `denied first or identity read is incomplete while other live markers remain available`() {
+        val dir = tmp.newFolder("marker-reads").toPath()
+        val marker = dir.resolve("failed.json")
+        val peer = dir.resolve("peer.json")
+        val pid = ProcessHandle.current().pid()
+        Files.writeString(marker, """{"pid":$pid,"sessionId":"failed"}""")
+        Files.writeString(peer, """{"pid":$pid,"sessionId":"peer"}""")
+        for (failAt in 1..2) {
+            var reads = 0
+            val scan = LiveSessionReader.readWithDiagnostics(dir, readText = { path ->
+                if (path == marker && ++reads == failAt) throw java.nio.file.AccessDeniedException(path.toString())
+                Files.readString(path)
+            })
+            assertTrue("Read $failAt must prevent a healthy scan", scan.problem != null)
+            assertEquals(setOf("peer"), scan.sessions.keys)
+        }
+        val recovered = LiveSessionReader.readWithDiagnostics(dir)
+        assertEquals(null, recovered.problem)
+        assertEquals(setOf("failed", "peer"), recovered.sessions.keys)
+    }
+
+    @Test
+    fun `removed markers remain normal but broken marker symlinks are incomplete`() {
+        val dir = tmp.newFolder("marker-removal").toPath()
+        val marker = dir.resolve("removed.json")
+        val gone = LiveSessionReader.readWithDiagnostics(dir, listFiles = { listOf(marker) })
+        assertEquals(null, gone.problem)
+        assertTrue(gone.sessions.isEmpty())
+        Files.createSymbolicLink(marker, dir.resolve("missing-target"))
+        assertTrue(LiveSessionReader.readWithDiagnostics(dir).problem != null)
+    }
+
+    @Test
     fun `failed enumeration differs from an absent or successfully empty marker directory`() {
         val dir = tmp.newFolder("unreadable").toPath()
         for (failure in listOf(java.nio.file.AccessDeniedException(dir.toString()),

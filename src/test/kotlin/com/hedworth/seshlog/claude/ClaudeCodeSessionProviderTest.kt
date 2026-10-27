@@ -22,6 +22,28 @@ class ClaudeCodeSessionProviderTest {
     val tmp = TemporaryFolder()
 
     @Test
+    fun `individual marker read failure blocks resume without hiding history and recovers`() {
+        val root = tmp.root.toPath()
+        val project = Files.createDirectories(root.resolve("projects/example"))
+        val fixture = Paths.get(javaClass.getResource("/fixtures/ai_title_only.jsonl")!!.toURI())
+        Files.copy(fixture, project.resolve("session.jsonl"))
+        val provider = ClaudeCodeSessionProvider({ root }, { "claude" })
+        // Enumeration succeeds, but reading a directory as a marker always fails on every test host.
+        val marker = Files.createDirectories(root.resolve("sessions/unreadable.json"))
+        val failed = provider.scanWithDiagnostics(emptyMap())
+        assertEquals(1, failed.sessions.size)
+        assertEquals(ProviderHealth.ERROR, failed.health)
+        assertTrue(!ActionScanSnapshot(mapOf(provider.kind to failed.health)).ready(provider.kind))
+
+        Files.delete(marker)
+        val session = failed.sessions.single()
+        Files.writeString(marker, """{"pid":${ProcessHandle.current().pid()},"sessionId":"${session.id}"}""")
+        val recovered = provider.scanWithDiagnostics(emptyMap())
+        assertEquals(ProviderHealth.READY, recovered.health)
+        assertTrue(recovered.sessions.single().isLive)
+    }
+
+    @Test
     fun `unlistable live marker directory keeps history but cannot authorize resume and recovers`() {
         val root = tmp.root.toPath()
         val project = Files.createDirectories(root.resolve("projects/example"))

@@ -7,6 +7,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowAnchor
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.terminal.TerminalTitle
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab
@@ -72,12 +73,14 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         ) { _, method, _ ->
             if (method.name == "getOutputStatus") MutableStateFlow(TerminalOutputStatus.TypingCommand) else null
         } as TerminalShellIntegration
+        val title = TerminalTitle().apply { change { applicationTitle = "unifhir | 01a18370-5a52-7d90-bb35-d6cf1..." } }
         val view = Proxy.newProxyInstance(
             TerminalView::class.java.classLoader, arrayOf(TerminalView::class.java),
         ) { _, method, _ ->
             when (method.name) {
                 "getSessionDeferred" -> CompletableDeferred(session)
                 "getShellIntegrationDeferred" -> CompletableDeferred(integration)
+                "getTitle" -> title
                 "getComponent", "getPreferredFocusableComponent" -> content.component
                 else -> null
             }
@@ -104,6 +107,9 @@ class ReworkedTerminalPlatformTest : BasePlatformTestCase() {
         assertSame(content, adapter.findIn(manager, content)?.content)
         assertEquals(110L, adapter.findIn(manager, content)?.shellPid())
         assertEquals(TerminalState.IDLE, adapter.findIn(manager, content)?.state())
+        // Codex's title, not the tab name Seshlog sets, carries the thread id.
+        adapter.findIn(manager, content)?.rename("Seshlog title")
+        assertEquals("unifhir | 01a18370-5a52-7d90-bb35-d6cf1...", adapter.findIn(manager, content)?.applicationTitle())
         assertNull(adapter.contentForViewIn(manager, Any()))
         assertNull(adapter.contextView(DataContext { null }))
     }

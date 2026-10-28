@@ -19,6 +19,19 @@ A session can appear in the list before Seshlog identifies its terminal. Activit
 actions depend on that association. Missing or ambiguous process information can leave a terminal
 unassociated, especially for new Pi and opencode sessions.
 
+Codex terminals share a background server, so nothing in their processes shows which conversation
+a terminal moves to after `/new`, `/clear`, `/resume` or the `codex resume` picker. Add `thread-id`
+to Codex's terminal title so Seshlog can follow those switches, in the `[tui]` section of
+`~/.codex/config.toml`:
+
+```toml
+[tui]
+terminal_title = ["project", "thread-id"]
+```
+
+Start Codex again in open terminals afterwards. Without it, copying from a Codex terminal that
+switched conversations reports an unknown session instead of guessing.
+
 ## Search
 
 The tool window searches titles, project paths and conversation text. The **Filters** menu controls

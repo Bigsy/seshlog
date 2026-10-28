@@ -128,6 +128,7 @@ object TerminalTabs {
         override val content = content
         override val diagnosticEngine = "classic"
         override fun shellPid() = TerminalTabs.shellPid(widget)
+        override fun applicationTitle(): String? = widget.terminalTitle.applicationTitle
         override fun state() = TerminalTabs.state(widget)
         override fun execute(command: String) = widget.sendCommandToExecute(command)
         override fun rename(title: String) {

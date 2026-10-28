@@ -120,7 +120,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val previous = sessionFor(content)
         val previousGeneration = registry.generation(content)
         val last = lastSessionFor(content)
-        val shell = TerminalTabs.terminalOf(project, content)?.shellPid()
+        val terminal = TerminalTabs.terminalOf(project, content)
+        val shell = terminal?.shellPid()
+        val title = terminal?.applicationTitle()
         val executables = executables()
         val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         requestTrace.event("copy_captured", "tab" to DiagnosticRef.tab(content), "shell" to shell,
@@ -128,7 +130,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         return {
             val index = SessionIndex.getInstance()
             val id = if (shell == null) last else SessionProcess.copySession(last, index.sessions,
-                inspect = { SessionProcess.inspect(shell, it, executables, codexHome) }, rescan = { index.scanNow() })
+                inspect = { SessionProcess.inspect(shell, it, executables, codexHome, title) }, rescan = { index.scanNow() })
             requestTrace.event("copy_resolved", "tab" to DiagnosticRef.tab(content), "shell" to shell,
                 "previous" to DiagnosticRef.of(previous), "ended" to DiagnosticRef.of(last), "session" to DiagnosticRef.of(id))
             // Copying from an agent that already exited must not re-attach it to the tab.
@@ -183,6 +185,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val expected = registry.association(session.id) ?: return null
         val terminal = terminalFor(session.id) ?: return null
         val shell = terminal.shellPid() ?: return null
+        val title = terminal.applicationTitle()
         val commands = executables()
         val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val current = {
@@ -194,7 +197,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 // Duplicate provider ids cannot be safely addressed by the older id-only tab registry.
                 val sessions = SessionIndex.getInstance().sessions
                 sessions.count { it.id == session.id } == 1 &&
-                    SessionProcess.inspect(shell, sessions, commands, codexHome).sessionIds.singleOrNull() == session.id
+                    SessionProcess.inspect(shell, sessions, commands, codexHome, title).sessionIds.singleOrNull() == session.id
             },
             current = current,
             focus = { current() && focus(session.id, current) },
@@ -220,6 +223,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         inspectionTrace = poll
         val tabs = TerminalTabs.tabsWithShellPids(project)
         val inspected = tabs.filterValues { it != null }
+        // Titles are UI state: read them here with the shell pids, never on the worker.
+        val titles = inspected.entries.associate { (tab, shell) -> shell!! to TerminalTabs.terminalOf(project, tab)?.applicationTitle() }
         poll.event("poll_started", "indexedSessions" to snapshot.size, "tabs" to tabs.size, "owned" to registry.sessionIds.size, "delayMs" to processClock.delay)
         (tabs.keys + knownContents()).distinct().forEach { tab ->
             val terminal = TerminalTabs.terminalOf(project, tab)
@@ -234,7 +239,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val watched = agents.snapshot()
         processInspection.run(inspect = {
-            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables, codexHome, poll)
+            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables, codexHome, poll, titles)
             val found = candidates.mapNotNull { (id, shell, _) ->
                 val discovery = batch.discoveries[shell]?.discovery ?: return@mapNotNull null
                 val handle = discovery.processes[id]?.let(batch.handles::get)

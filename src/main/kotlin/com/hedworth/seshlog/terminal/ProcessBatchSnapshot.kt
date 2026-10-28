@@ -98,13 +98,17 @@ internal class ProcessBatchInspector(
     private val writableFiles: ((Set<Long>) -> ProcessTranscripts.Result)? = null,
     private val codexDaemon: ((Path, ProcessTableSnapshot) -> Long?)? = null,
 ) {
-    /** [codexHome] locates the Codex app-server daemon; without it daemon-held threads are not matched. */
+    /**
+     * [codexHome] locates the Codex app-server daemon; without it daemon-held threads are not matched.
+     * [titles] are the terminal titles captured on the EDT with each shell pid.
+     */
     fun inspect(
         shellPids: Set<Long>,
         sessions: List<Session>,
         executables: Map<AgentKind, String>,
         codexHome: Path? = null,
         trace: DiagnosticTrace = DiagnosticTrace.NONE,
+        titles: Map<Long, String?> = emptyMap(),
     ): ProcessBatchResult {
         val start = System.nanoTime()
         trace.event("inspection_started", "shells" to shellPids.sorted(), "indexedSessions" to sessions.size,
@@ -150,7 +154,8 @@ internal class ProcessBatchInspector(
         val discoveries = evidenceByShell.mapValues { (shell, processes) ->
             ShellProcessDiscovery(
                 shell,
-                if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors, daemonThreads = daemonThreads, trace = trace.with("shell" to shell))
+                if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors, daemonThreads = daemonThreads,
+                    trace = trace.with("shell" to shell), title = titles[shell])
                 else SessionProcess.Discovery(emptySet(), hasAgent = true, unknown = true),
             )
         }

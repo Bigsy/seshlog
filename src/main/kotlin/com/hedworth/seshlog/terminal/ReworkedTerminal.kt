@@ -107,6 +107,8 @@ internal class ReworkedTerminal(
             null
         }
 
+        override fun applicationTitle(): String? = (view as? TerminalView)?.title?.applicationTitle
+
         override fun state(): TerminalState = try {
             session(view) ?: return TerminalState.UNKNOWN
             val terminalView = view as? TerminalView ?: return TerminalState.UNKNOWN

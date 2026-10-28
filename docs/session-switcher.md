@@ -190,9 +190,11 @@ closed. No daily-IDE installation or publication was performed.
 
 ## Manual acceptance still owed
 
-No physical UI checks have been claimed. Use a verified synthetic `make run` profile; record its
-IDE/build, JDK, OS/architecture, config/system/log locations and loaded plugin. Never create examples
-by editing real agent transcripts. Check:
+No physical UI checks have been claimed. Use a verified synthetic profile: `make sandbox`, then
+record the `make sandbox-verify` report, which covers the IDE/build, JDK, OS/architecture,
+config/system/log locations and loaded plugin. The [sandbox guide](synthetic-sandbox.md) maps its
+worktrees, missing/uncertain paths and stub agents to these checks. Never create examples by editing
+real agent transcripts. Check:
 
 - Find Action and a user-assigned shortcut from editor, terminal and tool windows, including dumb mode.
 - Rapid typing/clearing while scans arrive, two windows, hidden/title edits, new/deleted results,

@@ -1,6 +1,6 @@
 # Current work plan
 
-Updated 2026-10-27. This is the authoritative execution checklist.
+Updated 2026-10-28. This is the authoritative execution checklist.
 Before editing, inspect `git status --short`, preserve user work, and re-find symbols rather than
 trusting historical line numbers. Take the open items below in order unless the user directs otherwise.
 
@@ -13,6 +13,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 | External-server semantic search | Agreed, unimplemented | Start items 5–13 only after Phase 1 acceptance; [detailed design](docs/semantic-search-design.md). |
 | Managed local inference | Deferred until separately requested after server-backed evaluation | [Later-phase scope](docs/semantic-search-design.md#deferred-managed-local-inference). |
 | Quick session/worktree switcher | Implemented and automatically validated; physical UI checks open | [Implementation and validation](docs/session-switcher.md); item below. |
+| Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
 
 ### 0. Quick session/worktree switcher (priority override, 2026-10-27)
@@ -40,7 +41,7 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   `make check` / `make release` passed **552 tests, zero failures/errors, 10 opt-in skips**.
   Offline Plugin Verifier reports compatibility on IU-262.10968.63 and IU-263.7307.44.
   ZIP checks, artifact hash, warning counts and limitations are in the implementation report.
-- [ ] Manual switcher acceptance in a verified synthetic `make run` profile: shortcut/Find Action,
+- [ ] Manual switcher acceptance in a verified synthetic profile (`make sandbox`, `make sandbox-verify`): shortcut/Find Action,
   rapid typing and refreshing, keyboard selection/scroll, cross-window focus with both terminal
   engines, explicit Resume (including unopened worktree/trust cancellation), hidden sessions,
   missing/replaced/uncertain paths, unread acknowledgement, accessibility and light/dark/narrow UI.
@@ -161,6 +162,24 @@ acceptance rows below remain owed; the search performance follow-up stays closed
   IU-262.10968.63 / IU-263.7307.44 with unchanged warnings; ZIP/content checks passed. This also
   validates the preceding Search settings cleanup. [Report and manual checks](docs/settings-cleanup.md).
 
+### Synthetic sandbox profile (user priority, 2026-10-28)
+
+- [x] Make the verified synthetic profile that every physical check requires repeatable. `make sandbox`
+  generates fictional Git checkouts/worktrees and histories for all four agents (28 scenario and 220
+  filler sessions), seeds Seshlog data-folder and stub-executable settings, then runs a dedicated
+  `runSyntheticIde` with its own config/system/log/plugins directories. Node.js stub agents stand in
+  for the real CLIs and record working/waiting turns, titles and forks in each agent's format.
+  `make sandbox-verify` checks the running IDE's directories, settings, loaded jar and that every
+  `provider_scanned` record hashed synthetic storage. Root safety refuses Git checkouts, home/agent
+  directories and unknown non-empty directories; reset deletes only a marked sandbox.
+  Completed 2026-10-28: `make check` / `make release` passed 593 tests, zero failures/errors and 10
+  opt-in skips; 9 new synthetic tests cover provider scans, Git layout, every documented example
+  query against the production index, settings/stubs, reuse, root safety, stub round trips and the
+  verifier. No sandbox class or resource is in the plugin ZIP. A real `runSyntheticIde` on macOS
+  (IU-262.10968.63, JBR 25.0.4, aarch64) reported **VERIFIED**: synthetic storage for all four
+  providers at the generated counts and the jar matching `build/libs`. No physical check was
+  attempted or passed; stub launches are POSIX-only, so Windows Resume checks need another setup.
+
 ### Performance decision: small wins only
 
 User direction, 2026-10-27: take small, measured optimizations, then drop the broader performance
@@ -185,8 +204,9 @@ This follow-up is closed; no larger performance project is scheduled.
 
 ### 1. Complete Phase 1 acceptance
 
-- [ ] Finish both physical checklists below in a verified synthetic sandbox profile. Record the
-  actual IDE/build, OS/arch, configuration, date and result. No row is passed by this consolidation.
+- [ ] Finish both physical checklists below in a verified synthetic sandbox profile (`make sandbox`,
+  `make sandbox-verify`; [guide](docs/synthetic-sandbox.md)). Record the verification report, date
+  and result. No row is passed by this consolidation.
 - [ ] Validate supported macOS/Windows/Linux behavior; Plugin Verifier compatibility alone does not
   establish operating-system or UI acceptance.
 - [ ] Profile allocation/native SQLite scratch and long-history/tool stress on the reference machine
@@ -209,9 +229,9 @@ This follow-up is closed; no larger performance project is scheduled.
   acceptance; Phase 2 is independent and is not required to ship BM25.
 
 Earlier sandbox attempts did not establish a verified synthetic profile: one failed on the wrong
-JDK, the JDK-25 retry used repository-default paths, and UI attachment failed. The task sandbox was
-stopped without counting any manual row as passed; the daily IDE was not changed. Verify effective
-config/system/log paths and loaded build before testing. Do not alter agent data to create examples.
+JDK, the JDK-25 retry used repository-default paths, and UI attachment failed. `make run` reads real
+agent data, so use `make sandbox` and record a passing `make sandbox-verify` report before testing;
+its example searches are asserted by `SyntheticSandboxTest`. Do not alter agent data to create examples.
 
 ### Phase 1 physical checks: persistent BM25
 
@@ -390,7 +410,7 @@ make check
 make lexical-bench
 ./gradlew verifyPlugin --offline
 make release
-make run
+make sandbox          # then, with it running: make sandbox-verify
 
 git diff --check
 git status --short

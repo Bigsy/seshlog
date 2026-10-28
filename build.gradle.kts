@@ -101,3 +101,78 @@ kotlin {
         jvmDefault = org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY
     }
 }
+
+// Synthetic manual-test profile (docs/synthetic-sandbox.md): fictional agent histories, stub agent
+// commands and the IDE's own config/system/log/plugins directories, all under one root. It never
+// reads real agent data. Override the root with -PsyntheticSandboxDir or SESHLOG_SANDBOX_DIR.
+val syntheticSandboxRoot: Provider<File> = providers.gradleProperty("syntheticSandboxDir")
+    .orElse(providers.environmentVariable("SESHLOG_SANDBOX_DIR"))
+    .orElse(providers.systemProperty("user.home").map { home ->
+        val os = System.getProperty("os.name").lowercase()
+        when {
+            os.contains("mac") -> "$home/Library/Caches/Seshlog/synthetic-sandbox"
+            os.contains("win") -> "${System.getenv("LOCALAPPDATA") ?: "$home/AppData/Local"}/Seshlog/synthetic-sandbox"
+            else -> "${System.getenv("XDG_CACHE_HOME") ?: "$home/.cache"}/seshlog/synthetic-sandbox"
+        }
+    })
+    .map { File(it).absoluteFile }
+
+val syntheticSandboxArguments: Provider<List<String>> = syntheticSandboxRoot.map { root ->
+    listOf("--root", root.path, "--ide-config", File(root, "ide/config").path,
+        "--ide-log", File(root, "ide/log").path, "--ide-plugins", File(root, "ide/plugins").path)
+}
+// The platform's jars, including the Kotlin stdlib, join the test source set as the test task does.
+val syntheticSandboxClasspath = files(sourceSets.test.map { it.runtimeClasspath },
+    configurations.named("intellijPlatformTestRuntimeClasspath"), configurations.named("intellijPlatformTestClasspath"))
+
+val prepareSyntheticSandbox = tasks.register<JavaExec>("prepareSyntheticSandbox") {
+    group = "seshlog"
+    description = "Creates the synthetic sandbox profile if absent; -PsyntheticSandboxReset=true regenerates it."
+    classpath(syntheticSandboxClasspath)
+    mainClass = "com.hedworth.seshlog.sandbox.SyntheticSandboxCli"
+    jvmArgs("--enable-native-access=ALL-UNNAMED") // sqlite-jdbc writes the opencode database.
+    val arguments = syntheticSandboxArguments
+    val reset = providers.gradleProperty("syntheticSandboxReset").map(String::toBoolean).orElse(false)
+    argumentProviders.add(CommandLineArgumentProvider { listOf(if (reset.get()) "reset" else "prepare") + arguments.get() })
+}
+
+tasks.register<JavaExec>("verifySyntheticSandbox") {
+    group = "seshlog"
+    description = "Checks that the running synthetic sandbox IDE loaded this build and reads only synthetic data."
+    classpath(syntheticSandboxClasspath)
+    mainClass = "com.hedworth.seshlog.sandbox.SyntheticSandboxCli"
+    jvmArgs("--enable-native-access=ALL-UNNAMED") // sqlite-jdbc writes the opencode database.
+    val arguments = syntheticSandboxArguments
+    val version = providers.gradleProperty("pluginVersion")
+    val jar = layout.buildDirectory.file(version.map { "libs/seshlog-$it.jar" })
+    val repository = layout.projectDirectory.asFile
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf("verify") + arguments.get() +
+            listOf("--plugin-jar", jar.get().asFile.path, "--plugin-version", version.get(), "--repository", repository.path)
+    })
+}
+
+intellijPlatformTesting {
+    runIde {
+        register("runSyntheticIde") {
+            sandboxDirectory = layout.dir(syntheticSandboxRoot.map { File(it, "ide") })
+            prepareSandboxTask {
+                sandboxSuffix = ""
+                // The generator refuses a non-empty root it did not create, so it runs first.
+                dependsOn(prepareSyntheticSandbox)
+            }
+            task {
+                group = "seshlog"
+                description = "Runs the IDE on the synthetic sandbox profile; see docs/synthetic-sandbox.md."
+                val root = syntheticSandboxRoot.get()
+                environment("SESHLOG_SANDBOX", root.path)
+                // Agent CLIs typed into a sandbox terminal stay inside the sandbox too.
+                environment("CLAUDE_CONFIG_DIR", File(root, "agents/claude").path)
+                environment("CODEX_HOME", File(root, "agents/codex").path)
+                environment("PI_CODING_AGENT_DIR", File(root, "agents/pi").path)
+                environment("PATH", File(root, "bin").path + File.pathSeparator + providers.environmentVariable("PATH").getOrElse(""))
+                args(File(root, "workspace/harbor").path)
+            }
+        }
+    }
+}

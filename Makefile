@@ -1,4 +1,4 @@
-.PHONY: check codex-check semantic-bench sqlite-bench lexical-bench release run run-demo
+.PHONY: check codex-check semantic-bench sqlite-bench lexical-bench release run run-demo sandbox sandbox-reset sandbox-verify
 
 check:
 	./gradlew test
@@ -36,6 +36,18 @@ run:
 # Sandbox on a synthetic repo with worktrees and fake sessions; never reads real agent data.
 run-demo:
 	@scripts/sandbox-demo.sh
+
+# Manual-test IDE on fictional data with its own config/system/log directories; it never reads real
+# agent histories. SESHLOG_SANDBOX_DIR overrides the location. See docs/synthetic-sandbox.md.
+sandbox:
+	./gradlew runSyntheticIde
+
+sandbox-reset:
+	./gradlew prepareSyntheticSandbox -PsyntheticSandboxReset=true
+
+# With the sandbox IDE running: proves it loaded this build and scans only synthetic storage.
+sandbox-verify:
+	@./gradlew -q verifySyntheticSandbox
 
 release: check
 	./gradlew buildPlugin

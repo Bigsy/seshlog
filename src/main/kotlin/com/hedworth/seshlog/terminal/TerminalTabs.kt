@@ -2,6 +2,7 @@ package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.copy.CopyTarget
 import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.DiagnosticTrace
 import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.restore.RestoreTabReadiness
@@ -35,22 +36,46 @@ object TerminalTabs {
     data class ActionTarget(val isTerminal: Boolean, val content: Content?)
 
     /** Resolve the actual invoking view; selected/last-active tabs are never substitutes for focus. */
-    fun actionTarget(project: Project, event: AnActionEvent): ActionTarget {
+    fun actionTarget(project: Project, event: AnActionEvent): ActionTarget = actionTarget(project, event,
+        SessionDiagnostics.trace("terminal_action", "project" to DiagnosticRef.of(project.basePath), "request" to SessionDiagnostics.nextId()))
+
+    internal fun actionTarget(project: Project, event: AnActionEvent, trace: DiagnosticTrace): ActionTarget {
         // The manager's enumeration excludes tabs while moving and terminals hosted in an
         // editor. Retain those known contents as candidates, but require exact view/focus evidence.
         val candidates = (contents(project) + OwnedTerminalTabs.getInstance(project).knownContents()).distinct()
-        reworked.contextView(event.dataContext)?.let { view ->
-            return ActionTarget(true, reworked.contentForView(project, view, candidates))
-        }
         val context = event.getData(PlatformDataKeys.CONTEXT_COMPONENT)
         val keySource = (event.inputEvent as? KeyEvent)?.component
-        val focus = CopyTarget.invocationComponent(
-            context, keySource, KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner)
+        val focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner
+        val focus = CopyTarget.invocationComponent(context, keySource, focusOwner)
+        val view = reworked.contextView(event.dataContext)
+        // Log before either lookup branch. Previously a missing invoking tab returned without
+        // any copy diagnostics, making a focus failure look like a missing session in the index.
+        fun componentRef(component: java.awt.Component?) = component?.let {
+            mapOf("ref" to DiagnosticRef.tab(it), "class" to it.javaClass.name)
+        }
+        trace.event("action_context", "dataContext" to event.dataContext.javaClass.name,
+            "context" to componentRef(context), "keySource" to componentRef(keySource),
+            "focusOwner" to componentRef(focusOwner), "invocation" to componentRef(focus),
+            "view" to DiagnosticRef.tab(view), "candidateCount" to candidates.size,
+            "candidates" to candidates.map { mapOf("tab" to DiagnosticRef.tab(it),
+                "component" to componentRef(it.component), "view" to DiagnosticRef.tab(reworked.viewOf(it))) })
+        if (view != null) {
+            val content = reworked.contentForView(project, view, candidates)
+            trace.event("action_target", "method" to "native_view", "terminal" to true,
+                "tab" to DiagnosticRef.tab(content), "reason" to if (content == null) "view_not_found" else "matched")
+            return ActionTarget(true, content)
+        }
         val content = CopyTarget.focusedContent(focus, candidates) { it.component }
         val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
         val terminal = content != null || (focus != null && window != null &&
             SwingUtilities.isDescendingFrom(focus, window.component)) ||
             event.getData(PlatformDataKeys.TOOL_WINDOW)?.id == TerminalToolWindowFactory.TOOL_WINDOW_ID
+        trace.event("action_target", "method" to "component", "terminal" to terminal,
+            "tab" to DiagnosticRef.tab(content), "reason" to when {
+                content != null -> "matched"
+                terminal -> "terminal_content_not_found"
+                else -> "outside_terminal"
+            })
         return ActionTarget(terminal, content)
     }
 

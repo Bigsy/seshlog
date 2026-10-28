@@ -2,6 +2,7 @@ package com.hedworth.seshlog.terminal
 
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.diagnostics.DiagnosticRef
+import com.hedworth.seshlog.diagnostics.DiagnosticTrace
 import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
@@ -115,18 +116,20 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 
     /** Capture the invoking tab on EDT; verify its current agent on the clipboard worker. */
-    fun copySessionResolver(content: Content): () -> Session? {
+    internal fun copySessionResolver(content: Content, requestTrace: DiagnosticTrace = trace): () -> Session? {
         val previous = sessionFor(content)
         val previousGeneration = registry.generation(content)
         val last = lastSessionFor(content)
         val shell = TerminalTabs.terminalOf(project, content)?.shellPid()
         val executables = executables()
         val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
+        requestTrace.event("copy_captured", "tab" to DiagnosticRef.tab(content), "shell" to shell,
+            "previous" to DiagnosticRef.of(previous), "ended" to DiagnosticRef.of(last), "generation" to previousGeneration)
         return {
             val index = SessionIndex.getInstance()
             val id = if (shell == null) last else SessionProcess.copySession(last, index.sessions,
                 inspect = { SessionProcess.inspect(shell, it, executables, codexHome) }, rescan = { index.scanNow() })
-            trace.event("copy_resolved", "tab" to DiagnosticRef.tab(content), "shell" to shell,
+            requestTrace.event("copy_resolved", "tab" to DiagnosticRef.tab(content), "shell" to shell,
                 "previous" to DiagnosticRef.of(previous), "ended" to DiagnosticRef.of(last), "session" to DiagnosticRef.of(id))
             // Copying from an agent that already exited must not re-attach it to the tab.
             if (id != null && shell != null && (id == previous || id != last)) ApplicationManager.getApplication().invokeLater {

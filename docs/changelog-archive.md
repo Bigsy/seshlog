@@ -3,6 +3,13 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.6.10
+
+- Show Claude Code and Codex session worktrees with checkout details, the observed Git branch or detached HEAD, and the full recorded path in tooltips.
+- Follow recorded working-directory changes as sessions move between checkouts. Project filtering and the Sibling worktrees option use the updated location in both browsing and search.
+- Open a session's verified worktree in a new IntelliJ window, or focus the window already using it. The original project window and its agent terminals stay open.
+- Keep missing or uncertain worktrees visible while disabling opening. New project opening inside protected agent data directories remains disabled; an already-open project there can still be focused.
+
 ## 0.6.9
 
 - Track Codex terminals again from codex-cli 0.158, which runs sessions through a shared background server rather than the terminal's own process. Seshlog matches each Codex terminal to the session that server has open for the same directory, so new Codex sessions attach to their tab, relaunching Codex in a tab attaches it again, and copying a reply or plan works in tabs started with a plain codex command.

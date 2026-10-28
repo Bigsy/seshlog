@@ -41,41 +41,32 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>0.8.3</b>
+    <ul>
+        <li>Codex: copying and terminal tracking now follow <code>/new</code>, <code>/clear</code>, <code>/resume</code> and the <code>codex resume</code> picker. Turn it on by adding <code>terminal_title = ["project", "thread-id"]</code> under <code>[tui]</code> in <code>~/.codex/config.toml</code>, then restart Codex.</li>
+    </ul>
     <b>0.8.2</b>
     <ul>
-        <li>Find sessions and worktrees across projects with the new quick switcher: press ⌘⌥S on macOS or Ctrl+Alt+Shift+P on Windows and Linux, or choose Seshlog: Switch Session / Worktree from Find Action. Search titles, project names, paths and branches.</li>
-        <li>Focus a tracked terminal, explicitly resume a stopped session, or open its verified worktree. Results highlight matching text and distinguish agents and branches; use the keyboard to move between Resume and Open Worktree.</li>
-        <li>Recheck session, terminal and worktree state before switching or resuming, and prevent launches when the selected location or the required live-session information cannot be verified.</li>
-        <li>Simplify Search settings with index status, refresh and a maintenance menu. Import and export controls have been removed from settings.</li>
-        <li>Turn local session diagnostic recording off in Settings → Tools → Seshlog. It is enabled by default; turning it off stops new recording and keeps existing log files.</li>
+        <li>New quick switcher (⌘⌥S on macOS, Ctrl+Alt+Shift+P on Windows and Linux): find a session or worktree in any project by title, path or branch, then jump to its terminal, resume it or open the worktree.</li>
+        <li>Local diagnostic logging can now be turned off in Settings → Tools → Seshlog.</li>
+        <li>Simpler Search settings. Index import and export have been removed.</li>
     </ul>
     <b>0.8.1</b>
     <ul>
-        <li>Choose Your messages, Assistant replies and Tool activity from Search in. Conversation is the default, with tools excluded; session titles and working directories always remain searchable. Remember the choice across project windows and IDE restarts.</li>
-        <li>Show whether each result matched a title, project path, user message, assistant reply, tool call or tool result. Open the supporting passage and keep search highlights and next/previous navigation within the selected sources, while leaving the full conversation available.</li>
-        <li>Fix technical and quoted matches being overlooked when a partial title or path match ranks higher, and start preview next/previous navigation from the passage that was opened.</li>
-        <li>Reduce repeated text processing when checking matches, making ordinary searches and repeated tool output faster.</li>
-        <li>Upgrading from 0.8.0 requires a one-time local search-index rebuild to enable source classification. Keep the previous saved index until you choose Rebuild in Search settings, and use temporary filtered search in the meantime.</li>
+        <li>Choose what search looks in: your messages, assistant replies or tool activity. Tool activity is off by default.</li>
+        <li>Each result shows where it matched and opens at that passage.</li>
+        <li>Faster search, and exact or quoted matches no longer rank below partial title matches.</li>
+        <li>Upgrading from 0.8.0? Rebuild the search index once in Settings → Tools → Seshlog → Search.</li>
     </ul>
     <b>0.8.0</b>
     <ul>
-        <li>Rank search results by relevance across session titles, local title overrides, working directories and conversation passages. Ordinary query terms can match independently; quoted phrases require exact text.</li>
-        <li>Keep a local search index across IDE restarts and update changed sessions incrementally. Search runs entirely on your machine without a model or network connection.</li>
-        <li>Open search results at the supporting conversation passage, expand matching tool entries, and reject stale passage locations when the source changes. Show partial search coverage even when there are no matches.</li>
-        <li>Manage the search index under Settings → Tools → Seshlog → Search: refresh, retry, rebuild, clear, export or import it. Saved indexes contain sensitive lexical terms and positions, without raw conversation copies or query history.</li>
-        <li>Fix importing valid search indexes with many dense passages, preserving existing local entries.</li>
+        <li>Search ranks results by relevance across titles, paths and conversations. Use "quoted phrases" for exact text.</li>
+        <li>The search index is kept between restarts and updates as sessions change. Everything runs locally.</li>
+        <li>Opening a result jumps to the matching passage.</li>
     </ul>
     <b>0.7.1</b>
     <ul>
-        <li>Add Open Worktree and Fork Session: open or focus the session's worktree window and start a separate conversation fork in a new terminal there. Preserve the recorded subdirectory and leave the original session running.</li>
-        <li>Recheck the checkout and session location before launching the fork. Cancelled opens, closed windows and missing or changed directories do not start a session in the wrong place.</li>
-    </ul>
-    <b>0.6.10</b>
-    <ul>
-        <li>Show Claude Code and Codex session worktrees with checkout details, the observed Git branch or detached HEAD, and the full recorded path in tooltips.</li>
-        <li>Follow recorded working-directory changes as sessions move between checkouts. Project filtering and the Sibling worktrees option use the updated location in both browsing and search.</li>
-        <li>Open a session's verified worktree in a new IntelliJ window, or focus the window already using it. The original project window and its agent terminals stay open.</li>
-        <li>Keep missing or uncertain worktrees visible while disabling opening. New project opening inside protected agent data directories remains disabled; an already-open project there can still be focused.</li>
+        <li>New Open Worktree and Fork Session: start a separate copy of the conversation in the session's worktree window, leaving the original running.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

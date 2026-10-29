@@ -1,4 +1,4 @@
-.PHONY: check codex-check semantic-bench sqlite-bench lexical-bench release run
+.PHONY: check codex-check semantic-bench sqlite-bench lexical-bench release run run-demo
 
 check:
 	./gradlew test
@@ -32,6 +32,10 @@ codex-check:
 
 run:
 	./gradlew runIde
+
+# Sandbox on a synthetic repo with worktrees and fake sessions; never reads real agent data.
+run-demo:
+	@scripts/sandbox-demo.sh
 
 release: check
 	./gradlew buildPlugin

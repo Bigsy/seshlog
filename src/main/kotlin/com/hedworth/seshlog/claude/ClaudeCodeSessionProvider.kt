@@ -60,6 +60,8 @@ class ClaudeCodeSessionProvider(
 
     override fun forkCommand(session: Session): String = ExtraArguments.append("${baseResume(session)} --fork-session", extraArgs())
 
+    override fun forkInDirectoryCommand(session: Session, directory: Path): String = forkCommand(session)
+
     private fun baseResume(session: Session): String =
         "${ShellQuote.quote(executable())} --resume ${ShellQuote.quote(session.id)}"
 

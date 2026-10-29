@@ -58,6 +58,63 @@ object WorktreeProjects {
 
     fun openAndFork(source: Project, session: Session) { open(source, session, forkSession = true) }
 
+    internal fun createAndFork(source: Project, session: Session, checkout: Checkout, options: WorktreeCreationOptions) {
+        val app = ApplicationManager.getApplication()
+        val index = SessionIndex.getInstance()
+        val destination = options.destination.toAbsolutePath().normalize()
+        fun report(message: String) = NotificationGroupManager.getInstance().getNotificationGroup("Seshlog")
+            .createNotification(message, NotificationType.WARNING).notify(source)
+        if (!pending.add(checkout.root)) { report("Another operation is using the source checkout; try again"); return }
+        if (!pending.add(destination)) {
+            pending.remove(checkout.root)
+            report("Another operation is using the destination; try again")
+            return
+        }
+        fun current(): Session {
+            val latest = index.sessionById(session.id)
+            check(latest != null && latest.kind == session.kind && latest.cwd == session.cwd &&
+                latest.startedAt == session.startedAt && latest.transcriptPath == session.transcriptPath &&
+                latest.location?.uncertain != true) { "Source session changed; select it again" }
+            return latest
+        }
+        WorktreeCreation(
+            create = {
+                index.requireFreshScan(session.kind)
+                current()
+                check(index.providerFor(session).forkInDirectoryCommand(session, destination) != null) { "This agent does not support forks into another checkout" }
+                WorktreeCreator.create(session, checkout, options, protectedRoots())
+            },
+            validate = { created ->
+                index.requireFreshScan(session.kind)
+                current()
+                WorktreeReview.verify(created.checkout)
+                check(protectedRoots().none { created.checkout.root.startsWith(it) || it.startsWith(created.checkout.root) ||
+                    SessionFilter.canonical(created.checkout.root.resolve(".idea")).startsWith(it) }) { "Created checkout overlaps protected storage" }
+                val directory = SessionFilter.canonical(created.directory)
+                check(Files.isDirectory(directory) && directory.startsWith(created.checkout.root) &&
+                    GitRepository.checkout(directory)?.let(created.checkout::sameIdentity) == true) { "Destination directory changed" }
+            },
+            open = { created ->
+                // The creator verified the new checkout on its worker; opening retains default trust handling.
+                ProjectUtil.openOrImport(created.checkout.root, OpenProjectTask { forceOpenInNewFrame = true })
+            },
+            destinationValid = { project, created -> capture().roots[project] == created.checkout.root },
+            launch = { project, created ->
+                check(!project.isDisposed && project in projectSet()) { "Destination window closed" }
+                val latest = current()
+                val command = requireNotNull(index.providerFor(latest).forkInDirectoryCommand(latest, created.directory))
+                TerminalTabs.fork(project, latest.copy(cwd = created.directory, checkout = created.checkout), command,
+                    index.sessions.mapTo(HashSet()) { it.id }.also { it.add(session.id) })
+                index.refresh(forcePathResolution = true)
+            },
+            worker = { task -> app.executeOnPooledThread(task) },
+            ui = { task -> app.invokeLater(task) },
+            active = { !source.isDisposed && !app.isDisposed },
+            report = ::report,
+            finished = { pending.remove(checkout.root); pending.remove(destination) },
+        ).start()
+    }
+
     /** Remove a linked worktree with git after revalidating it; never forces. */
     fun delete(source: Project, checkout: Checkout, options: WorktreeDeletionOptions): Boolean {
         val app = ApplicationManager.getApplication()

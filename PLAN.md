@@ -42,10 +42,12 @@ cleanup. Earlier switcher descriptions below are completion history, not the cur
   aliases; sibling filters; missing/replaced paths; repeated clicks and source-terminal survival.
   Codex open/fork checks were user-confirmed on 2026-10-25; this is not new acceptance evidence.
 
-- [ ] **Fork into New Worktree…** (approved 2026-10-29): choose a local starting ref, new branch
+- [x] **Fork into New Worktree…** (approved 2026-10-29): choose a local starting ref, new branch
   and destination; create without force or copying dirty/ignored files; open through trust/import
   and fork in the mapped subdirectory. Preserve created worktrees on cancellation/failure and
   report partial success. Validate source/destination identity and protected storage before effects.
+  `make check`: 619 tests, zero failures/errors, 10 opt-in skips. Claude/Codex supported;
+  physical checks remain open. Other providers retain their existing same-directory forks.
 - [ ] **Attention inbox** (approved 2026-10-29): show unread sessions across projects with bounded
   assistant reply previews, conversation/terminal/worktree navigation and receipt-safe acknowledgement.
   Keep previews in memory, use existing activity evidence, and reject stale delivery.

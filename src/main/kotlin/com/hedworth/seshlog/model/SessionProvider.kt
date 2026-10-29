@@ -40,6 +40,9 @@ interface SessionProvider {
     /** Shell command that forks [session] into a new session (same history, new id) when run from `session.cwd`. */
     fun forkCommand(session: Session): String
 
+    /** Explicit support for a fork into another checkout; null when the CLI contract is unverified. */
+    fun forkInDirectoryCommand(session: Session, directory: Path): String? = null
+
     /** Directories to watch for changes that should trigger a rescan. */
     fun watchRoots(): List<Path>
 

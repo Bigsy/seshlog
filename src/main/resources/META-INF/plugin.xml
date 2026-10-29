@@ -117,6 +117,7 @@
             <action id="Seshlog.OpenWorktreeAndFork" class="com.hedworth.seshlog.ui.actions.OpenWorktreeAndForkAction" text="Open Worktree and Fork Session"/>
             <action id="Seshlog.DeleteWorktree" class="com.hedworth.seshlog.ui.actions.DeleteWorktreeAction" text="Delete Worktree…"/>
             <action id="Seshlog.ReviewWorktree" class="com.hedworth.seshlog.ui.actions.ReviewWorktreeAction" text="Review Worktree Changes…"/>
+            <action id="Seshlog.ForkNewWorktree" class="com.hedworth.seshlog.ui.actions.ForkNewWorktreeAction" text="Fork into New Worktree…"/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
             <action id="Seshlog.OpenContinuation" class="com.hedworth.seshlog.ui.actions.OpenContinuationAction" text="Open Continuation"/>
             <group id="Seshlog.EarlierSessions" class="com.hedworth.seshlog.ui.actions.EarlierSessionsAction" text="Earlier Sessions" popup="true"/>

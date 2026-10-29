@@ -62,6 +62,9 @@ class CodexSessionProvider(
     override fun forkCommand(session: Session): String =
         ExtraArguments.append("${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)}", extraArgs())
 
+    override fun forkInDirectoryCommand(session: Session, directory: Path): String =
+        ExtraArguments.append("${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)} --cd ${ShellQuote.quote(directory.toString())}", extraArgs())
+
     override fun scan(previous: Map<String, Session>): List<Session> {
         scanProblem = null
         val root = sessionsDir()

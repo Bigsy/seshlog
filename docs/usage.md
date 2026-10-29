@@ -101,6 +101,19 @@ opening disabled. Use **Refresh** to check again.
 Seshlog blocks opening new projects inside configured agent data folders because IntelliJ would
 write project files there. It can still focus a project already open in one of those folders.
 
+### Forking into a new worktree
+
+For Claude Code or Codex, choose **Fork into New Worktree…** on a session. Choose a local starting
+ref, a new branch name and an absent destination folder outside existing checkouts. The parent
+folder must already exist. The session's recorded subdirectory must exist in the chosen commit.
+
+Seshlog creates committed files at that ref, opens a new IntelliJ window through the normal trust
+flow and launches a native conversation fork. It leaves dirty and ignored files in the source
+checkout; it does not install dependencies or copy local configuration. Git checkout hooks are
+suppressed for this operation. If opening is cancelled or launch fails, the branch/worktree stay
+available at the chosen path. No automatic deletion or rollback occurs. Extra agent arguments
+still apply; avoid conflicting directory/worktree flags. opencode/Pi retain ordinary forks only.
+
 ### Reviewing a checkout
 
 Choose **Review Worktree Changes…** from a session or folder row. The default base is `HEAD`,

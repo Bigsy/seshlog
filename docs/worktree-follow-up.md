@@ -29,3 +29,22 @@ stale results, cancellation stops pending reads, and disposal closes the worker.
 cover committed/staged/unstaged/untracked changes, NUL-delimited unusual filenames, rename/delete,
 invalid refs, replaced identities, symlinks, binary content, oversized files and Git output limits.
 Physical acceptance remains pending.
+
+## Fork into New Worktree
+
+Added a local-ref/branch/destination dialog and creation orchestration with preserved partial
+success. Source session and checkout are revalidated before creation and after trust/import.
+The source/destination participate in the same pending-operation set as opening/deletion.
+Creation maps subdirectories, rejects existing/nested/protected destinations, disables checkout
+hooks and leaves dirty/untracked files in the source. It never deletes partial results.
+
+Native forks initially support Claude and Codex. Codex receives explicit `--cd`; Claude resumes
+by ID within the shared Git repository and forks from the terminal's destination directory.
+References checked 2026-10-29: [Codex CLI](https://learn.chatgpt.com/docs/developer-commands)
+and [Claude CLI](https://code.claude.com/docs/en/cli-reference). These references establish command
+contracts; synthetic stubs do not establish end-to-end behavior of every installed CLI version.
+
+`make check`: 619 tests, zero failures/errors, 10 opt-in skips. Four new tests cover real-Git
+creation, dirty-source preservation, subdirectory mapping, hooks, protected/nested/existing paths,
+invalid refs/branches, missing subdirectories, cancellation, stale destinations, launch errors
+and destination command quoting. Physical checks remain pending.

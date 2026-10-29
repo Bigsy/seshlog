@@ -65,10 +65,12 @@ messages even when tool activity is excluded from matching.
 Press **⌘⌥S** on macOS or **Ctrl+Alt+Shift+P** on Windows/Linux, or use
 **Find Action → Seshlog: Switch Session / Worktree**. An open project is required.
 
-The popup searches titles, projects, paths and branches across all indexed projects and agents.
-All typed words must match somewhere in those fields; title matches come first. It doesn't search
-conversation text or change your tool-window filters. Hidden sessions stay hidden. An empty query
-shows recent sessions, with up to 200 results displayed.
+The popup searches titles, projects, paths and branches across all indexed agents. It follows the
+tool window's project scope: with **All Projects** off, it shows only this project's sessions, plus
+sibling worktrees when that filter is on. Agent and date filters don't apply.
+All typed words must match somewhere in those fields. Results are always newest activity first, so
+the most recently used session or worktree is at the top. It doesn't search conversation text or
+change your tool-window filters. Hidden sessions stay hidden. Up to 200 results are displayed.
 
 Use **Up/Down** to select a row. **Enter** focuses a tracked terminal and its project window.
 For a stopped session, Enter focuses **Resume** without launching it. **Left/Right** or

@@ -43,6 +43,22 @@ class SwitcherMetadataTest {
         }
     }
 
+    @Test fun `project scope mirrors the session list's All Projects and sibling worktree filters`() {
+        val root = Path.of("/synthetic/engine")
+        val other = Path.of("/synthetic/other")
+        val sessions = listOf(root.resolve("src"), Path.of("/synthetic/engine-feature"), other).mapIndexed { i, cwd ->
+            switchSession("s$i", 10L - i).copy(cwd = cwd, checkout = null)
+        }
+        val paths = ResolvedPaths.resolve(sessions.map { it.cwd } + listOf(root), resolver = { it },
+            repositoryResolver = { if (it.startsWith(other)) null else root.resolve(".git") },
+            checkoutResolver = { _, _ -> null })
+        val rows = switcherRows(sessions, paths, emptyMap(), emptySet(), emptySet(), { it.title }, { false })
+        fun ids(scope: SwitcherScope?) = scopedRows(rows, scope, paths).map { it.session.id }
+        assertEquals(listOf("s0", "s1", "s2"), ids(null))
+        assertEquals(listOf("s0", "s1"), ids(SwitcherScope(listOf(root), includeWorktrees = true)))
+        assertEquals(listOf("s0"), ids(SwitcherScope(listOf(root), includeWorktrees = false)))
+    }
+
     @Test fun `nested non-Git directories choose the most specific open project`() {
         val root = Path.of("/synthetic/project")
         val nested = root.resolve("nested")

@@ -14,7 +14,7 @@ internal fun switchSession(id: String = "one", seconds: Long = 1): Session = Ses
         Path.of("/synthetic/engine/.git"), Checkout.Kind.LINKED, "observed-branch", null, directoryKey = "original"))
 
 class SwitcherModelTest {
-    @Test fun `title word prefixes rank above title substrings projects and shared paths`() {
+    @Test fun `typed queries filter titles projects and paths without displacing newer sessions`() {
         fun row(id: String, title: String, recency: Long, projects: List<String> = emptyList()) = SwitcherRow(
             switchSession(id, recency).copy(title = title, cwd = Path.of("/tmp/demo-u/shared"),
                 checkout = null, gitBranch = null), title = title, projectNames = projects)
@@ -24,9 +24,9 @@ class SwitcherModelTest {
         val pathMatch = row("path", "Other", 4)
         val rows = listOf(pathMatch, projectMatch, titleSubstring, titlePrefix)
 
-        assertEquals(listOf(titlePrefix, titleSubstring, projectMatch, pathMatch),
-            SwitcherSearch.find(rows, "demo u"))
-        assertEquals(rows, SwitcherSearch.find(rows, "")) // Empty search remains newest first.
+        assertEquals(rows, SwitcherSearch.find(rows, "demo u"))
+        assertEquals(rows, SwitcherSearch.find(rows, "")) // Empty search is newest first too.
+        assertEquals(listOf(titleSubstring), SwitcherSearch.find(rows, "demographics"))
     }
 
     @Test fun `cross field matches and local titles retain searchable metadata`() {
@@ -34,21 +34,12 @@ class SwitcherModelTest {
             title = "Local Demo", projectNames = listOf("Utilities"))
         val pathOnly = SwitcherRow(switchSession("path", 100).copy(
             title = "Other", cwd = Path.of("/synthetic/demo-utilities"), gitBranch = null, checkout = null))
-        assertEquals(listOf(mixed, pathOnly), SwitcherSearch.find(listOf(pathOnly, mixed), "demo util"))
+        assertEquals(listOf(pathOnly, mixed), SwitcherSearch.find(listOf(mixed, pathOnly), "demo util"))
         assertEquals(listOf(mixed), SwitcherSearch.find(listOf(mixed), "original"))
         assertTrue(SwitcherSearch.find(listOf(mixed), "local absent").isEmpty())
     }
 
-    @Test fun `ordered title prefixes beat newer unordered matches and exact titles beat longer prefixes`() {
-        fun row(id: String, title: String, recency: Long) = SwitcherRow(
-            switchSession(id, recency).copy(title = title), title = title)
-        val exact = row("exact", "Demo U", 1)
-        val phrase = row("phrase", "Demo Uncertain location", 2)
-        val unordered = row("unordered", "Uncertain demo location", 100)
-        assertEquals(listOf(exact, phrase, unordered), SwitcherSearch.find(listOf(unordered, phrase, exact), "DEMO u"))
-    }
-
-    @Test fun `an older title match survives the result cap when many newer paths also match`() {
+    @Test fun `the result cap keeps the newest matches even when an older title matches better`() {
         val target = SwitcherRow(switchSession("target", 1).copy(title = "Demo Uncertain", checkout = null,
             gitBranch = null, cwd = Path.of("/tmp/demo-u/target")))
         val decoys = (1..250).map { SwitcherRow(switchSession("path-$it", it.toLong() + 1).copy(
@@ -56,8 +47,9 @@ class SwitcherModelTest {
         val state = SwitcherResults()
         state.apply(state.begin("demo u"), SwitcherSearch.find(decoys + target, "demo u"))
         assertEquals(SwitcherSearch.LIMIT, state.rows.size)
-        assertEquals(target.key, state.rows.first().key)
-        assertEquals(target.key, state.selected)
+        assertEquals("path-250", state.rows.first().session.id)
+        assertEquals(state.rows.first().key, state.selected)
+        assertFalse(state.rows.any { it.key == target.key })
     }
 
     @Test fun `new query selects its highest ranked result while same query refresh keeps selection`() {

@@ -1,7 +1,10 @@
 package com.hedworth.seshlog.switcher
 
+import com.hedworth.seshlog.index.ResolvedPaths
 import com.hedworth.seshlog.index.SessionIndex
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.AgentFilterState
+import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.SessionAttentionState
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
@@ -10,6 +13,7 @@ import com.hedworth.seshlog.worktree.WorktreeProjects
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.DocumentAdapter
@@ -23,6 +27,7 @@ import java.awt.FlowLayout
 import java.awt.KeyboardFocusManager
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
+import java.nio.file.Paths
 import java.util.concurrent.Future
 import javax.swing.*
 import javax.swing.event.DocumentEvent
@@ -40,7 +45,10 @@ internal object SessionSwitcher {
     }
 }
 
-/** Popup-local state: no tool-window filters, query history, transcript reads or attention acknowledgement. */
+/**
+ * Popup-local state. Follows the tool window's project scope only: no other filters, query history,
+ * transcript reads or attention acknowledgement.
+ */
 internal class SessionSwitcherPanel(
     private val project: Project,
     private val live: Boolean = true,
@@ -64,6 +72,8 @@ internal class SessionSwitcherPanel(
     private var acting = false
     private var lastRows: List<SwitcherRow>? = null
     private var lastQuery: String? = null
+    private var lastScope: SwitcherScope? = null
+    private var lastPaths = ResolvedPaths.EMPTY
     private val debounce = Timer(100) { search() }.apply { isRepeats = false }
     private val poll = Timer(1500) { refresh() }
     private var ticket = 0L
@@ -129,12 +139,26 @@ internal class SessionSwitcherPanel(
             organisation::title, { organisation.metadata(it.id).hidden })
     }
 
+    /** Same roots and worktree toggle as the session list; read on the EDT, resolved on the worker. */
+    private fun scope(): SwitcherScope? {
+        if (SeshlogSettings.getInstance().showAllProjects) return null
+        val roots = buildList {
+            project.basePath?.let { add(Paths.get(it)) }
+            ProjectRootManager.getInstance(project).contentRoots.forEach { add(Paths.get(it.path)) }
+        }
+        return SwitcherScope(roots, AgentFilterState.getInstance(project).includeWorktrees)
+    }
+
     private fun refresh(force: Boolean = false) {
         if (disposed || !live) return
         val rows = capture()
-        if (!force && rows == lastRows && query.text == lastQuery) return
+        val scope = scope()
+        if (!force && rows == lastRows && query.text == lastQuery && scope == lastScope) return
         lastRows = rows
         lastQuery = query.text
+        lastScope = scope
+        lastPaths = SessionIndex.getInstance().resolvedPaths
+        list.accessibleContext.accessibleName = if (scope == null) "Sessions across all projects" else "Sessions in this project"
         ticket = results.begin(query.text)
         future?.cancel(true)
         debounce.restart()
@@ -145,9 +169,11 @@ internal class SessionSwitcherPanel(
         if (disposed) return
         val captured = lastRows ?: return
         val text = lastQuery.orEmpty()
+        val scope = lastScope
+        val paths = lastPaths
         val request = ticket
         future = executor.submit {
-            val matches = SwitcherSearch.find(captured, text)
+            val matches = SwitcherSearch.find(scopedRows(captured, scope, paths), text)
             ApplicationManager.getApplication().invokeLater {
                 if (!disposed && results.apply(request, matches)) render()
             }
@@ -207,7 +233,8 @@ internal class SessionSwitcherPanel(
             results.pending -> "Searching…"
             query.text.length > SwitcherSearch.MAX_QUERY -> "Query is too long (maximum ${SwitcherSearch.MAX_QUERY})"
             row != null -> row.status
-            results.rows.isEmpty() -> "No matching visible sessions"
+            results.rows.isEmpty() -> if (lastScope != null) "No matching sessions in this project (All Projects is off)"
+                else "No matching visible sessions"
             else -> "Select a session · showing up to ${SwitcherSearch.LIMIT}"
         }
     }

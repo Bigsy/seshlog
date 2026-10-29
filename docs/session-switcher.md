@@ -1,32 +1,35 @@
 # Quick session/worktree switcher
 
 Implemented scope, 2026-10-27: metadata navigation across the shared SessionIndex, independent of
-tool-window project/provider/date/hidden-view filters. Locally hidden sessions are always excluded.
+tool-window provider/date/hidden-view filters. Locally hidden sessions are always excluded.
+Since 2026-10-29 it follows the tool window's project scope: with **All Projects** off, rows are
+limited to the invoking project's base path and content roots, plus sibling worktrees when that
+toggle is on, using the same `ResolvedPaths.inScope` rule as the session list. Roots are read on the
+EDT and resolved on the popup's search worker.
 The Find Action/Keymap entry is **Seshlog: Switch Session / Worktree** (`Seshlog.SwitchSession`).
 The default shortcut is **⌘⌥S** on macOS and **Ctrl+Alt+Shift+P** on Windows/Linux; users can change it
 in Keymap settings. It requires an open project. No provider parsers or search persistence changed.
 
 ## Behavior and implementation
 
-- Empty query sorts by last session activity, with deterministic agent/id ties. All whitespace-separated
-  words must appear in local/provider titles, project names, cwd/checkout paths or recorded/observed
-  branches, ignoring case. This is literal metadata search, without BM25, transcript reads or HTTP.
-  For non-empty queries, title word prefixes and title substrings rank ahead of project/branch matches,
-  which rank ahead of path-only matches. For queries spanning fields, the weakest word match then overall
-  match quality determine the order. Ordered title phrases are preferred within equal match quality;
-  recency breaks ties. The query limit is 4,096 characters. Filtering precedes the 200-row display limit.
+- Results sort by last session activity, newest first, with deterministic agent/id ties. All
+  whitespace-separated words must appear in local/provider titles, project names, cwd/checkout paths or
+  recorded/observed branches, ignoring case. This is literal metadata search, without BM25, transcript
+  reads or HTTP. Since 2026-10-29 the query only filters: there is no title/project/path match-quality
+  ranking, so the most recently active session or worktree stays on top. The query limit is 4,096
+  characters. Filtering precedes the 200-row display limit.
 - `SessionSwitcherPanel` captures immutable metadata and app-wide hidden/unread state. It subscribes
   to index/organisation/attention events and checks cached terminal ownership/open projects every
   1.5 seconds while open. Filtering uses one bounded worker with 100 ms debounce. Popup generations
   reject older query/metadata results, cancellation stops superseded filtering, and disposal removes
   subscriptions, timers and queued work. Separate popups have separate lifetimes.
 - `SwitcherResults` preserves surviving match order during refresh, appending new matches. At the
-  200-row limit, current ranking determines membership while the selected matching row is protected;
-  higher-ranked arrivals evict lower-priority unselected rows. Selection
+  200-row limit, recency determines membership while the selected matching row is protected;
+  newer arrivals evict older unselected rows. Selection
   uses provider/id, not row index. Removing the selected row clears selection and disables actions.
   A changed query selects its first result; same-query refresh preserves the user's selection. Reopening
   with an empty query uses fresh recency order. The viewport is retained
-  on refresh. Pins and unread do not change ranking; there is no separate navigation-history store.
+  on refresh. Pins and unread do not change the order; there is no separate navigation-history store.
 - Rows show literal titles, agent, project/checkout path, branch, activity, unread and availability.
   Native text fragments distinguish blue agents, green branches and muted paths/status; query words
   are bold within visible titles, project names, branches and paths, ignoring case. A theme-aware

@@ -10,7 +10,7 @@
     <ul>
         <li>Sessions grouped by project with title, branch, last activity and a live indicator</li>
         <li>Follow Claude Code and Codex sessions across recorded worktree changes, with checkout paths, observed Git branches and detached-HEAD labels</li>
-        <li>Quickly find sessions across projects by title, project, path or branch, and switch to a terminal or open a worktree with a keyboard shortcut</li>
+        <li>Quickly find sessions by title, project, path or branch, in this project or across all of them, and switch to a terminal or open a worktree with a keyboard shortcut</li>
         <li>Open a session's verified worktree in a new IntelliJ window or focus it if already open, keeping the original window and terminal available. Opening is disabled for missing or uncertain checkouts and for new projects inside protected agent data directories.</li>
         <li>Open Worktree and Fork Session starts an independent conversation fork in the worktree window's terminal, keeping the original session running.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
@@ -83,7 +83,7 @@
 
     <actions>
         <action id="Seshlog.SwitchSession" class="com.hedworth.seshlog.ui.actions.SwitchSessionAction"
-                text="Seshlog: Switch Session / Worktree" description="Find sessions across projects and focus their terminals or explicitly resume them">
+                text="Seshlog: Switch Session / Worktree" description="Find sessions in the tool window's project scope and focus their terminals or explicitly resume them">
             <keyboard-shortcut keymap="$default" first-keystroke="control alt shift P"/>
             <keyboard-shortcut keymap="Mac OS X" first-keystroke="meta alt S" replace-all="true"/>
             <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta alt S" replace-all="true"/>

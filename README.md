@@ -29,7 +29,8 @@ If you use custom data folders or executables, set them under **Settings → Too
 ### Switch with the keyboard
 
 Press **⌘⌥S** on macOS or **Ctrl+Alt+Shift+P** on Windows/Linux to find a session by its title,
-project, path or branch. Use **Up/Down** to select it.
+project, path or branch. Like the tool window, it shows only this project unless **All Projects** is
+on. Use **Up/Down** to select it.
 
 **Enter** jumps to a tracked terminal and its project window. For a stopped session, it focuses
 **Resume** so you can choose when to launch. Use **Left/Right** to move between **Open Worktree**

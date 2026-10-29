@@ -19,6 +19,16 @@ internal fun switcherRows(sessions: List<Session>, paths: ResolvedPaths, project
             hidden(session), session.id in associated, session.id in unread, observed)
     }
 
+/** The tool window's project scope, captured on the EDT. Null when All Projects is on. */
+internal data class SwitcherScope(val roots: List<Path>, val includeWorktrees: Boolean)
+
+/** Mirror the session list's project filter. Resolves uncached [scope] roots, so call it on a worker. */
+internal fun scopedRows(rows: List<SwitcherRow>, scope: SwitcherScope?, paths: ResolvedPaths): List<SwitcherRow> {
+    if (scope == null) return rows
+    val resolved = ResolvedPaths.resolve(scope.roots, previous = paths)
+    return rows.filter { resolved.inScope(it.session.cwd, scope.roots, scope.includeWorktrees) }
+}
+
 /** Collapse before hidden filtering, so a hidden successor never exposes its superseded predecessor. */
 internal fun switcherSessions(sessions: List<Session>, associated: Set<String>): List<Session> {
     val current = SessionContinuations(sessions.map {

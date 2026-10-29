@@ -44,6 +44,7 @@
     <change-notes><![CDATA[
     <b>Unreleased</b>
     <ul>
+        <li>Search now defaults to a flat list, with Best match / Recently active sorting and optional folder grouping.</li>
         <li>The quick switcher follows the tool window's All Projects and Sibling worktrees options, with the most recent sessions first.</li>
         <li>New Delete Worktree… on worktree folders. Git refuses worktrees with uncommitted changes, conversations are kept, and the worktree's sessions can be hidden in the same step.</li>
     </ul>

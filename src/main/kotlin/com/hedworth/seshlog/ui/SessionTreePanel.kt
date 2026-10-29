@@ -33,6 +33,8 @@ import com.hedworth.seshlog.ui.actions.SessionAction
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.ActionToolbar
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -47,6 +49,7 @@ import com.intellij.openapi.actionSystem.toolbarLayout.ToolbarLayoutStrategy
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAwareAction
+import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootEvent
 import com.intellij.openapi.roots.ModuleRootListener
@@ -462,13 +465,35 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
     }
 
+    // Keep the chooser in the IntelliJ popup hierarchy. Showing a Swing JPopupMenu from a
+    // closing action popup dismisses the new chooser before the user can select an agent.
+    private fun createAgentFilterActions(): ActionGroup = object : ActionGroup("Agents", true), DumbAware {
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+        override fun getChildren(e: AnActionEvent?): Array<AnAction> {
+            fun choice(text: String, selected: () -> Boolean, change: (Boolean) -> Unit) =
+                object : ToggleAction(text), DumbAware {
+                    override fun getActionUpdateThread() = ActionUpdateThread.EDT
+                    override fun isSelected(e: AnActionEvent) = selected()
+                    override fun setSelected(e: AnActionEvent, state: Boolean) { change(state); rerender() }
+                }
+            val available = unfilteredSessions(latestSessions).mapTo(HashSet()) { it.kind }
+            return buildList<AnAction> {
+                add(choice("All agents", { agentFilter.mode == AgentFilterMode.All }) { agentFilter.mode = AgentFilterMode.All })
+                add(choice("Auto", { agentFilter.mode == AgentFilterMode.Auto }) { agentFilter.mode = AgentFilterMode.Auto })
+                AgentKind.entries.filter { it in available }.forEach { kind ->
+                    add(choice(kind.displayName,
+                        { kind in AgentSessionFilter.effectiveKinds(unfilteredSessions(latestSessions), agentFilter.mode) }) { enabled ->
+                        val current = AgentSessionFilter.effectiveKinds(unfilteredSessions(latestSessions), agentFilter.mode)
+                        agentFilter.mode = AgentFilterMode.Selected(if (enabled) current + kind else current - kind)
+                    })
+                }
+            }.toTypedArray()
+        }
+    }
+
     /** Filter actions shared by the toolbar and focused UI tests. */
     internal fun createFilterActions(): DefaultActionGroup = DefaultActionGroup("Filters", true).apply {
-            add(object : DumbAwareAction("Agents", "Choose which agents are shown", null) {
-                override fun actionPerformed(e: AnActionEvent) {
-                    createAgentMenu().show(filtersAnchor ?: this@SessionTreePanel, 0, filtersAnchor?.height ?: 0)
-                }
-            })
+            add(createAgentFilterActions())
             add(object : DumbAwareAction("Date", "Limit sessions by activity date", null) {
                 override fun update(e: AnActionEvent) { e.presentation.text = "Date: ${dateFilter.label}" }
                 override fun actionPerformed(e: AnActionEvent) = chooseDateFilter()

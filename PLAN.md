@@ -42,9 +42,15 @@ cleanup. Earlier switcher descriptions below are completion history, not the cur
   refusal, hide/keep sessions, review base selection/diffs, cross-window focus/fork, trust cancellation,
   keyboard navigation, and light/dark/narrow layouts. Unperformed checks stay open.
   Verified synthetic profile obtained 2026-10-29; macOS app-bundle wrapper repaired UI attachment.
-  User and Computer Use confirmed Attention Inbox opens via Find Action; automation also read its
-  empty state. Remaining interactions and other physical checks stay open. Package/compatibility
-  checks pass; see the follow-up report and sandbox guide for the working attachment method.
+  Physical smoke checks now pass for review/diff, Claude/Codex forks, inbox preview/Mark Read,
+  deletion cancellation and dirty refusal. Remaining matrix checks stay open. Package/compatibility
+  checks pass; see the follow-up report and sandbox guide for results and the attachment method.
+- [x] Fix the Agents chooser discovered during physical acceptance: keep it inside the IntelliJ
+  Filters submenu rather than opening a Swing popup that disappears as the parent menu closes.
+  Regression failed before the fix; `make check` passes 625 tests, zero failures/errors, 10 skips.
+  Verified the submenu and All agents selection in the synthetic IDE; Codex sessions became available.
+  Review/base/diff, Claude and Codex new-worktree forks, inbox preview/Mark Read, deletion cancellation
+  and dirty refusal also passed physical smoke checks. Remaining acceptance is listed in the follow-up report.
 - [ ] Carry forward original worktree acceptance: Claude new/existing-window forks and independent
   sessions; recorded location transitions/exit/resume; detached HEAD and branch changes; symlink
   aliases; sibling filters; missing/replaced paths; repeated clicks and source-terminal survival.
@@ -55,11 +61,11 @@ cleanup. Earlier switcher descriptions below are completion history, not the cur
   and fork in the mapped subdirectory. Preserve created worktrees on cancellation/failure and
   report partial success. Validate source/destination identity and protected storage before effects.
   `make check`: 619 tests, zero failures/errors, 10 opt-in skips. Claude/Codex supported;
-  physical checks remain open. Other providers retain their existing same-directory forks.
+  physical smoke checks pass; broader acceptance remains open. Other providers retain their existing same-directory forks.
 - [x] **Attention inbox** (approved 2026-10-29): show unread sessions across projects with bounded
   assistant reply previews, conversation/terminal/worktree navigation and receipt-safe acknowledgement.
   Keep previews in memory, use existing activity evidence, and reject stale delivery.
-  `make check`: 623 tests, zero failures/errors, 10 opt-in skips; physical acceptance pending.
+  `make check`: 623 tests, zero failures/errors, 10 opt-in skips; preview/Mark Read physical checks pass.
 
 All three features are now approved for this pass. Outstanding Phase 1 search acceptance below remains scheduled; Phase 2 stays gated.
 

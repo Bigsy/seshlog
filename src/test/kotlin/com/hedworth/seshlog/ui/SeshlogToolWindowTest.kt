@@ -456,6 +456,41 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         } finally { Disposer.dispose(disposable) }
     }
 
+    fun `test toolbar agents are a native submenu with live provider choices`() {
+        val disposable = Disposer.newDisposable()
+        val state = com.hedworth.seshlog.settings.AgentFilterState.getInstance(project)
+        val previous = state.mode
+        try {
+            state.mode = com.hedworth.seshlog.settings.AgentFilterMode.Only(AgentKind.CLAUDE_CODE)
+            val panel = SessionTreePanel(project, disposable)
+            val base = Paths.get(project.basePath!!)
+            val sessions = listOf(session("claude", base, Instant.EPOCH),
+                session("codex", base, Instant.EPOCH).copy(kind = AgentKind.CODEX))
+            panel.render(sessions)
+            val agents = panel.createFilterActions().getChildren(null).first()
+            assertTrue("Agents must stay inside the IntelliJ popup hierarchy", agents is com.intellij.openapi.actionSystem.ActionGroup)
+            val group = agents as com.intellij.openapi.actionSystem.ActionGroup
+            assertTrue(group.isPopup)
+            val event = com.intellij.openapi.actionSystem.AnActionEvent.createFromDataContext(
+                "SeshlogTest", null, com.intellij.openapi.actionSystem.DataContext.EMPTY_CONTEXT)
+            fun choices() = group.getChildren(event).filterIsInstance<com.intellij.openapi.actionSystem.ToggleAction>()
+            assertEquals(listOf("All agents", "Auto", "Claude Code", "Codex"), choices().map { it.templateText })
+            choices().single { it.templateText == "Codex" }.setSelected(event, true)
+            panel.render(sessions)
+            assertEquals(setOf(AgentKind.CLAUDE_CODE, AgentKind.CODEX), panel.visibleSessions.map { it.kind }.toSet())
+            choices().single { it.templateText == "Claude Code" }.setSelected(event, false)
+            panel.render(sessions)
+            assertEquals(listOf(AgentKind.CODEX), panel.visibleSessions.map { it.kind })
+            panel.render(sessions.take(1))
+            assertEquals(listOf("All agents", "Auto", "Claude Code"), choices().map { it.templateText })
+            choices().single { it.templateText == "All agents" }.setSelected(event, true)
+            assertEquals(com.hedworth.seshlog.settings.AgentFilterMode.All, state.mode)
+        } finally {
+            state.mode = previous
+            Disposer.dispose(disposable)
+        }
+    }
+
     fun `test agent menu independently adds and removes agents`() {
         val disposable = Disposer.newDisposable()
         val state = com.hedworth.seshlog.settings.AgentFilterState.getInstance(project)

@@ -15,6 +15,19 @@ Requires **IntelliJ IDEA 2026.2 or newer** with the bundled Terminal plugin enab
 Install the agent's CLI to start or resume sessions; Pi needs **0.84.2 or newer**.
 If you use custom data folders or executables, set them under **Settings → Tools → Seshlog**.
 
+### Codex terminal tracking
+
+To let Seshlog follow thread switches inside a running Codex terminal, add this to
+`~/.codex/config.toml`. If you already have a `[tui]` section, add the setting there:
+
+```toml
+[tui]
+terminal_title = ["project", "thread-id"]
+```
+
+Restart any running Codex terminals after saving. Keep `thread-id` enabled so Seshlog can identify
+the current conversation after `/new`, `/clear`, `/resume` or a switch through the resume picker.
+
 ## Find your way back
 
 - **Search your history.** Search messages, titles and paths. Use `"quoted phrases"` for exact text,

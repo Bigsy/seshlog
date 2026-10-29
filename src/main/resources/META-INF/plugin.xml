@@ -42,6 +42,11 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>The quick switcher follows the tool window's All Projects and Sibling worktrees options, with the most recent sessions first.</li>
+        <li>New Delete Worktree… on worktree folders. Git refuses worktrees with uncommitted changes, conversations are kept, and the worktree's sessions can be hidden in the same step.</li>
+    </ul>
     <b>0.8.3</b>
     <ul>
         <li>Codex: copying and terminal tracking now follow <code>/new</code>, <code>/clear</code>, <code>/resume</code> and the <code>codex resume</code> picker. Turn it on by adding <code>terminal_title = ["project", "thread-id"]</code> under <code>[tui]</code> in <code>~/.codex/config.toml</code>, then restart Codex.</li>
@@ -64,10 +69,6 @@
         <li>Search ranks results by relevance across titles, paths and conversations. Use "quoted phrases" for exact text.</li>
         <li>The search index is kept between restarts and updates as sessions change. Everything runs locally.</li>
         <li>Opening a result jumps to the matching passage.</li>
-    </ul>
-    <b>0.7.1</b>
-    <ul>
-        <li>New Open Worktree and Fork Session: start a separate copy of the conversation in the session's worktree window, leaving the original running.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

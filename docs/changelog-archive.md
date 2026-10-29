@@ -3,6 +3,10 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.7.1
+
+- New Open Worktree and Fork Session: start a separate copy of the conversation in the session's worktree window, leaving the original running.
+
 ## 0.6.10
 
 - Show Claude Code and Codex session worktrees with checkout details, the observed Git branch or detached HEAD, and the full recorded path in tooltips.

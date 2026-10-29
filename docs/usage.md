@@ -62,8 +62,9 @@ for **Titles & paths**. Your choice is shared across project windows and remembe
 
 Ordinary words help rank results by relevance. Put text in `"quoted phrases"` to require an exact
 match within a title, path or single message. Different quoted phrases can match different messages
-in the same session. Each result labels its matching excerpt: **Title**, **Project path**, **You**,
-**Assistant**, **Tool call** or **Tool result**.
+in the same session. Matching query text is bold in session titles, locations and excerpts. Agent
+labels are blue, branches green, and paths use a quieter colour. Each result labels its matching
+excerpt: **Title**, **Project path**, **You**, **Assistant**, **Tool call** or **Tool result**.
 
 Select a result to preview it, or choose **Open Conversation** for a read-only editor tab.
 **F3 / Shift+F3** move between matches in the selected sources. Other messages remain visible as

@@ -1,5 +1,7 @@
 package com.hedworth.seshlog.switcher
 
+import com.hedworth.seshlog.ui.SessionTextColors
+import com.hedworth.seshlog.ui.appendQueryText
 import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.SimpleTextAttributes
@@ -46,20 +48,20 @@ internal class SwitcherRenderer(private val query: () -> String = { "" }) :
         background = list.background
         border = if (selected) selectedBorder else rowBorder
         val foreground = list.foreground
-        val secondary = SECONDARY_COLOR
+        val secondary = SessionTextColors.SECONDARY
         title.clear(); details.clear()
         title.font = list.font.deriveFont(Font.PLAIN)
         details.font = title.font.deriveFont((list.font.size2D - 1).coerceAtLeast(1f))
         attention.font = details.font
         attention.foreground = secondary
-        title.appendHighlighted(value.title, foreground)
-        details.append(value.session.kind.displayName, SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, AGENT_COLOR))
+        title.appendQueryText(value.title, terms, foreground)
+        details.append(value.session.kind.displayName, SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, SessionTextColors.AGENT))
         fun field(text: String, color: Color) {
             details.append(" · ", SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, secondary))
-            details.appendHighlighted(text, color)
+            details.appendQueryText(text, terms, color)
         }
         value.projectNames.forEach { field(it, foreground) }
-        (value.checkout?.branchLabel ?: value.session.displayBranch)?.let { field(it, BRANCH_COLOR) }
+        (value.checkout?.branchLabel ?: value.session.displayBranch)?.let { field(it, SessionTextColors.BRANCH) }
         field(value.session.cwd.toString(), secondary)
         attention.text = value.attention(Instant.now())
         getAccessibleContext().accessibleName = "${value.title}, ${value.details()}, ${attention.text}, ${value.status}"
@@ -68,29 +70,7 @@ internal class SwitcherRenderer(private val query: () -> String = { "" }) :
         return this
     }
 
-    private fun SimpleColoredComponent.appendHighlighted(text: String, color: Color) {
-        val matched = BooleanArray(text.length)
-        for (term in terms) {
-            var start = text.indexOf(term, ignoreCase = true)
-            while (start >= 0) {
-                matched.fill(true, start, start + term.length)
-                start = text.indexOf(term, start + 1, ignoreCase = true)
-            }
-        }
-        var start = 0
-        while (start < text.length) {
-            var end = start + 1
-            while (end < text.length && matched[end] == matched[start]) end++
-            val style = if (matched[start]) SimpleTextAttributes.STYLE_BOLD else SimpleTextAttributes.STYLE_PLAIN
-            append(text.substring(start, end), SimpleTextAttributes(style, color))
-            start = end
-        }
-    }
-
     private companion object {
-        val AGENT_COLOR = JBColor(Color(0x2458A6), Color(0x8AB4F8))
-        val BRANCH_COLOR = JBColor(Color(0x26734D), Color(0x7EC699))
-        val SECONDARY_COLOR = JBColor(Color(0x6C707E), Color(0xA8ADB5))
         val OUTLINE_COLOR = JBColor.namedColor("Component.focusColor", JBColor(Color(0x3574F0), Color(0x548AF7)))
         fun textComponent() = SimpleColoredComponent().apply { isOpaque = false; ipad = JBUI.emptyInsets() }
     }

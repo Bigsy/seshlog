@@ -1,14 +1,17 @@
 package com.hedworth.seshlog.ui
 
+import com.hedworth.seshlog.index.TextQuery
 import com.hedworth.seshlog.index.SearchHit
 import com.hedworth.seshlog.index.SearchMetadataVariant
 import com.hedworth.seshlog.index.lexical.SearchSessionKey
+import com.hedworth.seshlog.index.lexical.RetrievalQuery
 import com.hedworth.seshlog.index.SessionAttention
 import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.intellij.icons.AllIcons
 import com.intellij.ui.JBColor
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.text.DateFormatUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
@@ -30,18 +33,25 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
 
     /** Content-search hits by session id; empty when not searching. Set by the panel on the EDT. */
     var hits: Map<SearchSessionKey, SearchHit> = emptyMap()
+    private var queryTerms: List<String> = emptyList()
     var query: String = ""
+        set(value) {
+            if (field == value) return
+            field = value
+            queryTerms = if (value.length > RetrievalQuery.MAX_CHARS) emptyList() else
+                TextQuery.parse(value).terms.takeIf { it.size <= RetrievalQuery.MAX_TERMS }?.map { it.text }.orEmpty()
+        }
     var showFolder: Boolean = false
     var activeSessionId: String? = null
     /** Sessions of agents without a pid file whose Seshlog-owned tab still runs them. Set by the panel on the EDT. */
     var runningOwned: Set<String> = emptySet()
     var unread: Set<String> = emptySet()
 
-    internal val titleLabel = plainLabel()
+    internal val titleLabel = SessionRowText()
     internal val activityLabel = plainLabel()
-    internal val folderLabel = plainLabel()
-    internal val detailsLabel = plainLabel()
-    internal val matchLabel = plainLabel()
+    internal val folderLabel = SessionRowText()
+    internal val detailsLabel = SessionRowText()
+    internal val matchLabel = SessionRowText()
     private val heading = JPanel(BorderLayout(JBUI.scale(12), 0)).apply {
         isOpaque = false
         add(titleLabel, BorderLayout.CENTER)
@@ -71,7 +81,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         tree: JTree, value: Any?, selected: Boolean, expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean,
     ): Component {
         val foreground = if (selected) UIUtil.getTreeSelectionForeground(tree.hasFocus()) else tree.foreground
-        val secondary = if (selected) foreground else UIUtil.getContextHelpForeground()
+        val secondary = if (selected) foreground else SessionTextColors.SECONDARY
         titleLabel.font = tree.font
         titleLabel.foreground = foreground
         activityLabel.font = tree.font.deriveFont((tree.font.size2D - 1).coerceAtLeast(1f))
@@ -81,14 +91,14 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         matchLabel.font = activityLabel.font
         detailsLabel.foreground = secondary
         matchLabel.foreground = secondary
-        titleLabel.text = ""
+        titleLabel.clear()
         titleLabel.icon = null
         activityLabel.text = ""
         activityLabel.isVisible = false
-        folderLabel.text = ""
+        folderLabel.clear()
         folderLabel.isVisible = false
-        detailsLabel.text = ""
-        matchLabel.text = ""
+        detailsLabel.clear()
+        matchLabel.clear()
         matchLabel.isVisible = false
         details.isVisible = false
         toolTipText = null
@@ -99,7 +109,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             is ProjectGroup -> {
                 titleLabel.icon = AllIcons.Nodes.Folder
                 titleLabel.font = tree.font.deriveFont(Font.BOLD)
-                titleLabel.text = item.displayName
+                titleLabel.appendQueryText(item.displayName, queryTerms, foreground, SimpleTextAttributes.STYLE_BOLD)
                 activityLabel.text = "${item.sessions.size} " + if (item.sessions.size == 1) "session" else "sessions"
                 val summary = SessionAttention.summary(item.sessions, runningOwned, unread)
                 if (summary.isNotEmpty()) activityLabel.text += "  ·  $summary"
@@ -118,13 +128,16 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         val organisation = SessionOrganisation.getInstance()
         val metadata = organisation.metadata(session.id)
         titleLabel.icon = if (isRunning(session)) AllIcons.Debugger.ThreadRunning else AllIcons.Vcs.History
-        titleLabel.text = (if (metadata.pinned) "★ " else "") + organisation.title(session)
         if (session.id == activeSessionId) {
             titleLabel.font = font.deriveFont(Font.BOLD).let {
                 if (selected) it.deriveFont(mapOf(TextAttribute.UNDERLINE to TextAttribute.UNDERLINE_ON)) else it
             }
             if (!selected) titleLabel.foreground = ACTIVE_COLOR
         }
+        val titleStyle = if (session.id == activeSessionId) SimpleTextAttributes.STYLE_BOLD or
+            (if (selected) SimpleTextAttributes.STYLE_UNDERLINE else 0) else SimpleTextAttributes.STYLE_PLAIN
+        if (metadata.pinned) titleLabel.append("★ ", SimpleTextAttributes(titleStyle, titleLabel.foreground))
+        titleLabel.appendQueryText(organisation.title(session), queryTerms, titleLabel.foreground, titleStyle)
         if (isRunning(session)) {
             activityLabel.text = ActivityLabel.badge(session.activity, session.activitySince, Instant.now())
             activityLabel.foreground = when {
@@ -139,36 +152,36 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             activityLabel.foreground = if (selected) foreground else HIT_COLOR
             activityLabel.isVisible = true
         }
-        detailsLabel.text = buildList {
-            add(session.kind.displayName)
-            add(DateFormatUtil.formatPrettyDateTime(session.lastActivityAt.toEpochMilli()))
-            if (session.forkedFromId != null) add("fork")
-            if (metadata.hidden) add("hidden")
-            if (session.continuationId != null) add("continued")
-            if (!showFolder) WorktreePresentation.details(session)?.let { add(it) }
-        }.joinToString("  ·  ")
+        val secondary = if (selected) foreground else SessionTextColors.SECONDARY
+        val agentColor = if (selected) foreground else SessionTextColors.AGENT
+        val branchColor = if (selected) foreground else SessionTextColors.BRANCH
+        fun field(component: SessionRowText, text: String, color: Color, highlight: Boolean = true) {
+            if (component.text.isNotEmpty()) component.append("  ·  ", SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, secondary))
+            component.appendQueryText(text, if (highlight) queryTerms else emptyList(), color)
+        }
+        field(detailsLabel, session.kind.displayName, agentColor, false)
+        field(detailsLabel, DateFormatUtil.formatPrettyDateTime(session.lastActivityAt.toEpochMilli()), secondary, false)
+        if (session.forkedFromId != null) field(detailsLabel, "fork", secondary, false)
+        if (metadata.hidden) field(detailsLabel, "hidden", secondary, false)
+        if (session.continuationId != null) field(detailsLabel, "continued", secondary, false)
+        if (!showFolder) WorktreePresentation.details(session)?.let { field(detailsLabel, it, branchColor) }
         if (showFolder) {
-            folderLabel.text = buildList {
-                add(session.cwd.fileName?.toString() ?: session.cwd.toString())
-                val location = WorktreePresentation.details(session)
-                val branch = session.checkout?.branchLabel ?: session.displayBranch
-                if (branch != null && location?.contains(branch) != true) add(branch)
-                location?.let { add(it) }
-                add(session.cwd.toString())
-            }.joinToString("  ·  ")
+            field(folderLabel, session.cwd.fileName?.toString() ?: session.cwd.toString(), foreground)
+            (session.checkout?.branchLabel ?: session.displayBranch)?.let { field(folderLabel, it, branchColor) }
+            if (session.checkout?.available == false || session.recordedDirectoryAvailable == false)
+                field(folderLabel, "unavailable", secondary, false)
+            if (session.location?.uncertain == true) field(folderLabel, "location uncertain", secondary, false)
+            field(folderLabel, session.cwd.toString(), secondary)
             folderLabel.isVisible = true
         }
         details.border = JBUI.Borders.empty(2, titleLabel.icon.iconWidth + titleLabel.iconTextGap, 0, 0)
         details.isVisible = true
         val hit = hits[SearchSessionKey(session.kind,session.id)]
         if (hit != null) {
-            matchLabel.text = buildList {
-                add(hit.primary.source.label)
-                if (hit.toolMatch) hit.primary.toolName?.let { add(it.replace(Regex("\\s+"), " ").take(80)) }
-                if (hit.partial) add("partial coverage")
-                hit.snippet?.let { add(it.replace(Regex("\\s+"), " ").trim().take(280)) }
-            }.joinToString("  ·  ")
-            matchLabel.foreground = if (selected) foreground else HIT_COLOR
+            field(matchLabel, hit.primary.source.label, agentColor, false)
+            if (hit.toolMatch) hit.primary.toolName?.let { field(matchLabel, it.replace(WHITESPACE, " ").take(80), secondary, false) }
+            if (hit.partial) field(matchLabel, "partial coverage", secondary, false)
+            hit.snippet?.let { field(matchLabel, it.replace(WHITESPACE, " ").trim().take(280), foreground) }
             matchLabel.isVisible = true
         }
         toolTipText = tooltip(session, hit)
@@ -232,6 +245,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         // Treat agent-provided text literally; JLabel otherwise interprets strings starting with <html>.
         private fun plainLabel() = JLabel().apply { putClientProperty("html.disable", true) }
 
+        private val WHITESPACE = Regex("\\s+")
         private val ACTIVE_COLOR: Color = JBColor(Color(0x2458A6), Color(0x8AB4F8))
         private val LIVE_COLOR: Color = JBColor(Color(0x2E8B57), Color(0x6CBF84))
         private val WAITING_COLOR: Color = JBColor(Color(0xB86E00), Color(0xE8A33D))

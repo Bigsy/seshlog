@@ -39,12 +39,17 @@ trusting historical line numbers. Take the open items below in order unless the 
   leave other collapsed folders alone. Add the permanent reproducer and verify later explicit
   collapses still survive ordinary refreshes. The permanent regression failed before the fix;
   `make check` passes 638 tests, zero failures/errors, 10 opt-in skips with the colour follow-up
-  also present. Physical verification follows with the refreshed styling sandbox.
+  also present. The verified synthetic sandbox physically confirms the selected folder reopens,
+  its session/preview remain selected and the other folder stays collapsed; see the presentation report.
 
-- [ ] Follow the quick switcher's field colours and literal bold query emphasis in main session
+- [x] Follow the quick switcher's field colours and literal bold query emphasis in main session
   rows, including snippets and folder/branch metadata. Keep native selected-row contrast, activity
   badges, accessibility and rendering free of I/O. Share the palette/highlighter, add fragment and
   renderer-reuse regressions, run `make check`, and inspect the refreshed synthetic sandbox.
+  Completed: 638 tests, zero failures/errors, 10 opt-in skips; release ZIP and offline compatibility
+  checks pass. Verified flat/grouped main search in Islands Dark and Islands Light, selected-row
+  contrast, literal query bolding and the unchanged switcher popup at approximately 450 px. The
+  report records artifact hashes, verification identity and narrower-layout/accessibility limits.
 
 ### Worktree follow-up (user priority, 2026-10-29)
 

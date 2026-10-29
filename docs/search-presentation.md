@@ -106,8 +106,75 @@ Open Conversation action was verified physically. After several model replacemen
 bridge exposed stale disabled row wrappers; screenshots and keyboard/preview behavior still showed
 current results. Full screen-reader acceptance remains open.
 
-Light theme, narrower overflow layouts, restart persistence in the physical IDE, other operating
-systems and the broader source/scope/hidden/action stress matrix were not physically repeated.
+At that ordering pass, light theme, narrower overflow layouts, restart persistence in the physical
+IDE, other operating systems and the broader source/scope/hidden/action stress matrix were not
+physically repeated. The colour follow-up below adds focused light-theme coverage.
 Serialization, source/scope filtering, stale delivery and provider-aware selection are automatically
 tested. Broader Phase 1 search/platform acceptance in PLAN.md remains independent of these focused
 checks. No artifact was published or installed into the daily IDE.
+
+
+## Collapsed-folder selection review fix (2026-10-29)
+
+Committed separately as `8793f03`. Returning from flat results to grouped rows now expands the
+explicitly selected session's folder and remembers that folder as open. Other collapsed folders
+retain their state; later explicit collapses still survive ordinary refreshes. The permanent
+`SessionViewControlTest` regression failed before the fix, then passed with selected session,
+preview, matching-hit and sibling-collapse assertions. The full suite, including the styling
+follow-up below, passes **638 tests, zero failures/errors, 10 opt-in skips**.
+
+## Main-row colours and query emphasis follow-up (2026-10-29)
+
+The main list now shares the quick switcher's blue agent labels, green branches, brighter secondary
+path text and native bold query fragments. Titles, folder/branch values, paths and matching excerpts
+emphasise literal case-insensitive query text. Quoted phrases stay together, overlapping matches
+merge, and Unicode offsets and literal markup remain intact. The source label is blue while the
+excerpt uses normal foreground text, so the whole excerpt no longer competes for attention in blue.
+Flat rows omit the repeated `worktree <same folder>` text. Grouped rows retain their location details.
+
+The main tree keeps native selected-row foreground colours for contrast. Active-terminal bold and
+underline styling, activity/unread badges, tooltips and accessible plain text remain. Highlighting
+uses cached parsed query terms and performs no I/O. The switcher reuses the extracted palette and
+fragment helper with its existing query parsing and selection outline.
+
+`SessionCellRendererStyleTest` covers the actual title/location/snippet fragments, field colours,
+selection contrast and stable geometry, phrases, overlapping Unicode/markup, renderer reuse and
+clearing, grouped metadata and the query length bound. Existing switcher and main-window regressions
+also pass. A fragment-level regression for bold folder headings and active-terminal underline
+failed before explicit base styles were retained; it now passes. After a cache-free complete Kotlin recompile, `make check` passes **638 tests, zero
+failures/errors, 10 opt-in skips**. This environment restored stale test callers of the former JLabel
+getters even after `clean`, so the passing run used `ORG_GRADLE_PROJECT_kotlin.incremental=false`
+and `GRADLE_OPTS=-Dorg.gradle.caching=false`; these are invocation-only settings. A separate build
+also briefly cleared main classes during test compilation; the final passing run followed its exit.
+
+`make release` passes, including ZIP integrity; nested-JAR inspection found no test/sandbox/evaluation
+classes, fixtures, transcripts, databases or models. Follow-up ZIP SHA-256:
+`4032ad550859298ff0b26b42737822ae626c5accfb8df55ae5c98c9615c04c51`.
+Offline Plugin Verifier 1.411 reports Compatible on IU-262.10968.63 and IU-263.7307.44, with the
+same 2/16/67 and 3/20/60 scheduled-removal/deprecated/experimental counts respectively.
+
+Refreshed synthetic verification passed at **2026-10-29T22:21:20.980915Z**, PID 58973, started
+22:21:14.621Z. IU-262.10968.63 / Java 25.0.4 on macOS aarch64; all four providers READY, every scan
+in the run used synthetic roots, and no main sources changed after the loaded JAR was built.
+JAR SHA-256: `f5bd4daed36071797ceb8a5a7eb6a317b38afd7327a0ad87433466ff37625746`.
+Diagnostics run: `dab5ef00-e5cc-4fac-90d6-06d99b6acb73`. The report remains at
+`/private/tmp/seshlog-followup-sandbox/verification.txt`; launched with `make sandbox`, captured
+current JVM arguments and relaunched with the documented app-bundle wrapper and synthetic environment.
+
+Physical follow-up results:
+
+- Inspected `retry` in flat and grouped main search in **Islands Dark and Islands Light**, at the
+  approximately 450 px tool-window width used in the supplied screenshot. Titles, branches, folder
+  and path text and excerpts visibly bold literal matches; agent/source labels are blue, branches
+  green, paths secondary, and selected rows retain readable native foreground contrast.
+- Reproduced the review sequence physically: collapse `harbor-retry` and `harbor`, switch to flat,
+  use Home/Down to select Retry backoff…, and enable grouping. `harbor-retry` expands and the selected
+  session, title-match explanation and preview remain; `harbor` stays collapsed (no Pi summary row).
+- Compared the quick switcher's `retry` popup in the light theme: field colours, bold matches,
+  selection outline and newest-first filtering remain intact.
+- Restored the sandbox to Islands Dark with flat Best match search. Theme changes affect this
+  synthetic profile only. Width reduction via divider dragging did not resize the tool window;
+  narrower overflow layouts are still unverified. Screen-reader acceptance, other operating systems
+  and the broader source/action stress matrix remain open. No daily-IDE installation or publication.
+
+`git diff --check` and plugin XML parsing pass. README.md local edits remain preserved.

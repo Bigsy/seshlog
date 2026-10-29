@@ -44,14 +44,16 @@ class ContentSearchService : Disposable {
         query: String,
         sessions: List<Session>,
         sources: SearchSources = SearchSources.DEFAULT,
+        sort: SearchSort = SearchSort.BEST_MATCH,
         onResult: (List<SearchHit>) -> Unit,
-    ) = searchSnapshot(scope, query, sessions, sources) { onResult(it.hits) }
+    ) = searchSnapshot(scope, query, sessions, sources, sort) { onResult(it.hits) }
 
     fun searchSnapshot(
         scope: SearchRequestScope,
         query: String,
         sessions: List<Session>,
         sources: SearchSources = SearchSources.DEFAULT,
+        sort: SearchSort = SearchSort.BEST_MATCH,
         onResult: (SearchResultSnapshot) -> Unit,
     ) {
         if (disposed) return
@@ -72,7 +74,7 @@ class ContentSearchService : Disposable {
                             }
                             .keys,
                     )
-                    index.searchSnapshot(query, sessions, sources, cancelled)
+                    index.searchSnapshot(query, sessions, sources, sort, cancelled)
                 } catch (_: Exception) {
                     // Providers/SQLite may include private text or paths in exception messages.
                     log.warn("Content search unavailable; retry in Search settings")
@@ -85,7 +87,7 @@ class ContentSearchService : Disposable {
                 }
             if (cancelled()) return@execute
             lastCoverage = snapshot.coverage
-            val result = snapshot.copy(request = request, candidateRevision = sessions.hashCode(), context = SearchContext(query, sources))
+            val result = snapshot.copy(request = request, candidateRevision = sessions.hashCode(), context = SearchContext(query, sources, sort))
             deliver { if (!cancelled()) onResult(result) }
         }
     }

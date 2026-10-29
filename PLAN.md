@@ -9,6 +9,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Area | Status | Evidence / next action |
 | --- | --- | --- |
 | Persistent SQLite FTS5 BM25 | Implemented and automatically tested; release acceptance open | [Production report](docs/production-bm25.md); finish responsiveness, relevance/resource and manual checks below. |
+| Main search sorting and grouping | Implemented and tested; focused synthetic physical checks passed | [Presentation report](docs/search-presentation.md); broader action/accessibility/platform checks remain open. |
 | Source filters and match provenance | Implemented and automatically tested; release acceptance open | [Source-filter report](docs/search-source-filters.md); all physical UI checks remain unverified. |
 | External-server semantic search | Agreed, unimplemented | Start items 5–13 only after Phase 1 acceptance; [detailed design](docs/semantic-search-design.md). |
 | Managed local inference | Deferred until separately requested after server-backed evaluation | [Later-phase scope](docs/semantic-search-design.md#deferred-managed-local-inference). |
@@ -16,6 +17,22 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Worktree review, new-worktree forks and attention inbox | Implemented; automated checks passed; UI attachment repaired, physical acceptance in progress | [Follow-up report](docs/worktree-follow-up.md). |
 | Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
+
+### Main search ordering and presentation (user priority, 2026-10-29)
+
+- [x] Add compact **Sort: Best match / Recently active** and **Group by folder** controls.
+  Default to grouped recent browsing and flat best-match search; remember explicit per-project
+  preferences independently. Apply sort before retrieval's 100-result limit, preserving source/scope/
+  hidden filters, snippets, previews, native actions, selection and stale-result guards. Pins retain
+  priority within returned matches; quick-switcher filtering stays unchanged. Add >100-match,
+  lifecycle, settings and flat-navigation regressions, run `make check` and build/compatibility
+  checks, physically verify all four search presentations in a verified synthetic sandbox, and
+  record actual evidence and remaining checks in [the report](docs/search-presentation.md).
+  Completed: `make check` passes 632 tests, zero failures/errors, 10 opt-in skips; `make release`
+  and offline Plugin Verifier pass on IU-262.10968.63 / IU-263.7307.44. Verified synthetic sandbox
+  physical checks pass for all four search sort/group combinations, grouped/flat browsing, keyboard
+  selection, preview retention and native Open Conversation. Context-menu invocation, physical
+  restart persistence, light theme and broader platform/stress acceptance remain open in the report.
 
 ### Worktree follow-up (user priority, 2026-10-29)
 
@@ -364,7 +381,8 @@ These are implemented behavior and accepted constraints, not new implementation 
   Disabled text cannot affect active BM25 statistics or scores; echoed body categories do not sum.
   Keep MATCH/BM25 cursors materialized and scoring in SQLite, with no duplicate RAM postings index.
 - Genuine protected full-query evidence precedes ordinary scores. Preserve score/activity/provider/
-  session ties; primary-evidence ties use Title, Project path, You, Assistant, Tool call, Tool result,
+  session ties in Best match; Recently active orders by last activity/provider/session before the limit.
+  Primary-evidence ties use Title, Project path, You, Assistant, Tool call, Tool result,
   then stable entry/range. Pins/grouping remain explicit presentation overrides.
 - The displayed label, excerpt, source category, entry/range/hash or metadata variant must agree.
   Prefer protected full-query evidence when selecting the explanation, otherwise the largest

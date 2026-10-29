@@ -3,6 +3,7 @@ package com.hedworth.seshlog.ui
 import com.hedworth.seshlog.index.ContentSearchService
 import com.hedworth.seshlog.index.DatePeriod
 import com.hedworth.seshlog.index.ResolvedPaths
+import com.hedworth.seshlog.index.SearchSort
 import com.hedworth.seshlog.index.SearchHit
 import com.hedworth.seshlog.index.SearchCoverage
 import com.hedworth.seshlog.index.SearchResultSnapshot
@@ -19,6 +20,7 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.ConversationLimits
 import com.hedworth.seshlog.model.ProviderHealth
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.settings.SessionViewState
 import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentFilterState
 import com.hedworth.seshlog.settings.AgentSessionFilter
@@ -106,6 +108,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private var latestSessions: List<Session> = emptyList()
     private var handledPathRefreshGeneration = index.pathRefreshGeneration
     private var renderedGroups: List<ProjectGroup>? = null
+    private var renderedFlat: List<Session>? = null
+    private var displayedSearch: SearchResultSnapshot? = null
+    private var lastSearchSort: SearchSort? = null
     private var lastSearchQuery: String? = null
     private var lastSearchCandidates: List<Session>? = null
     private var lastSearchSources: SearchSources? = null
@@ -148,6 +153,10 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
 
     private val settings get() = SeshlogSettings.getInstance()
     private val index get() = SessionIndex.getInstance()
+    private val viewState get() = SessionViewState.getInstance(project)
+    private val isSearchView get() = activeQuery.isNotEmpty() || searchField.text.trim().length >= MIN_QUERY_LENGTH
+    internal val selectedSort get() = if (isSearchView) viewState.searchSort else SearchSort.RECENTLY_ACTIVE
+    internal val grouped get() = viewState.grouped(isSearchView)
     private val agentFilter get() = AgentFilterState.getInstance(project)
 
     internal val agentMenuButton = JButton("Agents ▾")
@@ -239,7 +248,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             })
         TreeSpeedSearch.installOn(tree, true) { path ->
             when (val obj = (path.lastPathComponent as? DefaultMutableTreeNode)?.userObject) {
-                is Session -> organisation.title(obj) + " " + obj.title + " " + (obj.displayBranch ?: "")
+                is Session -> organisation.title(obj) + " " + obj.title + " " + obj.cwd + " " + (obj.displayBranch ?: "")
                 is ProjectGroup -> obj.displayName
                 else -> ""
             }
@@ -369,6 +378,13 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                 }
             },
         )
+        project.messageBus.connect(this).subscribe(SessionViewState.TOPIC, object : SessionViewState.Listener {
+            override fun changed() {
+                if (isSearchView && lastSearchSort != viewState.searchSort) restartSearchPresentation()
+                else if (activeQuery.isNotEmpty()) displayedSearch?.let { renderSearchResults(activeQuery, it) }
+                else render(index.sessions)
+            }
+        })
         attentionView.update(showHidden = showHidden, dateFilter = dateFilter)
         render(index.sessions)
         index.refresh()
@@ -394,6 +410,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(ActionManager.getInstance().getAction("Seshlog.NextAttention"))
             add(ActionManager.getInstance().getAction("Seshlog.AttentionInbox"))
             add(ToggleAllProjectsAction())
+            add(createSortActions())
+            add(createGroupAction())
             add(createFilterActions().apply { templatePresentation.icon = AllIcons.General.Filter })
             add(TogglePreviewAction())
             add(ActionManager.getInstance().getAction("Seshlog.OpenConversation"))
@@ -412,6 +430,54 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         toolbar.targetComponent = this
         filtersAnchor = toolbar.component
         return toolbar
+    }
+
+    internal fun createSortActions(): ActionGroup = object : ActionGroup("Sort", true), DumbAware {
+        init { templatePresentation.icon = AllIcons.ObjectBrowser.Sorted }
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+        override fun update(e: AnActionEvent) {
+            e.presentation.text = "Sort: ${selectedSort.label}"
+            e.presentation.description = "Order before the 100-result limit. Pinned results appear first."
+        }
+        override fun getChildren(e: AnActionEvent?): Array<AnAction> = SearchSort.entries.map { sort ->
+            object : ToggleAction(sort.label), DumbAware {
+                override fun getActionUpdateThread() = ActionUpdateThread.EDT
+                override fun update(e: AnActionEvent) {
+                    super.update(e)
+                    e.presentation.isEnabled = isSearchView || sort == SearchSort.RECENTLY_ACTIVE
+                    e.presentation.description = if (!isSearchView && sort == SearchSort.BEST_MATCH)
+                        "Enter a search to rank matches" else "Pinned results appear first"
+                }
+                override fun isSelected(e: AnActionEvent) = selectedSort == sort
+                override fun setSelected(e: AnActionEvent, state: Boolean) {
+                    if (state && isSearchView) viewState.searchSort = sort
+                }
+            }
+        }.toTypedArray()
+    }
+
+    internal fun createGroupAction(): ToggleAction = object : ToggleAction(
+        "Group by folder", "Group sessions by working folder; pinned folders and sessions appear first", AllIcons.Nodes.Folder,
+    ), DumbAware {
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+        override fun isSelected(e: AnActionEvent) = grouped
+        override fun setSelected(e: AnActionEvent, state: Boolean) = viewState.setGrouped(isSearchView, state)
+    }
+
+    private fun restartSearchPresentation() {
+        searchAlarm.cancelAllRequests()
+        searchScope.cancel()
+        searchDeliveryGeneration++
+        lastSearchQuery = null
+        rememberedSelection = selectedSession()?.let { SearchSessionKey(it.kind, it.id) } ?: rememberedSelection
+        rankedHits = emptyMap()
+        renderer.hits = emptyMap()
+        displayedSearch = null
+        visibleSessions = emptyList()
+        rebuildTree(emptyList(), if (grouped) null else emptyList())
+        previewKey = null
+        showPreviewIfChanged()
+        if (searchField.text.trim().length >= MIN_QUERY_LENGTH) runSearch()
     }
 
     private inner class ToggleAllProjectsAction :
@@ -586,6 +652,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         rememberedSelection = selectedSession()?.let { SearchSessionKey(it.kind, it.id) } ?: rememberedSelection
         rankedHits = emptyMap()
         renderer.hits = emptyMap()
+        displayedSearch = null
         searchPartial = false
         searchAvailability = null
         searchLimited = false
@@ -599,7 +666,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             activeQuery = query
             searching = true
             visibleSessions = emptyList()
-            rebuildTree(emptyList())
+            rebuildTree(emptyList(), if (grouped) null else emptyList())
             tree.emptyText.clear()
             tree.emptyText.appendText("Searching selected sources…")
             showPreviewIfChanged()
@@ -638,22 +705,24 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         if (query.length < MIN_QUERY_LENGTH) return
         val candidates = baseFilter(index.sessions)
         val sources = activeSources
+        val sort = viewState.searchSort
         val revision = corpusRevision + ContentSearchService.getInstance().revision
-        if (query == lastSearchQuery && candidates == lastSearchCandidates && revision == lastSearchRevision && sources == lastSearchSources) return
+        if (query == lastSearchQuery && candidates == lastSearchCandidates && revision == lastSearchRevision && sources == lastSearchSources && sort == lastSearchSort) return
         lastSearchRevision=revision
         lastSearchQuery = query
         lastSearchCandidates = candidates
         lastSearchSources = sources
+        lastSearchSort = sort
         activeQuery = query
         searching = true
         updateLoadingState()
         val generation = pathResolutionGeneration
         val delivery = ++searchDeliveryGeneration
         searchRequestCount++
-        ContentSearchService.getInstance().searchSnapshot(searchScope, query, candidates, sources) { snapshot ->
+        ContentSearchService.getInstance().searchSnapshot(searchScope, query, candidates, sources, sort) { snapshot ->
             // Stale delivery guard: the field may have changed since this search was requested.
             if (!project.isDisposed && !Disposer.isDisposed(this) && generation == pathResolutionGeneration &&
-                searchField.text.trim() == query && delivery == searchDeliveryGeneration && sources == activeSources && snapshot.context == SearchContext(query, sources) &&
+                searchField.text.trim() == query && delivery == searchDeliveryGeneration && sources == activeSources && sort == viewState.searchSort && snapshot.context == SearchContext(query, sources, sort) &&
                 revision == corpusRevision + ContentSearchService.getInstance().revision && candidates == baseFilter(index.sessions)) renderSearchResults(query, snapshot)
         }
     }
@@ -689,7 +758,9 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         SearchResultSnapshot(hits,SearchCoverage(hits.size,hits.size,0,hits.count { it.partial }),0))
 
     fun renderSearchResults(query: String, snapshot: SearchResultSnapshot) {
-        if (snapshot.context != null && snapshot.context != SearchContext(query, activeSources)) return
+        if (snapshot.context != null && snapshot.context != SearchContext(query, activeSources, viewState.searchSort)) return
+        displayedSearch = snapshot
+        lastSearchSort = viewState.searchSort
         val hits=snapshot.hits
         activeQuery = query
         searching = false
@@ -699,12 +770,12 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         updateLoadingState()
         val byId = hits.associateBy { it.key }
         rankedHits=byId
-        visibleSessions = hits.map { it.session }
+        visibleSessions = SessionTreeModel.flatRanked(hits) { organisation.metadata(it.id).pinned }
         renderer.hits = byId
         renderer.query = query
 
         val groups = SessionTreeModel.groupRanked(hits) { organisation.metadata(it.id).pinned }
-        rebuildTree(groups)
+        rebuildTree(groups, if (grouped) null else visibleSessions)
         showPreviewIfChanged()
 
         val text: StatusText = tree.emptyText
@@ -736,13 +807,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     }
 
     fun render(all: List<Session>) {
+        activeQuery = ""
         latestSessions = all
         preparePaths(all)
         updateAgentMenu(all)
         val result = SessionListViewModel.build(
             all, projectRoots(), resolvedPaths, listFilters(), hiddenIds(all),
         ) { organisation.metadata(it.id).pinned }
-        visibleSessions = result.visible
+        visibleSessions = SessionTreeModel.flat(result.visible) { organisation.metadata(it.id).pinned }
+        displayedSearch = null
         searchPartial = false
         searchAvailability=null
         searchLimited=false
@@ -751,7 +824,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         renderer.hits = emptyMap()
         renderer.query = ""
 
-        rebuildTree(result.groups)
+        rebuildTree(result.groups, if (grouped) null else visibleSessions)
         showPreviewIfChanged()
         updateEmptyText(all, result)
     }
@@ -776,21 +849,24 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         }
     }
 
-    private fun rebuildTree(groups: List<ProjectGroup>) {
-        if (renderedGroups == groups) {
+    private fun rebuildTree(groups: List<ProjectGroup>, flat: List<Session>? = null) {
+        if (renderedGroups == groups && renderedFlat == flat) {
             tree.repaint()
             return
         }
         renderedGroups = groups.toList()
+        renderedFlat = flat?.toList()
+        renderer.showFolder = flat != null
+        tree.showsRootHandles = flat == null
         val selection = selectedSession()?.let { SearchSessionKey(it.kind,it.id) } ?: rememberedSelection
         val scroll=tree.visibleRect
         rebuildingTree = true
         try {
-            val root = SessionTreeModel.buildRoot(groups)
+            val root = SessionTreeModel.buildRoot(groups, flat)
             treeModel.setRoot(root)
             for (i in 0 until root.childCount) {
                 val node = root.getChildAt(i) as DefaultMutableTreeNode
-                val group = node.userObject as ProjectGroup
+                val group = node.userObject as? ProjectGroup ?: continue
                 if (group.cwd !in collapsedGroups) tree.expandPath(TreePath(node.path))
             }
             selection?.let { id ->
@@ -938,7 +1014,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     private fun selectedGroup(): ProjectGroup? =
         (tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? ProjectGroup
 
-    private fun selectedProjectCwd(): Path? = selectedGroup()?.cwd ?: project.basePath?.let { Paths.get(it) }
+    private fun selectedProjectCwd(): Path? = selectedGroup()?.cwd ?: selectedSession()?.cwd ?: project.basePath?.let { Paths.get(it) }
 
     internal fun refreshBadges(ids: Set<String>) {
         renderer.runningOwned = ids

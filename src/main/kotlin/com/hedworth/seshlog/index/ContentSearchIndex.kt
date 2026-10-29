@@ -92,17 +92,19 @@ class ContentSearchIndex(
         query: String,
         sessions: List<Session>,
         sources: SearchSources = SearchSources.DEFAULT,
+        sort: SearchSort = SearchSort.BEST_MATCH,
         isCancelled: () -> Boolean = { false },
-    ): List<SearchHit> = searchSnapshot(query, sessions, sources, isCancelled).hits
+    ): List<SearchHit> = searchSnapshot(query, sessions, sources, sort, isCancelled).hits
 
     fun searchSnapshot(
         query: String,
         sessions: List<Session>,
         sources: SearchSources = SearchSources.DEFAULT,
+        sort: SearchSort = SearchSort.BEST_MATCH,
         isCancelled: () -> Boolean = { false },
     ): SearchResultSnapshot {
         return try {
-            searchInStore(query, sessions, sources, isCancelled).copy(context = SearchContext(query, sources))
+            searchInStore(query, sessions, sources, sort, isCancelled).copy(context = SearchContext(query, sources, sort))
         } catch (failure: java.sql.SQLException) {
             if (isCancelled())
                 return SearchResultSnapshot(
@@ -116,7 +118,7 @@ class ContentSearchIndex(
             storage = LexicalSearchStore.open()
             storageFailure =
                 "Saved search index could not be updated; using a temporary local index. Retry in Search settings."
-            searchInStore(query, sessions, sources, isCancelled).copy(context = SearchContext(query, sources))
+            searchInStore(query, sessions, sources, sort, isCancelled).copy(context = SearchContext(query, sources, sort))
         }
     }
 
@@ -124,6 +126,7 @@ class ContentSearchIndex(
         query: String,
         sessions: List<Session>,
         sources: SearchSources,
+        sort: SearchSort,
         isCancelled: () -> Boolean,
     ): SearchResultSnapshot {
         val plan =
@@ -243,7 +246,8 @@ class ContentSearchIndex(
         val exactTitles = if (plan.verifyAll) emptySet() else candidates.filter {
             fullQuery.matches(it.title) || fullQuery.matches(localTitle(it))
         }.mapTo(HashSet()) { SearchSessionKey(it.kind, it.id) }
-        val verificationOrder = if (plan.verifyAll) candidates else candidates.sortedWith(
+        val verificationOrder = if (sort == SearchSort.RECENTLY_ACTIVE) candidates.sortedWith(SearchSort.recentSessions)
+        else if (plan.verifyAll) candidates else candidates.sortedWith(
             compareByDescending<Session> { SearchSessionKey(it.kind, it.id) in exactTitles }
                 .thenByDescending { scores[SearchSessionKey(it.kind, it.id)]?.score ?: 1e-6 }
                 .thenByDescending { it.lastActivityAt }.thenBy { it.kind.name }.thenBy { it.id })
@@ -316,13 +320,7 @@ class ContentSearchIndex(
         val sorted =
             hits
                 .filter { it.score.isFinite() && it.score > 0 }
-                .sortedWith(
-                    compareByDescending<SearchHit> { it.exact }
-                        .thenByDescending { it.score }
-                        .thenByDescending { it.session.lastActivityAt }
-                        .thenBy { it.session.kind.name }
-                        .thenBy { it.session.id }
-                )
+                .sortedWith(sort.comparator)
         return SearchResultSnapshot(
             sorted.take(100),
             SearchCoverage(candidates.size, if (metadataOnly) candidates.size else ready.size, failed.size, if (metadataOnly) 0 else partial.size),

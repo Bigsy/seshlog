@@ -61,7 +61,11 @@ enum class SearchMatchSource(val label: String) {
 
 enum class SearchMetadataVariant { PROVIDER_TITLE, LOCAL_TITLE, PROJECT_PATH }
 
-data class SearchContext(val query: String, val sources: SearchSources = SearchSources.DEFAULT)
+data class SearchContext(
+    val query: String,
+    val sources: SearchSources = SearchSources.DEFAULT,
+    val sort: SearchSort = SearchSort.BEST_MATCH,
+)
 
 /** Metadata has no fabricated body target. Body identity/range/hash refer to one original entry. */
 data class SearchPrimaryMatch(

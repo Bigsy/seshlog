@@ -37,6 +37,24 @@ switched conversations reports an unknown session instead of guessing.
 The tool window searches titles, project paths and conversation text. The **Filters** menu controls
 agents, dates, hidden sessions and sibling worktrees. Project and date filters apply to search too.
 
+The toolbar's **Sort** menu offers **Best match** (the search default) and **Recently active**.
+Recently active uses the last session activity, including later replies, rather than creation time.
+The selected sort chooses the first 100 matching sessions across the full filtered scope.
+Best match becomes available when you enter a search; browsing uses Recently active.
+
+Search starts as a flat list, with folder, branch and full working path on each row. Toggle
+**Group by folder** in the toolbar to use the folder headings. Browsing starts grouped. Seshlog
+remembers search sort and the two grouping choices separately for each project in IDE workspace
+settings. The quick switcher keeps its existing newest-first filtering behavior.
+
+Pins keep priority: pinned sessions appear first in flat views; grouped views put folders containing
+pins first, then pinned sessions within each folder. During search this applies within the selected
+100 matches; pinning does not pull an otherwise excluded match into the limit. Folder groups follow
+their best match or most recently active matching session, according to the selected sort. Grouping
+can therefore put a weaker match above a stronger match from another folder; use flat search for
+global ordering. Right-click a flat session for its normal session/worktree actions; **New Session**
+uses that session's working folder. Folder-only actions remain on folder headings.
+
 Use **Search in** beside the search field to choose **Your messages**, **Assistant replies** and
 **Tool activity**. **Conversation**, the default, includes your messages and assistant replies.
 Titles, local names and project paths are always searched. Turn off all three conversation sources

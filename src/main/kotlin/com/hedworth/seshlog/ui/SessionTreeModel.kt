@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.ui
 
 import com.hedworth.seshlog.index.SearchHit
+import com.hedworth.seshlog.index.SearchSort
 import com.hedworth.seshlog.model.Session
 import java.nio.file.Path
 import javax.swing.tree.DefaultMutableTreeNode
@@ -29,8 +30,19 @@ object SessionTreeModel {
             .sortedWith(compareByDescending<ProjectGroup> { it.sessions.any(pinned) }.thenBy { g -> g.sessions.minOf { order.getValue(com.hedworth.seshlog.index.lexical.SearchSessionKey(it.kind,it.id)) } })
     }
 
-    fun buildRoot(groups: List<ProjectGroup>): DefaultMutableTreeNode {
+    /** Pins remain a presentation override within the retrieved results. Stable sort retains hit order. */
+    fun flatRanked(hits: List<SearchHit>, pinned: (Session) -> Boolean = { false }): List<Session> =
+        hits.map { it.session }.sortedByDescending(pinned)
+
+    fun flat(sessions: List<Session>, pinned: (Session) -> Boolean = { false }): List<Session> =
+        sessions.sortedWith(compareByDescending<Session> { pinned(it) }.then(SearchSort.recentSessions))
+
+    fun buildRoot(groups: List<ProjectGroup>, flat: List<Session>? = null): DefaultMutableTreeNode {
         val root = DefaultMutableTreeNode()
+        if (flat != null) {
+            flat.forEach { root.add(DefaultMutableTreeNode(it)) }
+            return root
+        }
         for (group in groups) {
             val groupNode = DefaultMutableTreeNode(group)
             group.sessions.forEach { groupNode.add(DefaultMutableTreeNode(it)) }

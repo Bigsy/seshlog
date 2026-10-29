@@ -31,6 +31,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
     /** Content-search hits by session id; empty when not searching. Set by the panel on the EDT. */
     var hits: Map<SearchSessionKey, SearchHit> = emptyMap()
     var query: String = ""
+    var showFolder: Boolean = false
     var activeSessionId: String? = null
     /** Sessions of agents without a pid file whose Seshlog-owned tab still runs them. Set by the panel on the EDT. */
     var runningOwned: Set<String> = emptySet()
@@ -38,6 +39,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
 
     internal val titleLabel = plainLabel()
     internal val activityLabel = plainLabel()
+    internal val folderLabel = plainLabel()
     internal val detailsLabel = plainLabel()
     internal val matchLabel = plainLabel()
     private val heading = JPanel(BorderLayout(JBUI.scale(12), 0)).apply {
@@ -47,7 +49,8 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
     }
     private val details = JPanel(BorderLayout(0, JBUI.scale(2))).apply {
         isOpaque = false
-        add(detailsLabel, BorderLayout.NORTH)
+        add(folderLabel, BorderLayout.NORTH)
+        add(detailsLabel, BorderLayout.CENTER)
         add(matchLabel, BorderLayout.SOUTH)
     }
 
@@ -72,6 +75,8 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         titleLabel.font = tree.font
         titleLabel.foreground = foreground
         activityLabel.font = tree.font.deriveFont((tree.font.size2D - 1).coerceAtLeast(1f))
+        folderLabel.font = activityLabel.font
+        folderLabel.foreground = secondary
         detailsLabel.font = activityLabel.font
         matchLabel.font = activityLabel.font
         detailsLabel.foreground = secondary
@@ -80,6 +85,8 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         titleLabel.icon = null
         activityLabel.text = ""
         activityLabel.isVisible = false
+        folderLabel.text = ""
+        folderLabel.isVisible = false
         detailsLabel.text = ""
         matchLabel.text = ""
         matchLabel.isVisible = false
@@ -102,7 +109,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             }
             is Session -> renderSession(item, selected, tree.font, foreground)
         }
-        getAccessibleContext().accessibleName = listOf(titleLabel.text, activityLabel.text, detailsLabel.text, matchLabel.text)
+        getAccessibleContext().accessibleName = listOf(titleLabel.text, activityLabel.text, folderLabel.text, detailsLabel.text, matchLabel.text)
             .filter { it.isNotEmpty() }.joinToString(", ")
         return this
     }
@@ -138,8 +145,19 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             if (session.forkedFromId != null) add("fork")
             if (metadata.hidden) add("hidden")
             if (session.continuationId != null) add("continued")
-            WorktreePresentation.details(session)?.let { add(it) }
+            if (!showFolder) WorktreePresentation.details(session)?.let { add(it) }
         }.joinToString("  ·  ")
+        if (showFolder) {
+            folderLabel.text = buildList {
+                add(session.cwd.fileName?.toString() ?: session.cwd.toString())
+                val location = WorktreePresentation.details(session)
+                val branch = session.checkout?.branchLabel ?: session.displayBranch
+                if (branch != null && location?.contains(branch) != true) add(branch)
+                location?.let { add(it) }
+                add(session.cwd.toString())
+            }.joinToString("  ·  ")
+            folderLabel.isVisible = true
+        }
         details.border = JBUI.Borders.empty(2, titleLabel.icon.iconWidth + titleLabel.iconTextGap, 0, 0)
         details.isVisible = true
         val hit = hits[SearchSessionKey(session.kind,session.id)]
@@ -154,11 +172,11 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
             matchLabel.isVisible = true
         }
         toolTipText = tooltip(session, hit)
-        getAccessibleContext().accessibleDescription = (WorktreePresentation.description(session) +
+        getAccessibleContext().accessibleDescription = (listOf("Folder: ${session.cwd}") + WorktreePresentation.description(session) +
             listOfNotNull(hit?.let { "Matched ${it.primary.source.label}. ${it.snippet.orEmpty().take(1024)}" })).joinToString(" ")
     }
 
-    override fun toString(): String = listOf(titleLabel.text, activityLabel.text, detailsLabel.text, matchLabel.text)
+    override fun toString(): String = listOf(titleLabel.text, activityLabel.text, folderLabel.text, detailsLabel.text, matchLabel.text)
         .filter { it.isNotEmpty() }.joinToString(" ")
 
     private fun tooltip(session: Session, hit: SearchHit? = null): String {

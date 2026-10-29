@@ -30,6 +30,27 @@ class ContentSearchServiceTest : BasePlatformTestCase() {
             assertEquals(SearchContext("TOOL_ONLY", SearchSources.ALL), otherResult!!.context)
         } finally { scope.dispose(); other.dispose() }
     }
+    fun `test sort context is captured and old relevance delivery is cancelled independently`() {
+        val session = Session(AgentKind.CLAUDE_CODE, "synthetic-sort", "needle", Paths.get("/synthetic"), null,
+            null, Instant.EPOCH, null, false, null, null, 3, true)
+        val service = ContentSearchService.getInstance()
+        val scope = SearchRequestScope()
+        val other = SearchRequestScope()
+        try {
+            var obsolete = false
+            var current: SearchResultSnapshot? = null
+            var independent: SearchResultSnapshot? = null
+            service.searchSnapshot(scope, "needle", listOf(session), SearchSources.METADATA_ONLY) { obsolete = true }
+            service.searchSnapshot(scope, "needle", listOf(session), SearchSources.METADATA_ONLY,
+                SearchSort.RECENTLY_ACTIVE) { current = it }
+            service.searchSnapshot(other, "needle", listOf(session), SearchSources.METADATA_ONLY) { independent = it }
+            pumpUntil { current != null && independent != null }
+            assertFalse(obsolete)
+            assertEquals(SearchContext("needle", SearchSources.METADATA_ONLY, SearchSort.RECENTLY_ACTIVE), current!!.context)
+            assertEquals(SearchSort.BEST_MATCH, independent!!.context!!.sort)
+        } finally { scope.dispose(); other.dispose() }
+    }
+
     fun `test independent callers both receive results and disposing one leaves the other active`() {
         val transcript = Paths.get(javaClass.getResource("/fixtures/custom_and_ai_title.jsonl")!!.toURI())
         val session = Session(AgentKind.CLAUDE_CODE, "synthetic-search", "Fixture", transcript.parent, null,

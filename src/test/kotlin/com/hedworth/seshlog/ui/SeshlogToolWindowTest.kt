@@ -230,9 +230,9 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
             assertEquals(listOf("c", "b"), panel.visibleSessions.map { it.id })
             val root = panel.tree.model.root
             assertEquals(2, panel.tree.model.getChildCount(root))
-            val firstGroup = panel.tree.model.getChild(root, 0) as javax.swing.tree.DefaultMutableTreeNode
-            assertEquals(base, (firstGroup.userObject as ProjectGroup).cwd)
-            assertEquals(1, firstGroup.childCount)
+            val firstSession = panel.tree.model.getChild(root, 0) as javax.swing.tree.DefaultMutableTreeNode
+            assertEquals(c, firstSession.userObject)
+            assertTrue(firstSession.isLeaf)
 
             panel.render(listOf(a, b, c))
             assertEquals(3, panel.visibleSessions.size)

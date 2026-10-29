@@ -27,11 +27,12 @@ cleanup. Earlier switcher descriptions below are completion history, not the cur
   session state, and require a completed scan even for empty session sets. Add failing regressions,
   run `make check`, and commit this focused fix. Completed: 612 tests, zero failures/errors,
   10 opt-in skips. Three new regressions failed before the fix and passed afterward.
-- [ ] Add **Review Worktree Changes…** on session and folder rows: choose a local base ref (HEAD
+- [x] Add **Review Worktree Changes…** on session and folder rows: choose a local base ref (HEAD
   initially), list checkout-wide tracked and untracked changes, and open native IntelliJ diffs.
   Include committed changes when comparing with an earlier base. Read Git/files on workers,
   bound content, reject replaced/missing checkouts and stale UI delivery, and never attribute
   checkout-wide edits to one session. No fetch, staging, checkout, or remote integration.
+  `make check`: 615 tests, zero failures/errors, 10 opt-in skips; physical checks remain open.
 - [ ] Run applicable physical acceptance on a newly verified synthetic sandbox; record actual
   results in `docs/worktree-follow-up.md`. Include deletion confirmation/cancellation, dirty/locked
   refusal, hide/keep sessions, review base selection/diffs, cross-window focus/fork, trust cancellation,

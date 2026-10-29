@@ -17,3 +17,15 @@ are not an operating-system lock. The per-root operation guard coordinates Seshl
 
 Pending: a newly verified synthetic sandbox and the checklist in PLAN.md. No physical checks
 have been passed by automated tests. Review, creation and inbox validation will be recorded here.
+
+## Review Worktree Changes
+
+Added session/folder actions and a modeless base-ref/file-list dialog with native IntelliJ diffs.
+Git output and current files are bounded and stay in memory; no temporary source copies. Reads
+revalidate checkout identity before/after and reject symlink paths. Request generations discard
+stale results, cancellation stops pending reads, and disposal closes the worker.
+
+`make check`: 615 tests, zero failures/errors, 10 opt-in skips. Three synthetic real-Git tests
+cover committed/staged/unstaged/untracked changes, NUL-delimited unusual filenames, rename/delete,
+invalid refs, replaced identities, symlinks, binary content, oversized files and Git output limits.
+Physical acceptance remains pending.

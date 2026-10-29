@@ -101,6 +101,19 @@ opening disabled. Use **Refresh** to check again.
 Seshlog blocks opening new projects inside configured agent data folders because IntelliJ would
 write project files there. It can still focus a project already open in one of those folders.
 
+### Reviewing a checkout
+
+Choose **Review Worktree Changes…** from a session or folder row. The default base is `HEAD`,
+showing the current tracked changes plus untracked files. Enter a local branch, tag or commit and
+press **Refresh** to include committed differences from that base. This is a direct comparison
+with the selected commit, not an automatic merge-base comparison. Ignored files are excluded.
+
+Select a file and press Enter or **Show Diff** for IntelliJ's native diff viewer. Changes belong
+to the whole checkout, including work by other agents and you. Renames appear as deletion/addition;
+binary files, symlinks, submodules and files over 8 MiB require the IDE's Git tools. Lists are limited
+to 5,000 files and bounded Git output; limits/errors are shown explicitly. Nothing is fetched or
+modified, and file previews remain in memory.
+
 ### Deleting a worktree
 
 Right-click a linked worktree's folder in the session list and choose **Delete Worktree…**. Seshlog

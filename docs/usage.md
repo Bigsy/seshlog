@@ -101,6 +101,24 @@ opening disabled. Use **Refresh** to check again.
 Seshlog blocks opening new projects inside configured agent data folders because IntelliJ would
 write project files there. It can still focus a project already open in one of those folders.
 
+### Deleting a worktree
+
+Right-click a linked worktree's folder in the session list and choose **Delete Worktree…**. Seshlog
+runs `git worktree remove`, which deletes the worktree's whole folder, even when you right-click a
+subfolder. Git refuses if the worktree has uncommitted or untracked changes or is locked; Seshlog
+never forces it. Committed work stays on the branch.
+
+The confirmation shows the folder and branch. **Hide its sessions** (on by default) hides every
+session recorded in that worktree; turn on **Show hidden** in the filters to see them again. **Also delete
+branch** runs `git branch -d`, which keeps a branch that isn't fully merged. Conversations are
+never deleted: they stay readable, and Resume asks for a replacement folder.
+
+Deleting is unavailable for the main checkout, while a session in the worktree is running or has a
+terminal tab, while an IntelliJ window has the worktree open, and for worktrees inside agent data
+folders, which the agent manages. Seshlog refreshes sessions and checks all of this again before
+running git. It can't always see an agent running in a terminal outside IntelliJ, so check that
+nothing else is using the worktree first.
+
 ## Attention and copying
 
 An **unread** badge means a tracked agent finished a turn you haven't viewed. It clears when you

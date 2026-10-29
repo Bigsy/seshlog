@@ -903,14 +903,16 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         SeshlogDataKeys.SESSION.`is`(dataId) -> selectedSession()
         SeshlogDataKeys.PANEL.`is`(dataId) -> this
         SeshlogDataKeys.PROJECT_CWD.`is`(dataId) -> selectedProjectCwd()
+        SeshlogDataKeys.PROJECT_GROUP.`is`(dataId) -> selectedGroup()
         CommonDataKeys.PROJECT.`is`(dataId) -> project
         PlatformDataKeys.CONTEXT_COMPONENT.`is`(dataId) -> tree
         else -> null
     }
 
-    private fun selectedProjectCwd(): Path? =
-        ((tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? ProjectGroup)?.cwd
-            ?: project.basePath?.let { Paths.get(it) }
+    private fun selectedGroup(): ProjectGroup? =
+        (tree.lastSelectedPathComponent as? DefaultMutableTreeNode)?.userObject as? ProjectGroup
+
+    private fun selectedProjectCwd(): Path? = selectedGroup()?.cwd ?: project.basePath?.let { Paths.get(it) }
 
     internal fun refreshBadges(ids: Set<String>) {
         renderer.runningOwned = ids

@@ -13,6 +13,7 @@
         <li>Quickly find sessions by title, project, path or branch, in this project or across all of them, and switch to a terminal or open a worktree with a keyboard shortcut</li>
         <li>Open a session's verified worktree in a new IntelliJ window or focus it if already open, keeping the original window and terminal available. Opening is disabled for missing or uncertain checkouts and for new projects inside protected agent data directories.</li>
         <li>Open Worktree and Fork Session starts an independent conversation fork in the worktree window's terminal, keeping the original session running.</li>
+        <li>Delete a finished worktree from its folder's context menu. Git refuses uncommitted or untracked changes, conversations are kept, and its sessions can be hidden in the same step.</li>
         <li>Compact per-project Agents menu: show any combination of available agents, with your last selection restored when the project opens</li>
         <li>Search titles, working directories and conversations by relevance, with quoted phrases for exact matches</li>
         <li>Choose which messages and tool activity can match, with conversation-only search by default and clear labels showing where each result matched</li>
@@ -113,6 +114,7 @@
             <separator/>
             <action id="Seshlog.OpenWorktree" class="com.hedworth.seshlog.ui.actions.OpenWorktreeAction" text="Open Worktree in IntelliJ"/>
             <action id="Seshlog.OpenWorktreeAndFork" class="com.hedworth.seshlog.ui.actions.OpenWorktreeAndForkAction" text="Open Worktree and Fork Session"/>
+            <action id="Seshlog.DeleteWorktree" class="com.hedworth.seshlog.ui.actions.DeleteWorktreeAction" text="Delete Worktree…"/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
             <action id="Seshlog.OpenContinuation" class="com.hedworth.seshlog.ui.actions.OpenContinuationAction" text="Open Continuation"/>
             <group id="Seshlog.EarlierSessions" class="com.hedworth.seshlog.ui.actions.EarlierSessionsAction" text="Earlier Sessions" popup="true"/>

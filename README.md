@@ -44,6 +44,10 @@ that checkout, or focus its existing window.
 Choose **Open Worktree and Fork Session** to start a separate conversation there with the original
 history. Your original session stays available. Both conversations use the same worktree files.
 
+When you're done with a worktree, right-click its folder and choose **Delete Worktree…**. Git removes
+it only if it has no uncommitted or untracked changes. The conversations are kept, and you can hide
+their sessions in the same step.
+
 ## Screenshots
 
 <table>

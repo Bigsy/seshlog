@@ -14,4 +14,8 @@ object SeshlogDataKeys {
     /** Project row cwd supplied by the tree; absent when a session row is selected. */
     @JvmField
     val PROJECT_CWD: DataKey<Path> = DataKey.create("seshlog.project.cwd")
+
+    /** The selected folder row only; no fallback to the project directory. */
+    @JvmField
+    val PROJECT_GROUP: DataKey<ProjectGroup> = DataKey.create("seshlog.project.group")
 }

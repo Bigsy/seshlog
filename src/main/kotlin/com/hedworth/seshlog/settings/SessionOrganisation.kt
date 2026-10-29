@@ -25,6 +25,12 @@ class SessionOrganisation : PersistentStateComponent<SessionOrganisation.State> 
         edit(state.sessions.getOrPut(id) { Metadata() })
         ApplicationManager.getApplication()?.messageBus?.syncPublisher(TOPIC)?.changed()
     }
+    /** One change notification for the whole batch. */
+    fun editAll(ids: Collection<String>, edit: (Metadata) -> Unit) {
+        if (ids.isEmpty()) return
+        ids.forEach { edit(state.sessions.getOrPut(it) { Metadata() }) }
+        ApplicationManager.getApplication()?.messageBus?.syncPublisher(TOPIC)?.changed()
+    }
     interface Listener { fun changed() }
     companion object {
         val TOPIC = Topic.create("Seshlog organisation", Listener::class.java)

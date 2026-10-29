@@ -5,8 +5,11 @@ import com.hedworth.seshlog.diagnostics.SessionDiagnostics
 import com.hedworth.seshlog.index.GitRepository
 import com.hedworth.seshlog.index.SessionFilter
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.model.Checkout
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.settings.SeshlogSettings
+import com.hedworth.seshlog.settings.SessionOrganisation
+import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.hedworth.seshlog.terminal.TerminalTabs
 import com.intellij.ide.impl.OpenProjectTask
 import com.intellij.ide.impl.ProjectUtil
@@ -54,6 +57,34 @@ object WorktreeProjects {
     fun open(source: Project, session: Session) { open(source, session, forkSession = false) }
 
     fun openAndFork(source: Project, session: Session) { open(source, session, forkSession = true) }
+
+    /** Remove a linked worktree with git after revalidating it; never forces. */
+    fun delete(source: Project, checkout: Checkout, options: WorktreeDeletionOptions): Boolean {
+        val app = ApplicationManager.getApplication()
+        val index = SessionIndex.getInstance()
+        val notifications = NotificationGroupManager.getInstance().getNotificationGroup("Seshlog")
+        val trace = SessionDiagnostics.trace("worktree", "request" to SessionDiagnostics.nextId(),
+            "project" to DiagnosticRef.of(source.basePath), "root" to DiagnosticRef.path(checkout.root))
+        return WorktreeDeletion(
+            refresh = { kinds -> if (kinds.isEmpty()) index.scanNow() else kinds.forEach { index.requireFreshScan(it) } },
+            sessions = { worktreeSessions(it, index.sessions, index.resolvedPaths) },
+            resolve = { path, previous -> GitRepository.checkout(path, previous) },
+            projects = ::capture,
+            projectSet = ::projectSet,
+            associated = { projectSet().flatMapTo(HashSet()) { OwnedTerminalTabs.getInstance(it).sessionIds } },
+            protectedRoots = ::protectedRoots,
+            git = { directory, args -> GitCommand.run(GitCommand.executable(), directory, args) },
+            hide = { ids -> SessionOrganisation.getInstance().editAll(ids) { it.hidden = true } },
+            rescan = { index.refresh(forcePathResolution = true) },
+            worker = { task -> app.executeOnPooledThread(task) },
+            ui = { task -> app.invokeLater(task) },
+            active = { !source.isDisposed && !app.isDisposed },
+            report = { message -> notifications.createNotification(message, NotificationType.WARNING).notify(source) },
+            done = { message -> notifications.createNotification(message, NotificationType.INFORMATION).notify(source) },
+            pending = pending,
+            trace = trace,
+        ).request(checkout, options)
+    }
 
     internal fun openFromSwitcher(source: Project, session: Session, allowed: (Session) -> Boolean) =
         open(source, session, forkSession = false, uiAllowed = allowed)

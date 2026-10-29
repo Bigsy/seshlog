@@ -15,8 +15,19 @@ are not an operating-system lock. The per-root operation guard coordinates Seshl
 
 ## Physical acceptance
 
-Pending: a newly verified synthetic sandbox and the checklist in PLAN.md. No physical checks
-have been passed by automated tests. Review, creation and inbox validation will be recorded here.
+The synthetic sandbox at `/private/tmp/seshlog-followup-sandbox` passed verification at
+2026-10-29T21:06:02Z: IU-262.10968.63, JBR 25.0.4, macOS aarch64, plugin 0.8.3. All four providers
+were READY and read synthetic storage only (147 Claude, 61 Codex, 13 opencode, 25 Pi sessions).
+The loaded JAR matched the build. The final profile was subsequently regenerated for corrected
+cross-checkout fork stubs; it passed again at 2026-10-29T21:13:05Z (IDE PID 39268). Its current report is
+`<sandbox root>/verification.txt`.
+
+Physical UI acceptance is **blocked by the UI automation attachment**: the computer tool listed
+the sandbox as `Main` / `com.jetbrains.jbr.java`, but both names and its verified Java executable
+path returned `Invalid app`. Attaching to `com.jetbrains.intellij` reached the daily IDE, which
+was not used for testing. No physical rows are passed. Keyboard/theme/accessibility, native diff,
+trust cancellation and actual terminal fork/inbox interactions still require manual checks.
+Windows/Linux and real-CLI cross-checkout behavior also remain unverified.
 
 ## Review Worktree Changes
 
@@ -60,3 +71,32 @@ acknowledge a completion. Terminal/worktree navigation reuses the switcher's ide
 `make check`: 623 tests, zero failures/errors, 10 opt-in skips. Four tests cover cross-project
 ordering/hidden exclusion, stale selection/content/disposal, receipt copying/newer-completion
 protection, assistant-only selection and preview bounds. Physical acceptance remains pending.
+
+## Package and compatibility validation
+
+`make release` passed; ZIP integrity and nested-JAR inspection found no sandbox classes, fixtures,
+transcripts, databases or models. All three new action registrations are in the descriptor.
+Artifact: `build/distributions/seshlog-0.8.3.zip` (development build, version not bumped).
+SHA-256: `47f48c48ad84b35e2c7334841e7d235542ccb3728cbe31f8028ca044bf1fab3c`.
+
+`./gradlew buildPlugin verifyPlugin --offline` passed. Plugin Verifier 1.411 reports Compatible:
+
+| IDE | Scheduled removal | Deprecated | Experimental |
+| --- | ---: | ---: | ---: |
+| IU-262.10968.63 | 2 | 16 | 67 |
+| IU-263.7307.44 | 3 | 20 | 60 |
+
+No new feature classes appear in the API-usage warnings. The new artifact was not published or
+installed in the daily IDE. These checks do not establish physical acceptance.
+
+## Synthetic fork regression and final tests
+
+The old stub agents retained their source cwd when forking, which would invalidate future physical
+checks of the new-worktree flow. A new synthetic integration regression failed before correction.
+Claude forks now record their launch directory; Codex forks honor explicit `--cd` and record it in
+new session metadata. The integration test creates real disposable worktrees, forks both stubs,
+rescans through production providers and confirms new IDs/destinations while source sessions remain
+unchanged. Stubs are test-only and never packaged.
+
+Final `make check`: **624 tests, zero failures/errors, 10 opt-in skips**. The refreshed profile
+contains these stubs. No manual UI or real-model/CLI behavior is claimed by this test.

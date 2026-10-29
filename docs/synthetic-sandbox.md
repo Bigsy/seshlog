@@ -147,9 +147,9 @@ network. It refuses to start a new session outside the sandbox root. A stub beha
 agent where Seshlog looks:
 
 - **Claude Code:** writes a live marker in `agents/claude/sessions/<pid>.json` with busy/idle
-  status, and removes it on exit. A fork copies the history under a new ID.
+  status, and removes it on exit. A fork copies the history under a new ID and records the launch directory.
 - **Codex:** keeps the rollout open for writing, like the CLI, and brackets each turn with
-  `task_started` / `task_complete`. A fork writes a new rollout with `forked_from_id`.
+  `task_started` / `task_complete`. A fork writes a new rollout with `forked_from_id` and the explicit `--cd` destination (or launch directory).
 - **opencode:** adds messages to `opencode.db`; needs Node.js 22.5 or newer for `node:sqlite`.
 - **Pi:** appends v3 tree entries; a fork writes a new file with `parentSession`.
 

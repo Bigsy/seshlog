@@ -13,6 +13,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 | External-server semantic search | Agreed, unimplemented | Start items 5–13 only after Phase 1 acceptance; [detailed design](docs/semantic-search-design.md). |
 | Managed local inference | Deferred until separately requested after server-backed evaluation | [Later-phase scope](docs/semantic-search-design.md#deferred-managed-local-inference). |
 | Quick session/worktree switcher | Implemented and automatically validated; physical UI checks open | [Implementation and validation](docs/session-switcher.md); item below. |
+| Worktree review, new-worktree forks and attention inbox | Implemented; automated checks passed; physical checks blocked by UI attachment | [Follow-up report](docs/worktree-follow-up.md). |
 | Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
 
@@ -33,10 +34,15 @@ cleanup. Earlier switcher descriptions below are completion history, not the cur
   bound content, reject replaced/missing checkouts and stale UI delivery, and never attribute
   checkout-wide edits to one session. No fetch, staging, checkout, or remote integration.
   `make check`: 615 tests, zero failures/errors, 10 opt-in skips; physical checks remain open.
+- [x] Correct synthetic Claude/Codex forks to record the destination checkout and add an end-to-end
+  disposable-Git/stub/provider regression. It failed before correction; final `make check` passes
+  624 tests, zero failures/errors, 10 opt-in skips. Refreshed synthetic profile uses the corrected stubs.
 - [ ] Run applicable physical acceptance on a newly verified synthetic sandbox; record actual
   results in `docs/worktree-follow-up.md`. Include deletion confirmation/cancellation, dirty/locked
   refusal, hide/keep sessions, review base selection/diffs, cross-window focus/fork, trust cancellation,
   keyboard navigation, and light/dark/narrow layouts. Unperformed checks stay open.
+  Verified synthetic profile obtained 2026-10-29; UI tool cannot attach to its Java application.
+  No physical checks passed. Package/compatibility checks pass; see the follow-up report.
 - [ ] Carry forward original worktree acceptance: Claude new/existing-window forks and independent
   sessions; recorded location transitions/exit/resume; detached HEAD and branch changes; symlink
   aliases; sibling filters; missing/replaced paths; repeated clicks and source-terminal survival.

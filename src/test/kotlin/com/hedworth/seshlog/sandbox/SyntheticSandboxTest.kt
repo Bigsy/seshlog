@@ -190,6 +190,28 @@ class SyntheticSandboxTest {
         return node!!
     }
 
+    @Test fun `native fork stubs record new checkout locations without changing source sessions`() {
+        requireStubs()
+        prepare()
+        val before = scan()
+        for ((kind, handle) in listOf(AgentKind.CLAUDE_CODE to "db-locked", AgentKind.CODEX to "codex-lantern-migration")) {
+            val source = before.getValue(handle)
+            val checkout = GitRepository.checkout(source.cwd)!!
+            val destination = checkout.root.resolveSibling("fork-${kind.name.lowercase()}")
+            val created = com.hedworth.seshlog.worktree.WorktreeCreator.create(source, checkout,
+                com.hedworth.seshlog.worktree.WorktreeCreationOptions("HEAD", "fork-${kind.name.lowercase()}", destination),
+                listOf(layout.claude, layout.codex))
+            val args = if (kind == AgentKind.CLAUDE_CODE) listOf("--resume", source.id, "--fork-session")
+                else listOf("fork", source.id, "--cd", created.directory.toString())
+            assertEquals(0, stub(kind, args, created.directory, "Synthetic fork turn"))
+            val after = scan()
+            val fork = after.values.single { it.kind == kind && it.id !in before.values.map { s -> s.id } }
+            assertEquals(created.directory, fork.cwd)
+            assertEquals(source.cwd, after.getValue(handle).cwd)
+            assertEquals(source.promptCount, after.getValue(handle).promptCount)
+        }
+    }
+
     @Test fun `stub agents record turns that the providers read back`() {
         requireStubs()
         prepare()

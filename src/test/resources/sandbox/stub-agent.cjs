@@ -100,7 +100,10 @@ const ADAPTERS = {
           }
         }
         guard(file);
-        const sessionCwd = lastValue(records, 'cwd') ?? cwd;
+        const sessionCwd = args.includes('--fork-session') ? guard(cwd) : (lastValue(records, 'cwd') ?? cwd);
+        if (args.includes('--fork-session')) {
+          append(file, { type: 'attachment', cwd: sessionCwd, sessionId: id, timestamp: new Date().toISOString() });
+        }
         const branch = lastValue(records, 'gitBranch');
         let parent = lastValue(records, 'uuid') ?? null;
         const marker = path.join(markers, `${process.pid}.json`);
@@ -146,11 +149,11 @@ const ADAPTERS = {
           if (!source) throw new Error(`no synthetic session ${target}`);
           const records = readJsonl(source);
           const meta = records.find((r) => r.type === 'session_meta')?.payload ?? {};
-          sessionCwd = meta.cwd ?? cwd;
+          sessionCwd = command === 'fork' ? guard(valueAfter(args, '--cd') ?? valueAfter(args, '-C') ?? cwd) : (meta.cwd ?? cwd);
           if (command === 'fork') {
             const now = new Date().toISOString();
             writeJsonl(guard(file), [
-              { timestamp: now, type: 'session_meta', payload: { ...meta, id, timestamp: now, forked_from_id: target } },
+              { timestamp: now, type: 'session_meta', payload: { ...meta, id, cwd: sessionCwd, timestamp: now, forked_from_id: target } },
               ...records.filter((r) => r.type === 'response_item' || r.type === 'event_msg'),
             ]);
           } else {

@@ -48,9 +48,10 @@ cleanup. Earlier switcher descriptions below are completion history, not the cur
   report partial success. Validate source/destination identity and protected storage before effects.
   `make check`: 619 tests, zero failures/errors, 10 opt-in skips. Claude/Codex supported;
   physical checks remain open. Other providers retain their existing same-directory forks.
-- [ ] **Attention inbox** (approved 2026-10-29): show unread sessions across projects with bounded
+- [x] **Attention inbox** (approved 2026-10-29): show unread sessions across projects with bounded
   assistant reply previews, conversation/terminal/worktree navigation and receipt-safe acknowledgement.
   Keep previews in memory, use existing activity evidence, and reject stale delivery.
+  `make check`: 623 tests, zero failures/errors, 10 opt-in skips; physical acceptance pending.
 
 All three features are now approved for this pass. Outstanding Phase 1 search acceptance below remains scheduled; Phase 2 stays gated.
 

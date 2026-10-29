@@ -147,6 +147,17 @@ nothing else is using the worktree first.
 
 ## Attention and copying
 
+**Seshlog: Attention Inbox** in Find Action or the tool-window toolbar lists unread sessions across
+all projects, excluding locally hidden sessions. Select one to preview its latest assistant reply.
+The list shows the newest 200 unread sessions and reports the total; previews show up to 6,000
+characters from recent messages and stay in memory. This view does not change the session filters.
+
+Previewing alone does not clear unread state. **Mark Read** acknowledges only the completion whose
+preview was loaded, preserving a newer reply that arrived meanwhile. **Open Conversation** uses the
+normal conversation viewer; **Show Terminal** validates the associated tab before focusing it.
+**Open Worktree** reuses the normal checkout validation and trust flow. An unread reply is not a
+claim that the agent succeeded or that it needs a decision.
+
 An **unread** badge means a tracked agent finished a turn you haven't viewed. It clears when you
 view the associated terminal in the active IDE window, read the latest reply in the preview or
 conversation viewer, or start another turn. Selecting a row with the preview hidden doesn't clear

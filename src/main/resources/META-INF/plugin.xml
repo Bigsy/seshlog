@@ -95,6 +95,9 @@
         <action id="Seshlog.NextAttention" class="com.hedworth.seshlog.ui.actions.NextAttentionAction"
                 text="Seshlog: Next Session Needing Attention" description="View the next unread completion in the current filters"
                 icon="AllIcons.Actions.NextOccurence"/>
+        <action id="Seshlog.AttentionInbox" class="com.hedworth.seshlog.ui.actions.AttentionInboxAction"
+                text="Seshlog: Attention Inbox" description="Read unread replies across all projects"
+                icon="AllIcons.Toolwindows.Notifications"/>
         <action id="Seshlog.Refresh" class="com.hedworth.seshlog.ui.actions.RefreshSessionsAction"
                 text="Refresh" description="Rescan session transcripts" icon="AllIcons.Actions.Refresh"/>
         <group id="Seshlog.NewSession" popup="true" text="New Session" icon="AllIcons.Actions.Execute">

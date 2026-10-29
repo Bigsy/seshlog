@@ -48,3 +48,15 @@ contracts; synthetic stubs do not establish end-to-end behavior of every install
 creation, dirty-source preservation, subdirectory mapping, hooks, protected/nested/existing paths,
 invalid refs/branches, missing subdirectories, cancellation, stale destinations, launch errors
 and destination command quoting. Physical checks remain pending.
+
+## Attention inbox
+
+Added Find Action/toolbar access to a modeless inbox across projects. Hidden sessions are excluded;
+up to 200 newest unread sessions are shown with a total count. Selected previews read at most eight
+recent messages and display up to 6,000 characters of assistant text. Previews remain in memory;
+explicit Mark Read uses the receipt captured before loading. Errors and missing replies cannot
+acknowledge a completion. Terminal/worktree navigation reuses the switcher's identity guards.
+
+`make check`: 623 tests, zero failures/errors, 10 opt-in skips. Four tests cover cross-project
+ordering/hidden exclusion, stale selection/content/disposal, receipt copying/newer-completion
+protection, assistant-only selection and preview bounds. Physical acceptance remains pending.

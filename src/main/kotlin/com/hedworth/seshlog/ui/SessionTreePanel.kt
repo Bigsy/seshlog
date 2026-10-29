@@ -389,6 +389,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             add(ActionManager.getInstance().getAction("Seshlog.Refresh"))
             add(ActionManager.getInstance().getAction("Seshlog.NewSession"))
             add(ActionManager.getInstance().getAction("Seshlog.NextAttention"))
+            add(ActionManager.getInstance().getAction("Seshlog.AttentionInbox"))
             add(ToggleAllProjectsAction())
             add(createFilterActions().apply { templatePresentation.icon = AllIcons.General.Filter })
             add(TogglePreviewAction())

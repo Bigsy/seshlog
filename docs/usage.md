@@ -106,7 +106,7 @@ write project files there. It can still focus a project already open in one of t
 Right-click a linked worktree's folder in the session list and choose **Delete Worktree…**. Seshlog
 runs `git worktree remove`, which deletes the worktree's whole folder, even when you right-click a
 subfolder. Git refuses if the worktree has uncommitted or untracked changes or is locked; Seshlog
-never forces it. Committed work stays on the branch.
+never forces it. Ignored files are removed with the folder, so preserve any ignored local files you need first. Committed work stays on the branch.
 
 The confirmation shows the folder and branch. **Hide its sessions** (on by default) hides every
 session recorded in that worktree; turn on **Show hidden** in the filters to see them again. **Also delete
@@ -115,7 +115,7 @@ never deleted: they stay readable, and Resume asks for a replacement folder.
 
 Deleting is unavailable for the main checkout, while a session in the worktree is running or has a
 terminal tab, while an IntelliJ window has the worktree open, and for worktrees inside agent data
-folders, which the agent manages. Seshlog refreshes sessions and checks all of this again before
+folders, worktrees containing configured agent data, or shared Git metadata overlapping agent data. Seshlog refreshes sessions and checks all of this again before
 running git. It can't always see an agent running in a terminal outside IntelliJ, so check that
 nothing else is using the worktree first.
 

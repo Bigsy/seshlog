@@ -65,7 +65,7 @@ class WorktreeDeletionTest {
         val pending = mutableSetOf<Path>()
         val h = Harness(pending = pending)
         assertTrue(h.delete())
-        assertEquals(listOf(setOf(AgentKind.CODEX)), h.refreshed)
+        assertEquals(listOf(setOf(AgentKind.CODEX), setOf(AgentKind.CODEX)), h.refreshed)
         assertEquals(listOf(h.checkout.commonDir to listOf("--git-dir=/synthetic/main/.git", "worktree", "remove", "/synthetic/topic")), h.gitCalls)
         assertEquals(listOf(setOf("inside")), h.hidden)
         assertEquals(1, h.rescans)
@@ -132,6 +132,48 @@ class WorktreeDeletionTest {
         arrived.delete()
         assertTrue(arrived.reports.single().contains("Sessions in this worktree changed"))
         assertTrue(listOf(replaced, branch, arrived).all { it.gitCalls.isEmpty() })
+    }
+
+    @Test fun `containing agent storage or using protected git metadata blocks deletion`() {
+        for (protected in listOf(Path.of("/synthetic/topic/agent-data"),
+            Path.of("/synthetic/main/.git"), Path.of("/synthetic/main/.git/worktrees/topic"))) {
+            val h = Harness().apply { this.protected = listOf(protected) }
+            h.delete()
+            assertTrue(protected.toString(), h.gitCalls.isEmpty())
+            assertTrue(h.reports.single().contains("agent"))
+        }
+    }
+
+    @Test fun `liveness changes before UI delivery block deletion`() {
+        val h = Harness()
+        h.controller.request(h.checkout, WorktreeDeletionOptions(true, false))
+        h.workers.removeFirst()()
+        h.inside = listOf(h.session.copy(isLive = true))
+        h.drain()
+        assertTrue(h.gitCalls.isEmpty())
+        assertTrue(h.reports.single().contains("running"))
+    }
+
+    @Test fun `queued removal revalidates windows terminals storage checkout branch and liveness`() {
+        val changes = listOf<Harness.() -> Unit>(
+            { openProjects = mapOf("late" to checkout.root) },
+            { associated = setOf(session.id) },
+            { protected = listOf(checkout.root.resolve("agent-data")) },
+            { verified = checkout.copy(directoryKey = "replacement") },
+            { verified = checkout.copy(branch = "replacement") },
+            { inside = listOf(session.copy(isLive = true)) },
+            { refreshEffect = { error("Scan failed") } },
+        )
+        for (change in changes) {
+            val h = Harness()
+            h.controller.request(h.checkout, WorktreeDeletionOptions(true, true))
+            h.workers.removeFirst()()
+            h.deliveries.removeFirst()()
+            h.change()
+            h.drain()
+            assertTrue(h.gitCalls.toString(), h.gitCalls.isEmpty())
+            assertEquals(1, h.reports.size)
+        }
     }
 
     @Test fun `deletion coalesces with opening and still hides after the window closes`() {

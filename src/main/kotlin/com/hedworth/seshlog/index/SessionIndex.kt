@@ -155,11 +155,16 @@ class SessionIndex : Disposable {
 
     /** Launch validation must never treat the legacy cached fallback as a successful rescan. Worker only. */
     internal fun requireFreshScan(kind: AgentKind, timeoutMillis: Long = 10_000) {
+        requireFreshScan(setOf(kind), timeoutMillis)
+    }
+
+    /** One completed scan validates all requested providers, including an empty-session checkout. */
+    internal fun requireFreshScan(kinds: Set<AgentKind>, timeoutMillis: Long = 10_000) {
         val generation = configurationGeneration.get()
         val result = ActionScanSnapshot.await(timeoutMillis) {
             executor.submit(java.util.concurrent.Callable { scanOnce() })
         }
-        check(!disposed.get() && configurationGeneration.get() == generation && result?.ready(kind) == true) {
+        check(!disposed.get() && configurationGeneration.get() == generation && result != null && kinds.all(result::ready)) {
             "Session refresh failed, timed out or was incomplete; refresh and try again"
         }
     }

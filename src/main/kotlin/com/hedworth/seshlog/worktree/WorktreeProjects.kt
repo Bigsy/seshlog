@@ -66,7 +66,7 @@ object WorktreeProjects {
         val trace = SessionDiagnostics.trace("worktree", "request" to SessionDiagnostics.nextId(),
             "project" to DiagnosticRef.of(source.basePath), "root" to DiagnosticRef.path(checkout.root))
         return WorktreeDeletion(
-            refresh = { kinds -> if (kinds.isEmpty()) index.scanNow() else kinds.forEach { index.requireFreshScan(it) } },
+            refresh = { kinds -> index.requireFreshScan(kinds) },
             sessions = { worktreeSessions(it, index.sessions, index.resolvedPaths) },
             resolve = { path, previous -> GitRepository.checkout(path, previous) },
             projects = ::capture,

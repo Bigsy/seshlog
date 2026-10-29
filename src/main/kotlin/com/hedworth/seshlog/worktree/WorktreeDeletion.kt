@@ -29,7 +29,11 @@ internal fun deletionProblem(checkout: Checkout, sessions: List<Session>, associ
                              openDirectories: Collection<Path>, protectedRoots: Collection<Path>): String? = when {
     !checkout.linked -> "Only linked worktrees can be deleted"
     !checkout.available -> checkout.problem ?: "Worktree unavailable"
-    protectedRoots.any { checkout.root.startsWith(it) } -> "This worktree is inside an agent's data folder; remove it with that agent"
+    protectedRoots.any { protected ->
+        listOf(checkout.root, checkout.gitDir, checkout.commonDir).any {
+            it.startsWith(protected) || protected.startsWith(it)
+        }
+    } -> "This worktree or its Git metadata overlaps an agent's data folder; remove it with that agent"
     openDirectories.any { it.startsWith(checkout.root) } -> "This worktree is open in an IntelliJ window; close that window first"
     sessions.any { it.isLive || it.id in associated } ->
         "A session in this worktree is running or has a terminal tab; stop it or close the tab first"
@@ -96,7 +100,7 @@ internal class WorktreeDeletion<P : Any>(
             val protected = protectedRoots()
             ui {
                 if (!active()) { pending.remove(checkout.root); return@ui }
-                val problem = deletionProblem(verified, inside, associated(), snapshot.directories.values, protected)
+                val problem = deletionProblem(verified, sessions(verified), associated(), snapshot.directories.values, protected)
                     ?: if (snapshot.projects != projectSet()) "Open projects changed; please try again" else null
                 if (problem != null) finish(checkout) { report(problem) } else remove(verified, inside, options)
             }
@@ -105,6 +109,21 @@ internal class WorktreeDeletion<P : Any>(
     }
 
     private fun remove(checkout: Checkout, inside: List<Session>, options: WorktreeDeletionOptions) = step(checkout) {
+        // The worker may have queued behind other work after UI approval. Revalidate here, with
+        // no further scheduling boundary before git. This cannot lock out external Git/CLI users.
+        val kinds = inside.mapTo(HashSet()) { it.kind }
+        refresh(kinds)
+        val verified = resolve(checkout.root, checkout)
+        check(verified != null && verified.available && verified.linked && checkout.sameIdentity(verified)) {
+            "Worktree is missing, unreadable or replaced"
+        }
+        check(!options.deleteBranch || verified.branch == checkout.branch) { "The worktree's branch changed; select it again" }
+        val snapshot = projects()
+        val protected = protectedRoots()
+        val latest = sessions(verified)
+        check(latest.all { it.kind in kinds }) { "Sessions in this worktree changed; please try again" }
+        check(snapshot.projects == projectSet()) { "Open projects changed; please try again" }
+        deletionProblem(verified, latest, associated(), snapshot.directories.values, protected)?.let { error(it) }
         val repository = "--git-dir=${checkout.commonDir}"
         val removed = git(checkout.commonDir, listOf(repository, "worktree", "remove", checkout.root.toString()))
         trace.event("worktree_delete_result", "exit" to removed.exitCode)
@@ -117,7 +136,7 @@ internal class WorktreeDeletion<P : Any>(
         ui {
             // The folder is gone: hide and rescan even if the requesting window closed meanwhile.
             finish(checkout) {
-                if (options.hideSessions) hide(inside.mapTo(HashSet()) { it.id })
+                if (options.hideSessions) hide(latest.mapTo(HashSet()) { it.id })
                 rescan()
                 if (active()) done("Deleted worktree ${checkout.root.fileName}$branchNote")
             }

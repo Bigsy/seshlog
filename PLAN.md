@@ -1,6 +1,6 @@
 # Current work plan
 
-Updated 2026-10-28. This is the authoritative execution checklist.
+Updated 2026-10-29. This is the authoritative execution checklist.
 Before editing, inspect `git status --short`, preserve user work, and re-find symbols rather than
 trusting historical line numbers. Take the open items below in order unless the user directs otherwise.
 
@@ -15,6 +15,41 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Quick session/worktree switcher | Implemented and automatically validated; physical UI checks open | [Implementation and validation](docs/session-switcher.md); item below. |
 | Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
+
+### Worktree follow-up (user priority, 2026-10-29)
+
+The switcher now follows project/sibling-worktree scope and sorts newest first; queries filter
+rather than rank. Delete Worktree is implemented (2ff6b44), with optional hiding and safe branch
+cleanup. Earlier switcher descriptions below are completion history, not the current contract.
+
+- [x] Harden deletion: protect containing agent-data folders and shared Git metadata, refresh
+  evidence again in the queued removal worker, reject changed checkout/branch/window/terminal/live
+  session state, and require a completed scan even for empty session sets. Add failing regressions,
+  run `make check`, and commit this focused fix. Completed: 612 tests, zero failures/errors,
+  10 opt-in skips. Three new regressions failed before the fix and passed afterward.
+- [ ] Add **Review Worktree Changes…** on session and folder rows: choose a local base ref (HEAD
+  initially), list checkout-wide tracked and untracked changes, and open native IntelliJ diffs.
+  Include committed changes when comparing with an earlier base. Read Git/files on workers,
+  bound content, reject replaced/missing checkouts and stale UI delivery, and never attribute
+  checkout-wide edits to one session. No fetch, staging, checkout, or remote integration.
+- [ ] Run applicable physical acceptance on a newly verified synthetic sandbox; record actual
+  results in `docs/worktree-follow-up.md`. Include deletion confirmation/cancellation, dirty/locked
+  refusal, hide/keep sessions, review base selection/diffs, cross-window focus/fork, trust cancellation,
+  keyboard navigation, and light/dark/narrow layouts. Unperformed checks stay open.
+- [ ] Carry forward original worktree acceptance: Claude new/existing-window forks and independent
+  sessions; recorded location transitions/exit/resume; detached HEAD and branch changes; symlink
+  aliases; sibling filters; missing/replaced paths; repeated clicks and source-terminal survival.
+  Codex open/fork checks were user-confirmed on 2026-10-25; this is not new acceptance evidence.
+
+- [ ] **Fork into New Worktree…** (approved 2026-10-29): choose a local starting ref, new branch
+  and destination; create without force or copying dirty/ignored files; open through trust/import
+  and fork in the mapped subdirectory. Preserve created worktrees on cancellation/failure and
+  report partial success. Validate source/destination identity and protected storage before effects.
+- [ ] **Attention inbox** (approved 2026-10-29): show unread sessions across projects with bounded
+  assistant reply previews, conversation/terminal/worktree navigation and receipt-safe acknowledgement.
+  Keep previews in memory, use existing activity evidence, and reject stale delivery.
+
+All three features are now approved for this pass. Outstanding Phase 1 search acceptance below remains scheduled; Phase 2 stays gated.
 
 ### 0. Quick session/worktree switcher (priority override, 2026-10-27)
 
@@ -442,10 +477,10 @@ publish/upload, install into the daily IDE or start deferred/backlog work.
 - Source controls/provenance: `b3a041b`, `5004ebc`, `1bebda9`, `6356e97`, `9fe89c4`;
   review fixes `5d12013` and `fcd0d57`. [Source-filter report](docs/search-source-filters.md)
   holds frozen fixture identities, metrics, warnings, artifact hashes and remaining checks.
-- Latest unit/platform test run: 2026-10-27, `make check`, **537 tests, zero failures/errors,
+- Historical search validation: 2026-10-27, `make check`, **537 tests, zero failures/errors,
   10 opt-in skips**. The small literal-verification optimization and its synthetic before/after
   benchmark are recorded in the source-filter report.
-- Latest packaged validation: 2026-10-27, `make release` and `./gradlew verifyPlugin --offline`;
+- Historical search package validation: 2026-10-27, `make release` and `./gradlew verifyPlugin --offline`;
   0.8.1 passed 537 tests (10 opt-in skips), ZIP integrity/content inspection and compatibility on
   IU-262.10968.63 / IU-263.7307.44 with the existing API warnings. Artifact SHA-256 and details are
   in the source-filter report. This build does not complete the remaining manual/platform checks.

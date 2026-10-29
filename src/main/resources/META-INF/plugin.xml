@@ -42,7 +42,7 @@
     </dependencies>
 
     <change-notes><![CDATA[
-    <b>Unreleased</b>
+    <b>0.8.5</b>
     <ul>
         <li>Search now defaults to a flat list, with Best match / Recently active sorting and optional folder grouping.</li>
         <li>Clearer session colours and bold search matches in the main list.</li>

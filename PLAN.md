@@ -34,6 +34,18 @@ trusting historical line numbers. Take the open items below in order unless the 
   selection, preview retention and native Open Conversation. Context-menu invocation, physical
   restart persistence, light theme and broader platform/stress acceptance remain open in the report.
 
+- [x] Fix the review's collapsed-folder selection edge case: when returning from flat results to
+  grouped rows, expand the explicitly selected session's folder, preserve its preview/hit, and
+  leave other collapsed folders alone. Add the permanent reproducer and verify later explicit
+  collapses still survive ordinary refreshes. The permanent regression failed before the fix;
+  `make check` passes 638 tests, zero failures/errors, 10 opt-in skips with the colour follow-up
+  also present. Physical verification follows with the refreshed styling sandbox.
+
+- [ ] Follow the quick switcher's field colours and literal bold query emphasis in main session
+  rows, including snippets and folder/branch metadata. Keep native selected-row contrast, activity
+  badges, accessibility and rendering free of I/O. Share the palette/highlighter, add fragment and
+  renderer-reuse regressions, run `make check`, and inspect the refreshed synthetic sandbox.
+
 ### Worktree follow-up (user priority, 2026-10-29)
 
 The switcher now follows project/sibling-worktree scope and sorts newest first; queries filter

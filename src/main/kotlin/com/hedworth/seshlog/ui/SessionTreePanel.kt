@@ -854,6 +854,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             tree.repaint()
             return
         }
+        val expandSelectedGroup = renderedFlat != null && flat == null && selectedSession() != null
         renderedGroups = groups.toList()
         renderedFlat = flat?.toList()
         renderer.showFolder = flat != null
@@ -872,7 +873,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
             selection?.let { id ->
                 val previous = latestSessions.firstOrNull { it.kind == id.kind && it.id == id.id }
                 val current = previous?.let { SessionContinuations(latestSessions.filter { s -> s.kind==it.kind }).latest(it) }
-                reselect(current?.let { SearchSessionKey(it.kind,it.id) } ?: id)
+                reselect(current?.let { SearchSessionKey(it.kind,it.id) } ?: id, expandSelectedGroup)
             }
         } finally {
             rebuildingTree = false
@@ -913,10 +914,15 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
     )
 
     /** Re-select the session with [id] if it is still in the tree; a vanished session just loses selection. */
-    private fun reselect(id: SearchSessionKey) {
+    private fun reselect(id: SearchSessionKey, expandGroup: Boolean) {
         val path = TreeUtil.treePathTraverser(tree).filter { p ->
             ((p.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? Session)?.let { it.kind == id.kind && it.id == id.id } == true
         }.firstOrNull() ?: return
+        if (expandGroup) {
+            val group = (path.parentPath.lastPathComponent as? DefaultMutableTreeNode)?.userObject as? ProjectGroup
+            group?.let { collapsedGroups.remove(it.cwd) }
+            tree.expandPath(path.parentPath)
+        }
         if (tree.isExpanded(path.parentPath)) tree.selectionPath = path
     }
 

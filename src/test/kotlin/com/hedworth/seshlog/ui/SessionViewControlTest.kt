@@ -119,4 +119,47 @@ class SessionViewControlTest : BasePlatformTestCase() {
             assertEquals(SearchSort.RECENTLY_ACTIVE, panel.selectedSort)
         } finally { Disposer.dispose(owner); state.loadState(previous) }
     }
+
+    fun `test returning to groups expands only the selected sessions previously collapsed folder`() {
+        val owner = Disposer.newDisposable()
+        val state = SessionViewState.getInstance(project)
+        val previous = state.state
+        try {
+            state.loadState(SessionViewState.State())
+            val panel = SessionTreePanel(project, owner)
+            val a = session("selected-collapsed", "harbor", 10)
+            val b = session("other-collapsed", "lantern", 20)
+            val hits = listOf(SearchHit(a, 2.0, false, "needle one"), SearchHit(b, 1.0, false, "needle two"))
+            panel.searchField.text = "needle"
+            panel.renderSearchResults("needle", hits)
+            fun path(value: Any): TreePath = TreePath(TreeUtil.findNodeWithObject(
+                panel.tree.model.root as DefaultMutableTreeNode, value)!!.path)
+            fun folder(item: Session): TreePath {
+                val root = panel.tree.model.root as DefaultMutableTreeNode
+                val node = root.children().toList().map { it as DefaultMutableTreeNode }
+                    .single { (it.userObject as ProjectGroup).cwd == item.cwd }
+                return TreePath(node.path)
+            }
+            state.setGrouped(true, true)
+            panel.tree.collapsePath(folder(a))
+            panel.tree.collapsePath(folder(b))
+            state.setGrouped(true, false)
+            panel.tree.selectionPath = path(a)
+            assertEquals(a.id, panel.preview.session!!.id)
+            state.setGrouped(true, true)
+            assertEquals(a.id, panel.selectedSession()?.id)
+            assertEquals(a.id, panel.preview.session?.id)
+            assertEquals(hits[0], panel.selectedSearchHit())
+            assertTrue(panel.tree.isExpanded(folder(a)))
+            assertFalse(panel.tree.isExpanded(folder(b)))
+            // The selected folder stays open on refresh, but an explicit later collapse is respected.
+            panel.renderSearchResults("needle", hits.reversed())
+            assertTrue(panel.tree.isExpanded(folder(a)))
+            assertFalse(panel.tree.isExpanded(folder(b)))
+            panel.tree.collapsePath(folder(a))
+            panel.renderSearchResults("needle", hits)
+            assertFalse(panel.tree.isExpanded(folder(a)))
+            assertFalse(panel.tree.isExpanded(folder(b)))
+        } finally { Disposer.dispose(owner); state.loadState(previous) }
+    }
 }

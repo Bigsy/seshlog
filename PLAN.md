@@ -13,7 +13,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 | External-server semantic search | Agreed, unimplemented | Start items 5–13 only after Phase 1 acceptance; [detailed design](docs/semantic-search-design.md). |
 | Managed local inference | Deferred until separately requested after server-backed evaluation | [Later-phase scope](docs/semantic-search-design.md#deferred-managed-local-inference). |
 | Quick session/worktree switcher | Implemented and automatically validated; physical UI checks open | [Implementation and validation](docs/session-switcher.md); item below. |
-| Worktree review, new-worktree forks and attention inbox | Implemented; automated checks passed; physical checks blocked by UI attachment | [Follow-up report](docs/worktree-follow-up.md). |
+| Worktree review, new-worktree forks and attention inbox | Implemented; automated checks passed; UI attachment repaired, physical acceptance in progress | [Follow-up report](docs/worktree-follow-up.md). |
 | Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
 
@@ -41,8 +41,10 @@ cleanup. Earlier switcher descriptions below are completion history, not the cur
   results in `docs/worktree-follow-up.md`. Include deletion confirmation/cancellation, dirty/locked
   refusal, hide/keep sessions, review base selection/diffs, cross-window focus/fork, trust cancellation,
   keyboard navigation, and light/dark/narrow layouts. Unperformed checks stay open.
-  Verified synthetic profile obtained 2026-10-29; UI tool cannot attach to its Java application.
-  No physical checks passed. Package/compatibility checks pass; see the follow-up report.
+  Verified synthetic profile obtained 2026-10-29; macOS app-bundle wrapper repaired UI attachment.
+  User and Computer Use confirmed Attention Inbox opens via Find Action; automation also read its
+  empty state. Remaining interactions and other physical checks stay open. Package/compatibility
+  checks pass; see the follow-up report and sandbox guide for the working attachment method.
 - [ ] Carry forward original worktree acceptance: Claude new/existing-window forks and independent
   sessions; recorded location transitions/exit/resume; detached HEAD and branch changes; symlink
   aliases; sibling filters; missing/replaced paths; repeated clicks and source-terminal survival.

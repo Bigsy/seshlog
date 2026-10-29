@@ -22,10 +22,17 @@ The loaded JAR matched the build. The final profile was subsequently regenerated
 cross-checkout fork stubs; it passed again at 2026-10-29T21:13:05Z (IDE PID 39268). Its current report is
 `<sandbox root>/verification.txt`.
 
-Physical UI acceptance is **blocked by the UI automation attachment**: the computer tool listed
+Physical UI acceptance was initially **blocked by the UI automation attachment**: the computer tool listed
 the sandbox as `Main` / `com.jetbrains.jbr.java`, but both names and its verified Java executable
 path returned `Invalid app`. Attaching to `com.jetbrains.intellij` reached the daily IDE, which
-was not used for testing. No physical rows are passed. Keyboard/theme/accessibility, native diff,
+was not used for testing. The user subsequently confirmed that **Seshlog: Attention Inbox** opens
+through Find Action in the still-running sandbox (2026-10-29). This is a user-reported launch
+check only. Attachment was subsequently repaired using a sandbox-local macOS app bundle, as described
+in [the sandbox guide](synthetic-sandbox.md#macos-computer-use-attachment). The relaunched IDE
+(PID 42619) passed verification at 2026-10-29T21:29:44Z with the same plugin JAR and all four providers
+reading synthetic storage. Computer Use attached to `harbor – README.md`, invoked Find Action by
+keyboard, and opened **Seshlog Attention Inbox**. Its empty state and disabled row actions were read
+through accessibility. Preview loading and Mark Read have not yet been confirmed. Keyboard/theme/accessibility, native diff,
 trust cancellation and actual terminal fork/inbox interactions still require manual checks.
 Windows/Linux and real-CLI cross-checkout behavior also remain unverified.
 

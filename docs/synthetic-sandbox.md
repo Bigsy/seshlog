@@ -19,6 +19,51 @@ inside a Git checkout, overlaps a home or agent data directory, or already holds
 create. Reset deletes only a directory carrying its `.seshlog-synthetic-sandbox` marker, and
 refuses while the sandbox IDE is running.
 
+## macOS Computer Use attachment
+
+Verified on 2026-10-29: Gradle's direct JBR launch appeared as `Main` /
+`com.jetbrains.jbr.java`, but Computer Use rejected that identifier with `Invalid app`.
+Wrapping the Java executable in a real `.app` fixed attachment, keyboard input and reading the
+Attention Inbox. This is a launcher workaround; it does not require changing Seshlog production code.
+
+The working instance is under `/private/tmp/seshlog-followup-sandbox`. Attach with:
+
+```js
+var sandboxIde = await cua.getApp('/private/tmp/seshlog-followup-sandbox/launcher/Seshlog Sandbox.app');
+```
+
+Check that the returned window belongs to the synthetic `harbor` project. Selecting
+`com.jetbrains.intellij` reaches the daily IDE. Before physical checks, run:
+
+```sh
+./gradlew -q verifySyntheticSandbox --offline -PsyntheticSandboxDir=/private/tmp/seshlog-followup-sandbox
+```
+
+To recreate the wrapper for another profile/runtime:
+
+1. Start the normal synthetic profile and identify its PID by its exact `-Didea.config.path`.
+   Capture its argument array using Java `ProcessHandle.Info.arguments()` (not a whitespace split of
+   `ps` output). Preserve all JVM options, classpath, main class and project arguments.
+2. Create `<root>/launcher/Seshlog Sandbox.app/Contents/MacOS/java` as a **copy** of that IDE's
+   JBR `Home/bin/java`. Under `Contents`, symlink `lib`, `conf` and `release` to the same runtime's
+   `Home/lib`, `Home/conf` and `Home/release`. Do not alter the original runtime or installed IDE.
+3. Write `Contents/Info.plist`: `CFBundleIdentifier=com.hedworth.seshlog.sandbox`,
+   `CFBundleName` and `CFBundleDisplayName=Seshlog Sandbox`, `CFBundleExecutable=java`,
+   `CFBundlePackageType=APPL`, `CFBundleVersion=1`, and `NSHighResolutionCapable=true`.
+   Give concurrently used sandbox profiles distinct bundle IDs.
+4. Ad-hoc sign the local development bundle with
+   `codesign --force --sign - '<root>/launcher/Seshlog Sandbox.app'`. The copied executable's original
+   signature does not match the new plist; without this step macOS terminated it with exit 137.
+5. Stop only the verified synthetic IDE, then launch the bundled `Contents/MacOS/java` with the
+   captured argument array and the synthetic environment listed below. Keep `<root>/bin` first on
+   `PATH`. Do not start by simply opening the bundle: it needs those JVM/profile arguments.
+6. Rerun `verifySyntheticSandbox`, attach by full `.app` path, and verify both observation and input.
+
+This wrapper is currently a manual setup; `make sandbox` still uses the ordinary Gradle launcher.
+The original runtime must remain present because the wrapper links to its libraries. A new build or
+runtime requires relaunching with the current Gradle arguments and re-verification. No full-disk,
+Accessibility or Screen Recording permission reset was needed.
+
 ## What is isolated
 
 | Part | Where | How |

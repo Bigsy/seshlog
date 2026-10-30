@@ -17,7 +17,8 @@ class NewSessionTest {
             AgentKind.PI to ("pi" to "--provider local"),
         )
         for ((kind, args) in expected) {
-            assertEquals("${args.first} ${args.second}", NewSessionCommand.build(kind, args.first, args.second))
+            val executable = if (kind == AgentKind.CODEX) "${args.first} ${CodexTitle.OVERRIDE}" else args.first
+            assertEquals("$executable ${args.second}", NewSessionCommand.build(kind, args.first, args.second))
         }
     }
 

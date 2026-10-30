@@ -78,7 +78,8 @@ class WorktreeCreationTest {
         val selected = session(root)
         val codex = com.hedworth.seshlog.codex.CodexSessionProvider({ root }, { "codex" })
         val claude = com.hedworth.seshlog.claude.ClaudeCodeSessionProvider({ root }, { "claude" })
-        assertEquals("codex fork synthetic --cd '/synthetic/new folder'", codex.forkInDirectoryCommand(selected, target))
+        assertEquals("codex fork synthetic --cd '/synthetic/new folder' ${com.hedworth.seshlog.terminal.CodexTitle.OVERRIDE}",
+            codex.forkInDirectoryCommand(selected, target))
         assertEquals("claude --resume synthetic --fork-session", claude.forkInDirectoryCommand(selected.copy(kind = AgentKind.CLAUDE_CODE), target))
     }
 

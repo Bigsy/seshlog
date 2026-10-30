@@ -203,6 +203,21 @@ class CodexDaemonTest {
             CodexDaemon.instances(table, "codex", daemon).toSet())
     }
 
+    @Test fun `Seshlog's title override leaves resume and fork targets readable`() {
+        // The arguments a shell passes for CodexTitle.OVERRIDE.
+        val title = arrayOf("-c", """tui.terminal_title=["activity","thread-name","project-name","thread-id"]""")
+        val table = ProcessTableSnapshot.of(listOf(
+            row(daemon, 1, "/x/codex", "app-server", "--managed-daemon"),
+            row(10, 1, "/bin/zsh"),
+            row(11, 10, "/x/codex", "resume", "s1", *title, started = t0),
+            row(20, 1, "/bin/zsh"),
+            row(21, 20, "/x/codex", "fork", "s2", "--cd", other.toString(), *title, started = t0),
+        ))
+        assertEquals(setOf(CodexDaemon.Instance(setOf(11L), "s1", t0), CodexDaemon.Instance(setOf(21L), null, t0, forkOf = "s2")),
+            CodexDaemon.instances(table, "codex", daemon).toSet())
+        assertTrue(SessionProcess.matches(AgentKind.CODEX, "s1", null, listOf("resume", "s1", *title)))
+    }
+
     private fun session(id: String) = Session(AgentKind.CODEX, id, id, app, null, null, Instant.EPOCH,
         temporary.root.toPath().resolve("rollout-2026-10-12T10-00-00-$id.jsonl"), false, null, null, 1, true)
 

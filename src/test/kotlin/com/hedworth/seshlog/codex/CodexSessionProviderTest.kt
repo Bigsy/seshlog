@@ -2,6 +2,7 @@ package com.hedworth.seshlog.codex
 
 import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
+import com.hedworth.seshlog.terminal.CodexTitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -226,8 +227,8 @@ class CodexSessionProviderTest {
             promptCount = 1,
             hasExplicitTitle = false,
         )
-        assertEquals("'/opt/Codex CLI/codex' resume 'x;echo nope'", provider.resumeCommand(session))
-        assertEquals("'/opt/Codex CLI/codex' fork 'x;echo nope'", provider.forkCommand(session))
+        assertEquals("'/opt/Codex CLI/codex' resume 'x;echo nope' ${CodexTitle.OVERRIDE}", provider.resumeCommand(session))
+        assertEquals("'/opt/Codex CLI/codex' fork 'x;echo nope' ${CodexTitle.OVERRIDE}", provider.forkCommand(session))
     }
 
     @Test
@@ -239,7 +240,8 @@ class CodexSessionProviderTest {
             lastActivityAt = java.time.Instant.EPOCH, transcriptPath = root.resolve("abc.jsonl"), isLive = false,
             livePid = null, promptTitle = null, promptCount = 1, hasExplicitTitle = false,
         )
-        assertEquals("codex resume abc --model gpt-5 --sandbox workspace-write", provider.resumeCommand(session))
-        assertEquals("codex fork abc --model gpt-5 --sandbox workspace-write", provider.forkCommand(session))
+        // After the title override, so a user's own terminal_title override still wins.
+        assertEquals("codex resume abc ${CodexTitle.OVERRIDE} --model gpt-5 --sandbox workspace-write", provider.resumeCommand(session))
+        assertEquals("codex fork abc ${CodexTitle.OVERRIDE} --model gpt-5 --sandbox workspace-write", provider.forkCommand(session))
     }
 }

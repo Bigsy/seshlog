@@ -14,6 +14,7 @@ import com.hedworth.seshlog.model.ConversationLimits
 import com.hedworth.seshlog.model.ConversationMessage
 import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.model.SessionProvider
+import com.hedworth.seshlog.terminal.CodexTitle
 import com.hedworth.seshlog.terminal.ExtraArguments
 import com.hedworth.seshlog.terminal.ShellQuote
 import com.intellij.openapi.diagnostic.logger
@@ -57,13 +58,13 @@ class CodexSessionProvider(
     override fun watchRoots(): List<Path> = listOf(sessionsDir(), namesFile(), stateFile(), stateFile().resolveSibling("state_5.sqlite-wal"))
 
     override fun resumeCommand(session: Session): String =
-        ExtraArguments.append("${ShellQuote.quote(executable())} resume ${ShellQuote.quote(session.id)}", extraArgs())
+        ExtraArguments.append(CodexTitle.launch("${ShellQuote.quote(executable())} resume ${ShellQuote.quote(session.id)}"), extraArgs())
 
     override fun forkCommand(session: Session): String =
-        ExtraArguments.append("${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)}", extraArgs())
+        ExtraArguments.append(CodexTitle.launch("${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)}"), extraArgs())
 
     override fun forkInDirectoryCommand(session: Session, directory: Path): String =
-        ExtraArguments.append("${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)} --cd ${ShellQuote.quote(directory.toString())}", extraArgs())
+        ExtraArguments.append(CodexTitle.launch("${ShellQuote.quote(executable())} fork ${ShellQuote.quote(session.id)} --cd ${ShellQuote.quote(directory.toString())}"), extraArgs())
 
     override fun scan(previous: Map<String, Session>): List<Session> {
         scanProblem = null

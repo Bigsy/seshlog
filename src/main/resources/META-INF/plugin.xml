@@ -42,6 +42,10 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Codex: sessions started from Seshlog follow <code>/new</code>, <code>/clear</code> and <code>/resume</code> without the <code>terminal_title</code> setting.</li>
+    </ul>
     <b>0.8.5</b>
     <ul>
         <li>Search now defaults to a flat list, with Best match / Recently active sorting and optional folder grouping.</li>

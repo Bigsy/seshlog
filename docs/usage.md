@@ -20,17 +20,22 @@ actions depend on that association. Missing or ambiguous process information can
 unassociated, especially for new Pi and opencode sessions.
 
 Codex terminals share a background server, so nothing in their processes shows which conversation
-a terminal moves to after `/new`, `/clear`, `/resume` or the `codex resume` picker. Add `thread-id`
-to Codex's terminal title so Seshlog can follow those switches, in the `[tui]` section of
-`~/.codex/config.toml`:
+a terminal moves to after `/new`, `/clear`, `/resume` or the `codex resume` picker. The terminal
+title is the only place Codex reports it. When Seshlog starts, resumes or forks a Codex session, it
+adds `thread-id` to Codex's default title items with a command-line setting
+(`-c tui.terminal_title=[...]`). Your `~/.codex/config.toml` and other terminals are unchanged. A
+`tui.terminal_title` setting of your own in **Additional arguments** takes precedence.
+
+Codex you start yourself in a terminal, and every Codex terminal on Windows, needs the setting in
+the `[tui]` section of `~/.codex/config.toml` instead. It changes the title in every terminal:
 
 ```toml
 [tui]
-terminal_title = ["project", "thread-id"]
+terminal_title = ["activity", "thread-name", "project-name", "thread-id"]
 ```
 
-Start Codex again in open terminals afterwards. Without it, copying from a Codex terminal that
-switched conversations reports an unknown session instead of guessing.
+Start Codex again in open terminals afterwards. Without the thread ID in the title, copying from a
+Codex terminal that switched conversations reports an unknown session instead of guessing.
 
 ## Search
 

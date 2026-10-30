@@ -10,8 +10,8 @@ internal object NewSessionCommand {
         // while the provider-specific resume and fork commands do. New flags can be added here
         // without making UI actions know the command-line details.
         val base = when (kind) {
-            AgentKind.CLAUDE_CODE, AgentKind.CODEX, AgentKind.OPENCODE, AgentKind.PI ->
-                ShellQuote.quote(executable.trim())
+            AgentKind.CLAUDE_CODE, AgentKind.OPENCODE, AgentKind.PI -> ShellQuote.quote(executable.trim())
+            AgentKind.CODEX -> CodexTitle.launch(ShellQuote.quote(executable.trim()))
         }
         return ExtraArguments.append(base, extraArgs)
     }

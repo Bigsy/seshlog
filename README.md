@@ -17,16 +17,21 @@ If you use custom data folders or executables, set them under **Settings → Too
 
 ### Codex terminal tracking
 
-To let Seshlog follow thread switches inside a running Codex terminal, add this to
-`~/.codex/config.toml`. If you already have a `[tui]` section, add the setting there:
+Seshlog follows `/new`, `/clear`, `/resume` and the resume picker in the Codex terminals it starts.
+It adds the thread ID to the terminal title of those sessions only, so your other terminals keep
+Codex's usual titles and `~/.codex/config.toml` needs no changes. If you added
+`terminal_title = ["project", "thread-id"]` for an earlier version, you can remove it.
+
+To follow switches in Codex you start yourself, or on Windows, add `thread-id` to the title in
+`~/.codex/config.toml` instead. This changes the title in every terminal. If you already have a
+`[tui]` section, add the setting there:
 
 ```toml
 [tui]
-terminal_title = ["project", "thread-id"]
+terminal_title = ["activity", "thread-name", "project-name", "thread-id"]
 ```
 
-Restart any running Codex terminals after saving. Keep `thread-id` enabled so Seshlog can identify
-the current conversation after `/new`, `/clear`, `/resume` or a switch through the resume picker.
+Restart any running Codex terminals after saving.
 
 ## Find your way back
 

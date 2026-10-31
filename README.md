@@ -79,8 +79,9 @@ open diff editor tabs and add comments from either side using the gutter or **Ct
 Preview or copy one message containing the review across files.
 
 Direct send supports a verified open **Codex 0.166.0** session using its existing private local
-daemon. Other providers offer copy and navigation. Changed files require a recheck; failed or
-uncertain sends keep your notes. See [review usage and support limits](docs/diff-review.md).
+daemon on macOS, with a verified terminal-to-endpoint connection. Linux, Windows and other providers
+offer copy and navigation. Changed files require a recheck; failed or uncertain sends keep your
+notes. See [review usage and support limits](docs/diff-review.md).
 
 ## Screenshots
 

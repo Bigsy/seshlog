@@ -70,12 +70,15 @@ receipt and exact read-only payload.
 ## Bounds and privacy
 
 - 10 drafts, 50 comments each, 4,000 characters per note, 20 selected excerpt lines / 4,000 characters,
-  128 KiB UTF-8 per outgoing message, 32 MiB shared review text budget, including retained native
-  diff documents and old revisions. Closing the last editor releases its text reservation and
-  clears the request; closing the panel or discarding a draft leaves still-open diffs charged.
-  Close diff tabs or explicitly discard drafts to free memory. Extra content is rejected with an
+  128 KiB UTF-8 per outgoing message, 32 MiB aggregate review text budget. Snapshots and readonly
+  native documents share immutable buffers, including independent tabs; each retained snapshot is
+  counted once. Unchanged refreshes reuse it; old revisions remain charged while open. Only actual
+  processor disposal releases editor ownership; presentation changes keep both sides and the tab.
+  Closing the last processor clears the request, while any text still owned by a draft stays charged.
+  Close older diff tabs or explicitly discard drafts to free memory. Extra content is rejected with an
   explanation; unsent notes are never silently evicted or truncated.
-- Existing Git limits: 8 MiB/file and 5,000 files. Resolved bases, file existence, raw-byte hashes and checkout identity
+- Existing Git limits: 8 MiB per file side and 5,000 files. Display line endings are normalized;
+  revision hashes still cover the original raw bytes. Resolved bases, file existence, hashes and checkout identity
   protect against moving refs, malformed UTF-8, replaced checkouts and stale child diffs.
 - Filesystem/Git/hash/socket work runs on workers. UI, terminal state and unsaved-document metadata
   are captured on the EDT with generation/disposal guards.
@@ -183,7 +186,22 @@ safety gates and native diff memory lifecycle remains open.
 
 ## Release validation
 
-Reliability follow-up, 2026-10-31: all six reported issues are addressed and tracked as R1–R6 in
+Second reliability follow-up, 2026-10-31 (R7–R9): forced request refresh, duplicate text charging
+and platform availability each reproduced before the fix. Cleanup now follows actual native
+processor disposal. Snapshots and independent native documents share the same immutable buffers;
+the 5 MiB-per-side case opens within 32 MiB, unchanged refreshes reuse text, and old revisions stay
+bounded. Linux/Windows controls and service preflight report platform support before target checks.
+Clean compilation and `make check` passed **740 tests, 10 opt-in skips, zero failures/errors**.
+An intermediate cached build restored stale constructor callers; the preserved ordinary panel
+constructor and fresh compilation resolved it. The ordinary cached `make release` then passed the
+same 740 tests, built the ZIP and passed recursive ZIP/JAR inspection with no fixtures/helpers.
+Artifact: `build/distributions/seshlog-0.8.5.zip`, SHA-256
+`5451e2dd547e6f7177a37b6310c528b3c2d2cb634abfc2dcd395b95f65c90f8e`.
+Offline Plugin Verifier passed for IU-262.11879.100 (2 scheduled-removal / 16 deprecated / 79
+experimental usages) and IU-263.7307.112 (3 / 20 / 72); SDK layout warnings remain.
+No new physical IDE acceptance or real model turn was performed; D7 remains open.
+
+First reliability follow-up, 2026-10-31: all six reported issues are addressed and tracked as R1–R6 in
 `PLAN.md`. The original 710 plan lines and all 50 existing open checklist entries are preserved.
 Regressions reproduced each unsafe behavior before its fix. New coverage includes two synthetic
 homes with the same loaded thread/checkout, real Unix peer inspection, socket replacement, failed

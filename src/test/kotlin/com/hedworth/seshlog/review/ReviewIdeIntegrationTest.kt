@@ -98,6 +98,21 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         val send = controls.filterIsInstance<JButton>().single { it.accessibleContext.accessibleName.startsWith("Send 1 comment to") }
         assertTrue(panel.bounds.contains(SwingUtilities.convertRectangle(send.parent, send.bounds, panel)))
     }
+    fun `test unsupported platforms disable Send and explain platform support before target checks`() {
+        val draft = draft()
+        service.store.load(draft.id, ReviewFileSnapshot("file.kt", "base", "old\n", "new\n"))
+        service.store.add(draft.id, "file.kt", ReviewSide.CURRENT, 1, 1, "Keep my note")
+        for (os in listOf("Linux", "Windows 11")) {
+            val panel = ReviewCommentsPanel(project, draft.id, osName = os) {}
+            Disposer.register(testRootDisposable, panel)
+            fun descendants(value: Container): List<java.awt.Component> = value.components.flatMap { listOf(it) + if (it is Container) descendants(it) else emptyList() }
+            val controls = descendants(panel)
+            val send = controls.filterIsInstance<JButton>().single { it.accessibleContext.accessibleName.startsWith("Send 1 comment to") }
+            assertFalse("Direct send must be disabled on $os", send.isEnabled)
+            assertTrue(controls.filterIsInstance<javax.swing.JTextArea>().any { it.text.contains("unavailable on $os") && it.text.contains("Copy Review") })
+        }
+        assertEquals("Keep my note", service.store.get(draft.id).comments.single().note)
+    }
     fun `test native editor reuses snapshot tab and navigation reselects either side`() {
         val draft = draft()
         val file = ReviewFileSnapshot("file.kt", "a".repeat(40), "old\nbase\n", "new\ncurrent\n")

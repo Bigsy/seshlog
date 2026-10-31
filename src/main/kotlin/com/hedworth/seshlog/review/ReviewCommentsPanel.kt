@@ -36,7 +36,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import javax.swing.*
 
-internal class ReviewCommentsPanel(private val project: Project, private val draftId: String, private val closeView: () -> Unit) : JPanel(BorderLayout(6, 6)), Disposable {
+internal class ReviewCommentsPanel(private val project: Project, private val draftId: String,
+                                   private val osName: String = System.getProperty("os.name"),
+                                   private val closeView: () -> Unit) : JPanel(BorderLayout(6, 6)), Disposable {
+    constructor(project: Project, draftId: String, closeView: () -> Unit) :
+        this(project, draftId, System.getProperty("os.name"), closeView)
     private val service = ReviewDraftService.getInstance()
     private val store = service.store
     private val recipient = store.get(draftId).recipient
@@ -90,11 +94,11 @@ internal class ReviewCommentsPanel(private val project: Project, private val dra
         send.text = "Send ${draft.comments.size} $noun"
         send.accessibleContext.accessibleName = "Send ${draft.comments.size} $noun to ${recipientTitle()}"
         val sending = delivery.isSending(draftId)
-        send.isEnabled = recipient.kind == AgentKind.CODEX && !sending && draft.comments.isNotEmpty() && draft.comments.all { it.validation == ReviewValidation.CURRENT }
+        send.isEnabled = ReviewDeliverySupport.unavailableReason(recipient.kind, osName) == null && !sending &&
+            draft.comments.isNotEmpty() && draft.comments.all { it.validation == ReviewValidation.CURRENT }
         cancelSend.isEnabled = sending
         cancelSend.isVisible = sending
-        availability.text = if (recipient.kind == AgentKind.CODEX) "Direct send: local Codex daemon 0.166.0; recipient and source files are verified on send."
-            else "Direct send unavailable for ${recipient.kind.displayName}. Copy Review and Go to Session are available."
+        availability.text = ReviewDeliverySupport.description(recipient.kind, osName)
         if (sending) status.text = "Validating or delivering the frozen review… You can keep editing notes; newer revisions will be retained."
         else draft.lastResult?.let { status.text = deliveryMessage(it) +
             if (draft.hasUnknownDelivery && it.status != ReviewDeliveryStatus.UNKNOWN)
@@ -270,6 +274,7 @@ internal class ReviewCommentsPanel(private val project: Project, private val dra
             "cancelled_before_dispatch" -> " Cancelled before dispatch."
             "draft_or_validation_changed" -> " The draft changed during validation; review it and send again."
             "session_refresh_unavailable" -> " Session refresh did not finish successfully. Refresh and try again."
+            "platform_unsupported" -> " Direct send is currently supported on macOS only. Use Copy Review or Go to Session."
             else -> ""
         }
         return prefix + detail + (result.receipt?.let { " Receipt: $it" } ?: "")

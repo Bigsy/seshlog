@@ -192,7 +192,9 @@ anchors before send. Drafts and sent batches remain in memory until IDE exit; cl
 them, while **Discard Review** removes them explicitly.
 
 Direct send supports a verified open **Codex 0.166.0** TUI through its existing private local
-daemon on macOS/Linux. Other providers and unsupported receivers offer copy/navigation. A queue
+daemon on macOS, with live evidence tying that TUI to the endpoint. Linux and Windows disable Send
+with a platform explanation and offer Copy Review and Go to Session. Other providers and unsupported
+receivers also offer copy/navigation. A queue
 receipt is not proof the agent has acted; rejected/unknown delivery keeps notes, and uncertain
 retries warn about duplication. See [review support, data handling and evidence](diff-review.md).
 

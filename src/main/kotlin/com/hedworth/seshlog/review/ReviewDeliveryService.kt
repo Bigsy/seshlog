@@ -28,6 +28,10 @@ internal class ReviewDeliveryService : Disposable {
     @Synchronized fun start(id: String, allowUnknownRetry: Boolean = false): Boolean {
         if (id in jobs) return false
         val snapshot = drafts.store.get(id)
+        ReviewDeliverySupport.unavailableReason(snapshot.recipient.kind)?.let { reason ->
+            drafts.store.recordResult(id, ReviewDeliveryResult(ReviewDeliveryStatus.UNAVAILABLE, reason))
+            drafts.changed(); return false
+        }
         if (snapshot.hasUnknownDelivery && !allowUnknownRetry) return false
         val home = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val target = ReviewTargets.capture(snapshot.recipient, deliveryHome = home)
@@ -96,5 +100,5 @@ internal object ReviewDeliveryDiagnostics {
         "recipient_or_files_changed", "queue_method_unsupported", "agent_refused", "server_error_after_dispatch", "receipt_mismatch", "queued_by_agent",
         "connection_lost_after_dispatch", "local_transport_unavailable", "cancelled_before_dispatch", "unsaved_buffers", "files_changed", "recipient_changed",
         "dispatch_interrupted", "draft_or_validation_changed", "target_unavailable", "validation_unavailable", "invalid_receipt", "endpoint_unverified",
-        "session_refresh_unavailable")) value else "other"
+        "session_refresh_unavailable", "platform_unsupported")) value else "other"
 }

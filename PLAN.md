@@ -44,8 +44,26 @@ native Commit/Changes tool window, with native diff editor tabs.
 - [x] **R6. Restore and reconcile this authoritative plan.** Restore the original 710 lines;
   record review implementation, automated evidence and open physical acceptance without closing
   the pre-existing tracking/search work.
+- [x] **R7. Preserve native requests through presentation changes.** Unassignment is temporary
+  during a forced refresh or a unified/side-by-side switch. Own the request until its actual last
+  native processor is disposed; preserve both sides, tab validity and comments across reassignment.
+- [x] **R8. Reconcile file and aggregate memory limits.** Share immutable text between the stored
+  snapshot and native readonly documents, including independent tabs. Count each retained snapshot
+  once, reuse unchanged refreshes, keep old revisions bounded, and allow the reported 5 MiB per-side
+  file within the unchanged 8 MiB per-side / 32 MiB aggregate limits. Preserve raw revision hashes.
+- [x] **R9. Align platform support and delivery availability.** Use one platform preflight for the
+  endpoint backend, Send controls and delivery service. Linux/Windows must show direct delivery as
+  unsupported before terminal checks; preserve copy/navigation and align README/usage/support docs.
 
-Completed 2026-10-31: new regressions reproduced argument-only endpoint authorization, endpoint
+R7–R9 implemented 2026-10-31: forced native request refresh, the 5 MiB-per-side case and Linux Send
+availability each failed before the corresponding fix. Clean compilation and `make check` pass
+740 tests, zero failures/errors and 10 opt-in skips. Extra regressions verify exact immutable buffer
+sharing across independent native documents, unchanged refresh reuse, old revision bounds, raw
+hash/line-ending consistency and split disposal. Physical acceptance below remains open.
+The ordinary cached `make release`, package inspection and offline Plugin Verifier pass for both
+configured IDE builds, with existing API/layout warnings. The review report records the new ZIP hash.
+
+R1–R6 completed 2026-10-31: new regressions reproduced argument-only endpoint authorization, endpoint
 replacement, failed-refresh bypass, lost unknown state, deletion/empty revision collision and
 unaccounted native diff text before their fixes. `make check` passes 734 tests, zero failures/errors,
 10 opt-in skips, including real native processors/splits and disposable synthetic socket peers.

@@ -11,8 +11,9 @@ import java.util.concurrent.TimeUnit
  * Descriptor output stays bounded in memory; no environment, paths or kernel addresses are logged.
  */
 internal object CodexReviewEndpoint {
+    fun supportedPlatform(osName: String = System.getProperty("os.name")) = osName.startsWith("Mac")
     fun connected(tui: ProcessHandle, home: Path): Boolean = try {
-        if (!System.getProperty("os.name").startsWith("Mac")) false else {
+        if (!supportedPlatform()) false else {
             val started = tui.info().startInstant().orElse(null)
             val socket = home.resolve("app-server-control/app-server-control.sock").toRealPath()
             val server = query(listOf("--", socket.toString()))

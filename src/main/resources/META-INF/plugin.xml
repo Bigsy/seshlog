@@ -49,7 +49,7 @@
     </dependencies>
 
     <change-notes><![CDATA[
-    <b>Unreleased</b>
+    <b>0.8.6</b>
     <ul>
         <li>Automatic Codex tracking setup for Seshlog launches and new local bash, zsh and fish terminals on macOS/Linux.</li>
         <li>Fix stale Codex session associations after thread switches, including Copy and navigation actions.</li>

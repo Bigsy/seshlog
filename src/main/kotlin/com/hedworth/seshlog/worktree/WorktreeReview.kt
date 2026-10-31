@@ -7,7 +7,7 @@ import java.nio.file.LinkOption.NOFOLLOW_LINKS
 
 internal data class ReviewFile(val path: String, val status: String)
 internal data class WorktreeReviewSnapshot(val checkout: Checkout, val base: String, val files: List<ReviewFile>)
-internal data class ReviewContent(val before: String, val current: String)
+internal data class ReviewContent(val before: String, val current: String, val beforeHash: String, val currentHash: String)
 
 /** A net comparison of the chosen commit and current files, including untracked files. */
 internal object WorktreeReview {
@@ -61,6 +61,8 @@ internal object WorktreeReview {
             "Binary files are listed but not previewed; use the IDE Git tools"
         }
         verify(checkout)
-        return ReviewContent(before.toString(Charsets.UTF_8), current.toString(Charsets.UTF_8))
+        fun hash(bytes: ByteArray) = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+        return ReviewContent(before.toString(Charsets.UTF_8), current.toString(Charsets.UTF_8), hash(before), hash(current))
     }
 }

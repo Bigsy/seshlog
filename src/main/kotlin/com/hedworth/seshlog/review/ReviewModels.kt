@@ -9,9 +9,12 @@ import java.util.UUID
 internal data class ReviewRecipient(val kind: AgentKind, val sessionId: String, val checkout: Checkout)
 internal enum class ReviewSide { BASE, CURRENT }
 internal enum class ReviewValidation { CURRENT, NEEDS_RECHECK }
-internal data class ReviewFileSnapshot(val path: String, val base: String, val before: String, val current: String) {
-    val beforeHash = reviewHash(before)
-    val currentHash = reviewHash(current)
+internal data class ReviewFileSnapshot(
+    val path: String, val base: String, val before: String, val current: String,
+    val gitStatus: String = "M", val beforeBytesHash: String? = null, val currentBytesHash: String? = null,
+) {
+    val beforeHash = beforeBytesHash ?: reviewHash(before)
+    val currentHash = currentBytesHash ?: reviewHash(current)
     val revision = reviewHash("$base\n$beforeHash\n$currentHash")
     val memoryBytes: Long get() = (before.length.toLong() + current.length) * 2
     fun text(side: ReviewSide) = if (side == ReviewSide.BASE) before else current
@@ -63,8 +66,9 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         check(get(id).pending == null) { "Wait for the current submission before discarding this review" }
         drafts.remove(id)
     }
-    @Synchronized fun load(id: String, file: ReviewFileSnapshot): ReviewDraft {
+    @Synchronized fun load(id: String, file: ReviewFileSnapshot, expectedGeneration: Long? = null): ReviewDraft {
         val draft = get(id)
+        check(expectedGeneration == null || expectedGeneration == draft.generation) { "The draft changed while loading; refresh this file again" }
         require(draft.base == null || draft.base == file.base) { "The review base is fixed; start a new review to change it" }
         val comments = draft.comments.map { comment ->
             if (comment.path == file.path && comment.fileRevision != file.revision && comment.validation != ReviewValidation.NEEDS_RECHECK)

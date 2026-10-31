@@ -20,6 +20,22 @@ class ReviewSendOperationTest {
     }
     private fun valid(draft: ReviewDraft) = ReviewSnapshots.Validation(emptySet(), emptySet())
 
+    @Test fun `a failed fresh scan blocks cached recipient evidence initially and before dispatch`() {
+        for (failedCheck in listOf(1, 2)) {
+            val (store, snapshot) = seeded()
+            var scans = 0
+            var sends = 0
+            val result = ReviewSendOperation(store, snapshot, ::valid, { true }, { _, before ->
+                if (before()) sends++
+                ReviewDeliveryResult(ReviewDeliveryStatus.UNAVAILABLE, "recipient_or_files_changed")
+            }, requireFreshScan = { if (++scans == failedCheck) error("Synthetic failed or unhealthy refresh") }).run()
+            assertEquals(0, sends)
+            assertEquals(ReviewDeliveryStatus.UNAVAILABLE, result.status)
+            assertEquals(2, store.get(snapshot.id).comments.size)
+            assertNull(store.get(snapshot.id).pending)
+        }
+    }
+
     @Test fun `saving an editor opened before a receipt keeps the new note without modifying the sent batch`() {
         val (store, snapshot) = seeded()
         val original = snapshot.comments.first()

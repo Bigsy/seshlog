@@ -9,12 +9,17 @@ internal class ReviewSendOperation(
     private val sender: (ReviewSubmission, () -> Boolean) -> ReviewDeliveryResult,
     private val cancelled: () -> Boolean = { Thread.currentThread().isInterrupted },
     private val prepared: (ReviewSubmission) -> Unit = {},
+    private val requireFreshScan: () -> Unit = {},
 ) {
     private var dispatched = false
     private var blocked: String? = null
     private var submission: ReviewSubmission? = null
     private fun check(): Boolean {
         if (cancelled()) { blocked = "cancelled_before_dispatch"; return false }
+        try { requireFreshScan() } catch (_: Exception) {
+            blocked = if (cancelled()) "cancelled_before_dispatch" else "session_refresh_unavailable"
+            return false
+        }
         val validation = validate(snapshot)
         if (!validation.valid) {
             blocked = if (validation.unsaved.isNotEmpty()) "unsaved_buffers" else "files_changed"

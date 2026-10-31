@@ -272,6 +272,7 @@ internal class ReviewCommentsPanel(private val project: Project, private val dra
             "local_transport_unavailable", "socket_not_private", "endpoint_unverified" -> " A supported private local Codex server tied to this terminal is unavailable. Copy the review or go to the session."
             "cancelled_before_dispatch" -> " Cancelled before dispatch."
             "draft_or_validation_changed" -> " The draft changed during validation; review it and send again."
+            "session_refresh_unavailable" -> " Session refresh did not finish successfully. Refresh and try again."
             else -> ""
         }
         return prefix + detail + (result.receipt?.let { " Receipt: $it" } ?: "")

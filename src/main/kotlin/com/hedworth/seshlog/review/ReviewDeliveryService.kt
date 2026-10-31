@@ -42,8 +42,8 @@ internal class ReviewDeliveryService : Disposable {
             val trace = SessionDiagnostics.trace("review", "session" to DiagnosticRef.of(snapshot.recipient.sessionId),
                 "draft" to DiagnosticRef.of(id), "project" to DiagnosticRef.of(target.project.basePath), "tab" to target.tabRef)
             try {
-                SessionIndex.getInstance().scanNow()
                 val operation = ReviewSendOperation(drafts.store, snapshot,
+                    requireFreshScan = { SessionIndex.getInstance().requireFreshScan(snapshot.recipient.kind) },
                     validate = { draft ->
                         val validated = ReviewSnapshots.validate(draft, emptySet())
                         var unsaved = emptySet<String>()
@@ -95,5 +95,6 @@ internal object ReviewDeliveryDiagnostics {
         "codex_version_unsupported", "server_home_mismatch", "thread_unavailable", "thread_mismatch", "thread_not_loaded", "checkout_changed",
         "recipient_or_files_changed", "queue_method_unsupported", "agent_refused", "server_error_after_dispatch", "receipt_mismatch", "queued_by_agent",
         "connection_lost_after_dispatch", "local_transport_unavailable", "cancelled_before_dispatch", "unsaved_buffers", "files_changed", "recipient_changed",
-        "dispatch_interrupted", "draft_or_validation_changed", "target_unavailable", "validation_unavailable", "invalid_receipt", "endpoint_unverified")) value else "other"
+        "dispatch_interrupted", "draft_or_validation_changed", "target_unavailable", "validation_unavailable", "invalid_receipt", "endpoint_unverified",
+        "session_refresh_unavailable")) value else "other"
 }

@@ -5,6 +5,7 @@ import com.hedworth.seshlog.index.SearchMatchSource
 import com.hedworth.seshlog.index.SearchPrimaryMatch
 import com.hedworth.seshlog.index.SearchSources
 import com.hedworth.seshlog.model.*
+import com.hedworth.seshlog.review.*
 import com.hedworth.seshlog.settings.SeshlogSettings
 import com.hedworth.seshlog.settings.AgentFilterMode
 import com.hedworth.seshlog.settings.AgentFilterState
@@ -13,11 +14,19 @@ import com.hedworth.seshlog.switcher.SwitcherRow
 import com.hedworth.seshlog.switcher.SwitcherSearch
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.IconLoader
+import com.intellij.openapi.editor.colors.EditorColorsManager
+import com.intellij.diff.editor.DiffEditorViewerFileEditor
+import com.intellij.diff.impl.DiffRequestProcessor
+import com.intellij.diff.requests.SimpleDiffRequest
+import com.intellij.diff.tools.simple.SimpleDiffViewer
+import com.intellij.diff.util.DiffUserDataKeys
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.ui.JBColor
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.util.ui.UIUtil
 import java.awt.Container
+import java.awt.BorderLayout
+import java.awt.Dimension
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.nio.file.Files
@@ -25,6 +34,8 @@ import java.nio.file.Path
 import java.time.Instant
 import javax.imageio.ImageIO
 import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.JFrame
 import javax.swing.SwingUtilities
 import javax.swing.UIManager
 
@@ -72,6 +83,7 @@ class MarketplaceScreenshotTest : BasePlatformTestCase() {
             capture(treeView, output.resolve("session-search.png"), 700, 185)
             capture(panel.searchField.parent as JComponent, output.resolve("search-field.png"), 700, 34)
             captureSwitcher(output, sessions)
+            captureReview(output)
         } finally {
             Disposer.dispose(owner)
             settings.showAllProjects = oldAll
@@ -81,6 +93,87 @@ class MarketplaceScreenshotTest : BasePlatformTestCase() {
             JBColor.setDark(previousDark)
             IconLoader.setUseDarkIcons(previousDark)
             IconLoader.deactivate()
+        }
+    }
+
+    private fun captureReview(output: Path) {
+        val root = Path.of("/workspace/atlas")
+        val checkout = Checkout(root, root.resolve(".git"), root.resolve(".git"), Checkout.Kind.MAIN,
+            "feature/checkout-validation", "a".repeat(40), directoryKey = "synthetic")
+        val service = ReviewDraftService.getInstance()
+        val draft = service.store.open(ReviewRecipient(AgentKind.CODEX, "demo-checkout-review", checkout))
+        val before = """
+            package atlas.checkout
+
+            fun validateCheckout(order: Order) {
+                submitPayment(order)
+            }
+        """.trimIndent() + "\n"
+        val current = """
+            package atlas.checkout
+
+            fun validateCheckout(order: Order) {
+                require(order.billingAddress != null)
+                submitPayment(order)
+            }
+        """.trimIndent() + "\n"
+        val snapshot = ReviewFileSnapshot("src/checkout/Validation.kt", "a".repeat(40), before, current)
+        service.store.load(draft.id, snapshot)
+        val context = ReviewDiffContext(draft.id, snapshot.path, snapshot.revision, { _, _, _ -> })
+        var editor: DiffEditorViewerFileEditor? = null
+        var frame: JFrame? = null
+        val dialog = ReviewNoteDialog(project, "Add Review Comment — Validation.kt (4–4)",
+            snapshot.selection(ReviewSide.CURRENT, 4, 4),
+            "Check the address before charging.\nAdd a test for an empty postcode.") {}
+        try {
+            lateinit var processor: DiffRequestProcessor
+            ReviewDiffEditors.open(project, context, { base, reviewed ->
+                SimpleDiffRequest("Checkout changes — src/checkout/Validation.kt", base, reviewed,
+                    "Base · HEAD", "Reviewed on-disk snapshot").apply {
+                    putUserData(ReviewDiffExtension.REVIEW_CONTEXT, context)
+                    putUserData(DiffUserDataKeys.FORCE_READ_ONLY, true)
+                }
+            }, { emptyList() }, { tab ->
+                processor = tab.createProcessor(project)
+                processor.updateRequest()
+                arrayOf(DiffEditorViewerFileEditor(project, tab, processor).also { editor = it })
+            })
+            val browser = ReviewChangesBrowser(project, root) {}
+            browser.setFiles(listOf(com.hedworth.seshlog.worktree.ReviewFile(snapshot.path, "M"),
+                com.hedworth.seshlog.worktree.ReviewFile("src/checkout/Receipt.kt", "M")))
+            com.intellij.util.ui.tree.TreeUtil.expandAll(browser.viewer)
+            val scene = JPanel(BorderLayout(8, 0)).apply {
+                add(browser.apply { preferredSize = Dimension(300, 470) }, BorderLayout.WEST)
+                add(editor!!.component, BorderLayout.CENTER)
+            }
+            SwingUtilities.updateComponentTreeUI(scene)
+            val viewer = processor.activeViewer as SimpleDiffViewer
+            val darkScheme = EditorColorsManager.getInstance().getScheme("Darcula") ?: error("Darcula editor scheme is unavailable")
+            viewer.editor1.colorsScheme = darkScheme
+            viewer.editor2.colorsScheme = darkScheme
+            viewer.editor2.caretModel.moveToOffset(viewer.editor2.document.getLineStartOffset(3))
+            viewer.editor2.selectionModel.setSelection(viewer.editor2.document.getLineStartOffset(3),
+                viewer.editor2.document.getLineEndOffset(3))
+            viewer.rediff(true)
+            // Keep the renderer offscreen and unfocused; native diff curves use screen coordinates.
+            frame = JFrame().apply {
+                isUndecorated = true
+                focusableWindowState = false
+                isAutoRequestFocus = false
+                contentPane = scene
+                setBounds(-20000, -20000, 1200, 470)
+                isVisible = true
+            }
+            UIUtil.dispatchAllInvocationEvents()
+            capture(scene, output.resolve("review-diff.png"), 1200, 470)
+            // The unit-test dialog peer has no contentPane; its actual Swing hierarchy still exists.
+            val dialogContent = generateSequence(dialog.preferredFocusedComponent as JComponent) { it.parent as? JComponent }.last()
+            capture(dialogContent, output.resolve("review-comment.png"), 680, 350)
+        } finally {
+            frame?.dispose()
+            dialog.disposeIfNeeded()
+            editor?.let(Disposer::dispose)
+            service.store.discard(draft.id)
         }
     }
 

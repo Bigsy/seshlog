@@ -60,6 +60,14 @@ tasks.processResources {
     }
 }
 
+// The native diff divider needs screen coordinates while painting. Only the opt-in media
+// renderer uses a display-backed window; ordinary tests retain the platform's headless default.
+tasks.test {
+    if (providers.environmentVariable("SESHLOG_SCREENSHOTS").orNull == "1") {
+        systemProperty("java.awt.headless", "false")
+    }
+}
+
 intellijPlatform {
     // No GUI forms or @NotNull instrumentation needed; skipping avoids resolving the Java compiler artefact.
     instrumentCode = false

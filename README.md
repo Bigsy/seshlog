@@ -95,7 +95,8 @@ notes. See [review usage and support limits](docs/diff-review.md).
     <td><a href="docs/marketplace/04-search.png"><img src="docs/marketplace/04-search.png" alt="Find matching conversations and resume with their context" width="360"></a></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><a href="docs/marketplace/05-switcher.png"><img src="docs/marketplace/05-switcher.png" alt="Search across projects and switch sessions or worktrees with a keyboard shortcut" width="360"></a></td>
+    <td><a href="docs/marketplace/05-switcher.png"><img src="docs/marketplace/05-switcher.png" alt="Search across projects and switch sessions or worktrees with a keyboard shortcut" width="360"></a></td>
+    <td><a href="docs/marketplace/06-review.png"><img src="docs/marketplace/06-review.png" alt="Review a native checkout diff, add comments and send one review to the selected session" width="360"></a></td>
   </tr>
 </table>
 

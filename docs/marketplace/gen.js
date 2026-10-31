@@ -36,7 +36,7 @@ p{font-size:27px;line-height:1.46;color:#b1c0b9;margin:0}.small{font-size:21px;l
 function shell(number, label, content, extra = '') {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${css}${extra}</style></head><body><main class="page">
   <header class="top">${icon}<strong>Seshlog</strong><span>Coding-agent sessions in IntelliJ</span><span class="issue">${label}</span></header>
-  ${content}<footer class="foot"><span>Local sessions · Real plugin UI · Synthetic demo data</span><span>${number} / 05</span></footer>
+  ${content}<footer class="foot"><span>Local sessions · Real plugin UI · Synthetic demo data</span><span>${number} / 06</span></footer>
   </main></body></html>`;
 }
 const screen = (image, subtitle, cls = '') => `<div class="window ${cls}"><div class="windowhead">Seshlog<span class="mini">${subtitle}</span></div><img src="${png(image)}" alt="Seshlog session list rendered by the plugin"></div>`;
@@ -107,6 +107,22 @@ const cards = {
       </div>
       <p class="caption">Searches session metadata. Your conversation stays untouched.</p>
     </section>`),
+
+  '06-review': shell('06', 'Diff comments + review', `
+    <section class="reviewintro">
+      <div class="eyebrow">Review in Commit / Changes</div>
+      <h1>Review the diff. <em>Send one review.</em></h1>
+      <p>Add comments on either side. Collect feedback across files, then preview one message for the selected session.</p>
+    </section>
+    <p class="reviewplatforms">Direct send: verified Codex 0.166.0 on macOS · Copy Review elsewhere</p>
+    <section class="reviewscene window">
+      <div class="windowhead">Commit / Changes<span class="mini">Checkout review · Fictional checkout validation</span></div>
+      <img src="${png('review-diff.png')}" alt="Native Changes tree and side-by-side checkout diff with the Add Review Comment gutter action">
+      <div class="reviewnote window">
+        <div class="windowhead">Add Review Comment<span class="mini">Validation.kt · current side, line 4</span></div>
+        <img src="${png('review-comment.png')}" alt="Actual review comment editor with the selected code excerpt, a draft note and Save Comment button">
+      </div>
+    </section>`, `.reviewintro{position:absolute;left:88px;right:88px;top:170px}.reviewintro .eyebrow{margin-bottom:18px}.reviewintro h1{font-size:76px;margin-bottom:12px}.reviewintro h1 em{margin-left:16px}.reviewintro p{font-size:25px}.reviewplatforms{position:absolute;right:88px;top:172px;font-size:18px;color:#9eafa8}.reviewscene{position:absolute;left:88px;top:350px;width:1744px;overflow:visible}.reviewscene>img{border-radius:0 0 16px 16px}.reviewnote{position:absolute;right:100px;top:300px;width:760px;box-shadow:0 22px 55px #000a}.reviewnote .windowhead{padding:14px 18px;font-size:20px}.reviewnote .mini{font-size:16px}`),
 };
 
 for (const [name, html] of Object.entries(cards)) fs.writeFileSync(path.join(out, name + '.html'), html);

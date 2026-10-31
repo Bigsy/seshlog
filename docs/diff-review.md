@@ -41,17 +41,26 @@ memory until IDE exit/crash; they do not survive restart.
 
 | Receiver | Support |
 | --- | --- |
-| Codex daemon reporting exactly **0.166.0**, macOS/Linux Unix socket | Direct queue delivery to a uniquely verified open IDE TUI, through an existing private local socket. Matching Codex home, loaded exact thread and checkout required. |
+| Codex daemon reporting exactly **0.166.0**, macOS with readable `lsof` Unix peer evidence | Direct queue delivery through an existing private local socket. The selected live TUI must have a connected peer on that exact endpoint. Matching Codex home, loaded exact thread and checkout are also required. |
 | Other Codex versions, remote/embedded/unknown launch arguments, unloaded/ambiguous thread or missing/untrusted socket | Unavailable; copy/navigation remain. No launch, resume or terminal fallback. |
 | Claude Code **2.1.312** / documented channels | Copy/navigation; a suitable acknowledgement contract was not established. |
 | opencode / Pi | Copy/navigation; direct messaging was not established. |
-| Windows | Copy/navigation; Unix-socket direct delivery is unsupported. |
+| Linux / Windows / unavailable peer evidence | Copy/navigation; direct delivery is unavailable until a reliable endpoint-binding backend is implemented. |
 
 **Queued by agent** confirms a correlated receipt, not consumption, approval or completion.
 Busy input remains in Codex's queue. Known refusals are **Rejected**. An unverified route/recipient
 is **Unavailable**. Lost/mismatched receipts and possible errors after persistence are **Delivery
 unknown**. Failure/unknown keeps notes. Explicit retry after unknown warns of a possible duplicate;
-nothing retries automatically. Local cancellation after dispatch cannot recall a queued message.
+nothing retries automatically. An earlier unknown outcome remains unresolved after a failed retry
+or a receipt for a different batch; the warning persists until explicit draft discard. Local
+cancellation after dispatch cannot recall a queued message.
+
+Both validation passes require a successful fresh scan with healthy Codex storage; scan timeouts,
+failures and incomplete scans cannot fall back to cached session metadata. Process arguments can
+exclude a route but cannot prove the configured daemon is the terminal's daemon. macOS delivery
+joins the selected process's live Unix peer descriptor to the socket's named server descriptor,
+then checks the socket identity again before writing. These bounded descriptor reads stay in
+memory and do not log paths, environment values or kernel addresses.
 
 Only included comment revisions are archived by a genuine receipt, even if the view closes or the
 terminal later switches. New comments/edits remain unsent. Saving an editor opened before its
@@ -61,9 +70,12 @@ receipt and exact read-only payload.
 ## Bounds and privacy
 
 - 10 drafts, 50 comments each, 4,000 characters per note, 20 selected excerpt lines / 4,000 characters,
-  128 KiB UTF-8 per outgoing message, 32 MiB review cache memory. Extra content is rejected with an
+  128 KiB UTF-8 per outgoing message, 32 MiB shared review text budget, including retained native
+  diff documents and old revisions. Closing the last editor releases its text reservation and
+  clears the request; closing the panel or discarding a draft leaves still-open diffs charged.
+  Close diff tabs or explicitly discard drafts to free memory. Extra content is rejected with an
   explanation; unsent notes are never silently evicted or truncated.
-- Existing Git limits: 8 MiB/file and 5,000 files. Resolved bases, raw-byte hashes and checkout identity
+- Existing Git limits: 8 MiB/file and 5,000 files. Resolved bases, file existence, raw-byte hashes and checkout identity
   protect against moving refs, malformed UTF-8, replaced checkouts and stale child diffs.
 - Filesystem/Git/hash/socket work runs on workers. UI, terminal state and unsaved-document metadata
   are captured on the EDT with generation/disposal guards.
@@ -165,12 +177,28 @@ files remained after release. Rotating diagnostics contained none of the synthet
 Physical cancellation during an outstanding socket write, simultaneous two-TUI swapping and unsaved
 buffer editing are automated-test evidence only. Windows/Linux appearance, unified comments, real
 existing-TUI socket delivery and the broader tracking C7 matrix were not physically accepted here.
-No daily-IDE install or publishing occurred. `PLAN.md` was already empty in the working tree and
-is preserved; this feature does not claim unrelated tracking acceptance.
+No daily-IDE install or publishing occurred. The follow-up restored the original authoritative
+`PLAN.md` and preserved its open Codex tracking and search work. Physical acceptance of the new
+safety gates and native diff memory lifecycle remains open.
 
 ## Release validation
 
-`make check` and final `make release` passed: **724 tests, 10 opt-in skips, zero failures/errors**.
+Reliability follow-up, 2026-10-31: all six reported issues are addressed and tracked as R1–R6 in
+`PLAN.md`. The original 710 plan lines and all 50 existing open checklist entries are preserved.
+Regressions reproduced each unsafe behavior before its fix. New coverage includes two synthetic
+homes with the same loaded thread/checkout, real Unix peer inspection, socket replacement, failed
+refresh at both validation passes, persistent unknown outcomes, deletion recreated empty, and real
+native editor processors/splits retaining old revisions. `make check` executed **734 tests,
+10 opt-in skips, zero failures/errors**. `make release` passed; recursive ZIP/JAR inspection found
+no test fixtures or sandbox helpers. Current artifact: `build/distributions/seshlog-0.8.5.zip`,
+SHA-256 `28c31e021aad9f3fc1409a71d038338f8c4d58a95c2b569d30dba7753fef5547`.
+Offline Plugin Verifier passed for IU-262.11879.100 (2 scheduled-removal / 16 deprecated / 79
+experimental API usages) and IU-263.7307.112 (3 / 20 / 72); SDK layout warnings remain.
+The follow-up did not run new real model turns or new physical IDE acceptance.
+
+Baseline before the reliability follow-up: `make check` and `make release` passed with **724 tests,
+10 opt-in skips, zero failures/errors**. The hashes and physical verification below refer to that
+earlier build, not acceptance of the follow-up fixes.
 Final `./gradlew verifyPlugin --offline` passed on IU-262.11879.100 (2 scheduled-removal,
 16 deprecated, 79 experimental usages) and IU-263.7307.112 (3 / 20 / 72). SDK layout warnings about
 missing classpath entries remain. The first 263 verification exposed VCS's extraction into bundled

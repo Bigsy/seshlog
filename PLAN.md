@@ -17,7 +17,47 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Quick session/worktree switcher | Implemented and automatically validated; physical UI checks open | [Implementation and validation](docs/session-switcher.md); item below. |
 | Worktree review, new-worktree forks and attention inbox | Implemented; automated checks passed; UI attachment repaired, physical acceptance in progress | [Follow-up report](docs/worktree-follow-up.md). |
 | Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
+| Session-bound diff comments and review delivery | Native Commit/Changes implementation; reliability regressions pass; physical acceptance open | [Review report](docs/diff-review.md); local `PLAN-diff.md` holds the feature checklist. Direct send requires proven macOS socket peer identity. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
+
+### Review reliability follow-up (user priority, 2026-10-31)
+
+The six review findings take priority over the remaining acceptance work. Preserve all existing
+Codex C7 and search/semantic checklists below. Drafts, comments and Send Review remain inside the
+native Commit/Changes tool window, with native diff editor tabs.
+
+- [x] **R1. Bind the verified TUI to the receiving endpoint.** Require live process-to-socket peer
+  evidence, independently of arguments, configured home, thread ID and cwd. Revalidate before
+  dispatch and reject socket replacement. Missing OS/evidence support is unavailable. Regressions
+  include two homes with a copied loaded thread and checkout, and endpoint replacement.
+- [x] **R2. Require a healthy fresh session scan.** Use the index's explicit fresh-scan gate before
+  freezing and again before dispatch. Timeout, failure, discarded scan and unhealthy Codex storage
+  cannot use the legacy cached fallback. Keep the draft and report why sending is unavailable.
+- [x] **R3. Preserve unresolved delivery uncertainty.** Track it independently of the latest
+  attempt's result. Failed retries and receipts for different batches cannot clear the duplicate
+  warning or bypass explicit retry confirmation. Uncertainty lasts until explicit draft discard.
+- [x] **R4. Include file existence in reviewed revisions.** A deletion recreated as an empty file
+  must invalidate even base-side comments, including validation using an old `D` change status.
+- [x] **R5. Bound retained native diff text.** Charge open editor documents, including older
+  revisions and discarded drafts, to the shared 32 MiB budget. Reject excess content without
+  losing notes. Release only after the last editor closes, and clear closed requests' text.
+- [x] **R6. Restore and reconcile this authoritative plan.** Restore the original 710 lines;
+  record review implementation, automated evidence and open physical acceptance without closing
+  the pre-existing tracking/search work.
+
+Completed 2026-10-31: new regressions reproduced argument-only endpoint authorization, endpoint
+replacement, failed-refresh bypass, lost unknown state, deletion/empty revision collision and
+unaccounted native diff text before their fixes. `make check` passes 734 tests, zero failures/errors,
+10 opt-in skips, including real native processors/splits and disposable synthetic socket peers.
+`make release` and offline Plugin Verifier pass for IU-262.11879.100 and IU-263.7307.112;
+existing deprecated/experimental API and SDK layout warnings remain. See the review report for
+the artifact hash and detailed evidence.
+
+Physical review acceptance remains open: the current fixes need a freshly verified synthetic IDE
+check, including native diff closure/refresh and endpoint-bound sending. Real existing-TUI delivery,
+cancellation during a socket write, simultaneous terminal changes, unsaved-buffer physical checks,
+other OS appearance and the applicable broader C7 matrix are not inferred from automated tests.
+No new real-agent/model call is authorized by this follow-up.
 
 ### Codex tracking correctness (user priority, 2026-10-31)
 

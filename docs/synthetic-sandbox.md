@@ -193,7 +193,7 @@ agent where Seshlog looks:
 
 - **Claude Code:** writes a live marker in `agents/claude/sessions/<pid>.json` with busy/idle
   status, and removes it on exit. A fork copies the history under a new ID and records the launch directory.
-- **Codex:** keeps the rollout open for writing, like the CLI, and brackets each turn with
+- **Codex:** defaults to direct-writer mode and emits a synthetic thread-ID terminal title. The optional shared-daemon mode below holds descriptors in a separate process. It brackets each turn with
   `task_started` / `task_complete`. A fork writes a new rollout with `forked_from_id` and the explicit `--cd` destination (or launch directory).
 - **opencode:** adds messages to `opencode.db`; needs Node.js 22.5 or newer for `node:sqlite`.
 - **Pi:** appends v3 tree entries; a fork writes a new file with `parentSession`.
@@ -219,12 +219,49 @@ the sandbox IDE's terminals have it as `$SESHLOG_SANDBOX`.
 A shell startup file can put the real CLIs back ahead of `<root>/bin` on `PATH`. Type the stub's full path, or use Seshlog's
 actions, which always use the configured stub.
 
+## Optional shared Codex daemon and switch scenarios
+
+The daemon and all histories remain inside the marked synthetic profile. The default direct-writer
+mode remains available for legacy checks. Start the optional daemon explicitly from a terminal:
+
+```sh
+"$SESHLOG_SANDBOX/bin/codex" app-server --synthetic-daemon
+```
+
+Wait for `SESHLOG_DAEMON_READY`, then in other sandbox terminal tabs run:
+
+```sh
+SESHLOG_STUB_CODEX_DAEMON=1 "$SESHLOG_SANDBOX/bin/codex"
+```
+
+The shared process holds every visited rollout until it exits; TUIs have no persistent rollout
+writer. It uses a private local Unix socket, never a model or network server. Ctrl+C stops it,
+closes its descriptors and removes its socket. Stop its TUIs first. After a forced kill, remove only
+this profile's `.codex-daemon.sock` before restarting it.
+
+- `/new` and `/clear` create a new thread and emit an OSC terminal title.
+- `/resume <id>` and `/picker <id>` switch to an existing synthetic thread.
+- `/new delayed` emits the new ID while its rollout has a `.pending` suffix; `/publish` makes it
+  visible to the production provider. Copy must remain unresolved before publication.
+- `/titles off` removes the ID from the terminal title; `/titles on` restores it. In shared mode,
+  title-disabled TUIs intentionally remain unresolved. Direct-writer mode can still identify them.
+- `--synthetic-start-paused` prints `SESHLOG_START_WAIT` and waits for `/start` before creating a
+  thread. This lets an older TUI do `/new` while a newer TUI is already running.
+- `/barrier <label>` acknowledges all preceding commands with `SESHLOG_BARRIER`. Integration tests
+  use these readiness messages, rather than sleeps, before scanning or inspecting.
+
+`CodexSyntheticDaemonTest` drives the stale-resume/mixed-title, delayed-start, two-tab exchange and
+unindexed-replacement scenarios through real stubs and the production provider, process inspector,
+reconciler and Copy readers. It verifies retained daemon descriptors and absent TUI descriptors.
+The verifier checks that both installed helper files match this checkout. These helpers and their
+fixtures are test resources only and must never appear in the plugin ZIP.
+
 ## Limits
 
 - Stub agents run on macOS and Linux. On Windows the profile and verification work, but launched
   stubs do not start, so Resume checks there need a separate arrangement.
-- Codex's daemon matching considers every Codex TUI on the machine, so a real Codex running
-  elsewhere can still affect Codex tab association.
+- Codex identity uses the captured terminal thread-ID title or a direct TUI writer. Shared daemon
+  files, timing, launch arguments and external real Codex processes cannot assign a thread to a tab.
 - The profile does not create old-schema, locked, full or corrupt lexical databases, or a
   lower-memory machine. Those checks need their own deliberate setup.
 - Seeded settings make the data folders explicit, so **Settings → Tools → Seshlog** shows the

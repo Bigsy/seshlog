@@ -67,10 +67,18 @@ internal class SyntheticSandboxVerifier(
                 property, actual ?: "not set")
         }
         checks += settings()
+        checks += stubHelpers()
         checks += diagnostics(ide, manifest)
         checks += plugin(ide)
         checks += checkout()
         return checks
+    }
+
+    private fun stubHelpers(): List<SandboxCheck> = listOf("stub-agent.cjs", "codex-daemon.cjs").map { name ->
+        val installed = layout.bin.resolve("lib/$name")
+        val expected = javaClass.getResourceAsStream("/sandbox/$name")!!.use { it.readAllBytes() }
+        val current = Files.isRegularFile(installed) && Files.readAllBytes(installed).contentEquals(expected)
+        SandboxCheck(current, "Synthetic helper $name", if (current) "current test-only helper; daemon mode is optional" else "missing/stale: rerun make sandbox")
     }
 
     private fun settings(): List<SandboxCheck> {

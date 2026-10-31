@@ -126,7 +126,7 @@ last-known/ended context from a verified current association. Agent data remains
   regression with OS enumeration available. Verified/unindexed titles skip descriptors; unresolved
   local TUIs share one query. Shared-daemon headers are no longer read for identity.
 
-- [ ] **C6. Exercise the daemon/title model in the synthetic sandbox.** Extend the test-only
+- [x] **C6. Exercise the daemon/title model in the synthetic sandbox.** Extend the test-only
   `stub-agent.cjs` and sandbox support with an optional shared synthetic daemon that holds rollouts
   while the TUIs do not, and actual terminal-title escape sequences containing synthetic thread ids.
   Support scripted `/new`, `/clear`, `/resume`/picker equivalents, delayed index visibility,
@@ -137,6 +137,10 @@ last-known/ended context from a verified current association. Agent data remains
   Keep daemon, processes, histories and cleanup inside the marked synthetic profile; no dependency
   on real agent state, model calls or real Codex processes. Confirm all helpers remain test-only and
   update `docs/synthetic-sandbox.md` and its verifier for the new mode.
+  Completed 2026-10-31: `make check` passes 661 tests (10 opt-in skips). The real synthetic
+  daemon/TUI test covers the four review scenarios, retained daemon descriptors, no persistent
+  TUI writers, mixed titles, paused startup, index publication and Copy results using readiness
+  barriers. Direct-writer coverage remains. The verifier checks both installed test-only helpers.
 
 - [ ] **C7. Complete physical, package and documentation acceptance.** Run `make check`,
   `make release` and Plugin Verifier (offline when necessary), inspect the ZIP for helper/fixture

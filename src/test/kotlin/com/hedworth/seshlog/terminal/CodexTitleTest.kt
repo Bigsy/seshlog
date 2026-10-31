@@ -154,4 +154,12 @@ class CodexTitleTest {
         }
     }
 
+    @Test fun `synthetic full shortened conflicting and malformed title fixture`() {
+        val fixture = javaClass.getResource("/fixtures/codex_titles.json")!!.readText()
+        for (record in com.google.gson.JsonParser.parseString(fixture).asJsonArray) {
+            val entry = record.asJsonObject
+            assertEquals(entry.get("thread").takeUnless { it.isJsonNull }?.asString, CodexTitle.thread(entry.get("title").asString))
+        }
+    }
+
 }

@@ -11,7 +11,7 @@ const readline = require('node:readline');
 const STUB_VERSION = 'synthetic-stub';
 const NAMES = { claude: 'Claude Code', codex: 'Codex', opencode: 'opencode', pi: 'Pi' };
 
-function main(agent, config) {
+async function main(agent, config) {
   const root = realPath(config.root);
   const guard = (p) => {
     const resolved = realPath(p);
@@ -20,21 +20,40 @@ function main(agent, config) {
     }
     return path.resolve(p);
   };
+  if (!fs.existsSync(path.join(root, '.seshlog-synthetic-sandbox'))) throw new Error('not a marked synthetic profile');
+  if (agent === 'codex' && process.argv.includes('--synthetic-daemon')) {
+    return require('./codex-daemon.cjs').run(config, guard);
+  }
+  if (agent === 'codex' && process.argv.includes('--synthetic-start-paused')) {
+    console.log('SESHLOG_START_WAIT');
+    await new Promise((resolve) => {
+      const gate = readline.createInterface({ input: process.stdin });
+      gate.on('line', (line) => { if (line.trim() === '/start') { gate.close(); resolve(); } });
+    });
+  }
   // Record the shell's spelling of the directory, as the real CLIs do, when it is the same place.
   const pwd = process.env.PWD;
   const cwd = pwd && path.isAbsolute(pwd) && realPath(pwd) === realPath(process.cwd()) ? pwd : process.cwd();
   let session;
   try {
-    session = ADAPTERS[agent](config, guard).open(process.argv.slice(2), cwd);
+    session = ADAPTERS[agent](config, guard).open(process.argv.slice(2).filter((x) => x !== '--synthetic-start-paused'), cwd);
+    await session.ready;
   } catch (e) {
     console.error(`Synthetic ${NAMES[agent]} stub: ${e.message}`);
     process.exit(1);
   }
+  let titles = process.env.SESHLOG_STUB_TITLES !== '0';
+  const title = () => titles ? `synthetic codex | ${session.id}` : 'synthetic codex';
+  const announce = () => {
+    if (agent === 'codex') process.stdout.write(`\x1b]0;${title()}\x07`);
+    console.log('SESHLOG_READY ' + JSON.stringify({ id: session.id, pid: process.pid, title: agent === 'codex' ? title() : null }));
+  };
+  announce();
   let delayMs = Number(process.env.SESHLOG_STUB_DELAY_MS ?? 3000);
   console.log(`Seshlog synthetic ${NAMES[agent]} stub: session ${session.id}`);
   console.log(`Working directory: ${session.cwd}`);
   console.log('No model, network or real agent data is used. Type a prompt to record a synthetic turn.');
-  console.log('Commands: /title <name>, /delay <seconds>, /exit');
+  console.log('Commands: /title <name>, /delay <seconds>, /exit; Codex: /new [delayed], /clear, /resume <id>, /picker <id>, /publish, /titles on|off, /barrier <label>');
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: `${agent}> ` });
   let turns = 0;
@@ -49,7 +68,21 @@ function main(agent, config) {
   const handle = async (line) => {
     const text = line.trim();
     if (text === '/exit' || text === '/quit') return rl.close();
-    if (text.startsWith('/title ')) {
+    if (agent === 'codex' && (text === '/new' || text === '/clear' || text === '/new delayed' || text.startsWith('/resume ') || text.startsWith('/picker '))) {
+      const args = text.startsWith('/resume ') || text.startsWith('/picker ') ? ['resume', text.split(' ')[1]]
+        : text === '/new delayed' ? ['--synthetic-unindexed'] : [];
+      session.close();
+      session = ADAPTERS.codex(config, guard).open(args, session.cwd);
+      await session.ready;
+      announce();
+    } else if (agent === 'codex' && text === '/publish') {
+      await session.publish();
+      announce();
+    } else if (agent === 'codex' && text.startsWith('/titles ')) {
+      titles = text.slice(8) === 'on'; announce();
+    } else if (text.startsWith('/barrier ')) {
+      console.log('SESHLOG_BARRIER ' + JSON.stringify({ label: text.slice(9), id: session.id, title: agent === 'codex' ? title() : null }));
+    } else if (text.startsWith('/title ')) {
       session.rename(text.slice('/title '.length).trim());
       console.log('Title recorded.');
     } else if (text.startsWith('/delay ')) {
@@ -137,11 +170,13 @@ const ADAPTERS = {
   codex(config, guard) {
     const sessions = guard(path.join(config.codex, 'sessions'));
     const names = guard(path.join(config.codex, 'session_index.jsonl'));
+    const daemon = process.env.SESHLOG_STUB_CODEX_DAEMON === '1';
     return {
       open(args, cwd) {
         const [command, target] = args;
         let id = crypto.randomUUID();
         let file = rolloutPath(sessions, id);
+        if (args.includes('--synthetic-unindexed')) file += '.pending';
         let sessionCwd = cwd;
         if (command === 'resume' || command === 'fork') {
           if (!target) throw new Error(`usage: codex ${command} <session id>`);
@@ -164,19 +199,25 @@ const ADAPTERS = {
           guard(cwd);
           const now = new Date().toISOString();
           writeJsonl(guard(file), [{ timestamp: now, type: 'session_meta', payload: {
-            id, timestamp: now, cwd, originator: 'codex_cli_rs', cli_version: '0.50.0', source: 'cli' } }]);
+            id, timestamp: now, cwd, originator: daemon ? 'codex-tui' : 'codex_cli_rs', cli_version: 'synthetic-stub', source: daemon ? 'vscode' : 'cli' } }]);
         }
         // Held open for the whole session, as the CLI holds its rollout: Seshlog matches writers.
-        const fd = fs.openSync(guard(file), 'a');
-        const write = (type, payload) =>
-          fs.writeSync(fd, JSON.stringify({ timestamp: new Date().toISOString(), type, payload }) + '\n');
+        const fd = daemon ? null : fs.openSync(guard(file), 'a');
+        const hold = () => daemon ? require('./codex-daemon.cjs').request(config, { op: 'hold', file: guard(file) }) : Promise.resolve();
+        const write = (type, payload) => {
+          const line = JSON.stringify({ timestamp: new Date().toISOString(), type, payload }) + '\n';
+          if (fd === null) fs.appendFileSync(guard(file), line); else fs.writeSync(fd, line);
+        };
         const message = (role, kind, text) => write('response_item', { type: 'message', role, content: [{ type: kind, text }] });
         return {
-          id, cwd: sessionCwd,
+          id, cwd: sessionCwd, ready: hold(),
+          async publish() {
+            if (file.endsWith('.pending')) { const visible = file.slice(0, -8); fs.renameSync(guard(file), guard(visible)); file = visible; await hold(); }
+          },
           begin(text) { write('event_msg', { type: 'task_started' }); message('user', 'input_text', text); },
           finish(reply) { message('assistant', 'output_text', reply); write('event_msg', { type: 'task_complete' }); },
           rename(name) { append(names, { id, thread_name: name, updated_at: new Date().toISOString() }); },
-          close() { fs.closeSync(fd); },
+          close() { if (fd !== null) fs.closeSync(fd); },
         };
       },
     };

@@ -80,6 +80,7 @@
     ]]></change-notes>
 
     <extensions defaultExtensionNs="com.intellij">
+        <diff.DiffExtension implementation="com.hedworth.seshlog.review.ReviewDiffExtension"/>
         <notificationGroup id="Seshlog" displayType="BALLOON"/>
         <toolWindow id="Seshlog" anchor="right" icon="com.hedworth.seshlog.SeshlogIcons.ToolWindow"
                     factoryClass="com.hedworth.seshlog.ui.SeshlogToolWindowFactory"/>
@@ -94,6 +95,10 @@
     </extensions>
 
     <actions>
+        <action id="Seshlog.AddReviewComment" class="com.hedworth.seshlog.review.AddReviewCommentAction" text="Add Review Comment">
+            <keyboard-shortcut keymap="$default" first-keystroke="control alt shift K"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
         <action id="Seshlog.SwitchSession" class="com.hedworth.seshlog.ui.actions.SwitchSessionAction"
                 text="Seshlog: Switch Session / Worktree" description="Find sessions in the tool window's project scope and focus their terminals or explicitly resume them">
             <keyboard-shortcut keymap="$default" first-keystroke="control alt shift P"/>
@@ -130,6 +135,7 @@
             <action id="Seshlog.OpenWorktreeAndFork" class="com.hedworth.seshlog.ui.actions.OpenWorktreeAndForkAction" text="Open Worktree and Fork Session"/>
             <action id="Seshlog.DeleteWorktree" class="com.hedworth.seshlog.ui.actions.DeleteWorktreeAction" text="Delete Worktree…"/>
             <action id="Seshlog.ReviewWorktree" class="com.hedworth.seshlog.ui.actions.ReviewWorktreeAction" text="Review Worktree Changes…"/>
+            <action id="Seshlog.ReviewSessionChanges" class="com.hedworth.seshlog.ui.actions.ReviewSessionChangesAction" text="Review Changes and Comment…"/>
             <action id="Seshlog.ForkNewWorktree" class="com.hedworth.seshlog.ui.actions.ForkNewWorktreeAction" text="Fork into New Worktree…"/>
             <action id="Seshlog.OpenConversation" class="com.hedworth.seshlog.ui.actions.OpenConversationAction" text="Open Conversation"/>
             <action id="Seshlog.OpenContinuation" class="com.hedworth.seshlog.ui.actions.OpenContinuationAction" text="Open Continuation"/>

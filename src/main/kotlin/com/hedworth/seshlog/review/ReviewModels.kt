@@ -76,11 +76,12 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         }
         return put(draft.copy(base = file.base, files = draft.files + (file.path to file), comments = comments))
     }
-    @Synchronized fun add(id: String, path: String, side: ReviewSide, first: Int, last: Int, note: String): ReviewDraft {
+    @Synchronized fun add(id: String, path: String, side: ReviewSide, first: Int, last: Int, note: String, expectedRevision: String? = null): ReviewDraft {
         val draft = get(id)
         check(draft.comments.size < 50) { "A review can contain at most 50 comments" }
         validateNote(note)
         val file = draft.files[path] ?: error("Load this file's reviewed snapshot first")
+        check(expectedRevision == null || expectedRevision == file.revision) { "This diff is outdated; reopen the refreshed diff before commenting" }
         val selected = file.selection(side, first, last)
         return put(draft.copy(comments = draft.comments + ReviewComment(UUID.randomUUID().toString(), 1,
             path, side, first, last, selected, reviewHash(selected), file.revision, note)))
@@ -122,13 +123,15 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         check(draft.comments.all { it.validation == ReviewValidation.CURRENT && draft.files[it.path]?.revision == it.fileRevision }) {
             "Some comments need rechecking against the refreshed diff"
         }
-        val batch = UUID.randomUUID().toString()
+        val batch = batchId(draft)
         val payload = ReviewFormatter.format(draft, batch)
         require(payload.toByteArray(Charsets.UTF_8).size <= limit) { "Review exceeds the outgoing UTF-8 message limit; shorten notes or split the review" }
         val submission = ReviewSubmission(batch, id, draft.recipient, draft.base!!, draft.comments, draft.overallNote, payload, draft.overallRevision)
         put(draft.copy(pending = submission))
         return submission
     }
+    @Synchronized fun preview(id: String): String = get(id).let { it.pending?.payload ?: ReviewFormatter.format(it, batchId(it)) }
+    private fun batchId(draft: ReviewDraft) = UUID.nameUUIDFromBytes("${draft.id}:${draft.generation}".toByteArray(Charsets.UTF_8)).toString()
     @Synchronized fun finish(submission: ReviewSubmission, result: ReviewDeliveryResult): ReviewDraft {
         val draft = get(submission.draftId)
         if (draft.pending?.id != submission.id) return draft
@@ -150,6 +153,9 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
             comments = Collections.unmodifiableList(ArrayList(draft.comments)),
             sent = Collections.unmodifiableList(ArrayList(draft.sent)))
         if (enforceLimit) {
+            if (frozen.comments.isNotEmpty()) require(ReviewFormatter.format(frozen, "0".repeat(36)).toByteArray(Charsets.UTF_8).size <= 128 * 1024) {
+                "Review would exceed 128 KiB UTF-8; shorten this note or submit the current batch first"
+            }
             val bytes = (drafts.values.filterNot { it.id == draft.id } + frozen).sumOf(::memory)
             check(bytes <= memoryLimit) { "Review memory limit reached; explicitly discard a review before loading more content" }
         }

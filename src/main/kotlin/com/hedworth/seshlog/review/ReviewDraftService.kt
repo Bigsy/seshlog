@@ -9,7 +9,11 @@ import java.util.concurrent.CopyOnWriteArrayList
 internal class ReviewDraftService {
     val store = ReviewDraftStore()
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
-    fun changed() = listeners.forEach { it() }
+    fun changed() {
+        val app = ApplicationManager.getApplication()
+        val deliver = Runnable { if (!app.isDisposed) listeners.forEach { it() } }
+        if (app.isDispatchThread) deliver.run() else app.invokeLater(deliver)
+    }
     fun listen(listener: () -> Unit): AutoCloseable {
         listeners += listener
         return AutoCloseable { listeners -= listener }

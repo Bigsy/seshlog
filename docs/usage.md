@@ -29,8 +29,23 @@ to Codex's terminal title so Seshlog can follow those switches, in the `[tui]` s
 terminal_title = ["project", "thread-id"]
 ```
 
-Start Codex again in open terminals afterwards. Without it, copying from a Codex terminal that
-switched conversations reports an unknown session instead of guessing.
+Start Codex again in open terminals afterwards. Seshlog does not change this configuration for you.
+A full thread ID, or a shortened prefix matching exactly one indexed Codex session, identifies the
+current thread only alongside a live TUI. A title left by an observed earlier process or by a
+non-interactive command cannot identify a replacement TUI. If a process restarts while leaving
+exactly the same title, identification waits for a fresh title change or direct-writer evidence.
+
+When a title names a thread that the index has not seen yet, the previous thread stops being current
+immediately and the terminal stays reserved. Copy may scan once for the new thread; it cannot return
+the previous thread's reply while an active identity is uncertain. Session navigation and running
+badges require verified evidence. Ended-session Copy is retained only after a confirmed exit/no-agent
+observation. If titles are disabled, older direct-writer TUIs can still be identified, but shared-daemon
+TUIs remain unresolved even when only one TUI and one thread exist. Resume arguments, working
+directories, timestamps, fork ancestry and daemon-held files are not ownership evidence.
+
+`make codex-check` is an optional aggregate-only inspection of already running Codex processes. It
+does not start an agent, change configuration, or certify terminal identity from daemon metadata.
+Use the [synthetic tracking acceptance report](codex-tracking.md) for tested behavior and remaining limits.
 
 ## Search
 

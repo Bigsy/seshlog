@@ -26,7 +26,12 @@ terminal_title = ["project", "thread-id"]
 ```
 
 Restart any running Codex terminals after saving. Keep `thread-id` enabled so Seshlog can identify
-the current conversation after `/new`, `/clear`, `/resume` or a switch through the resume picker.
+the current conversation after `/new`, `/clear`, `/resume` or a switch through the resume picker. A
+shortened ID must uniquely identify an indexed thread. Without a usable thread-ID title or a
+rollout written directly by that TUI, Seshlog leaves the terminal unresolved: launch arguments,
+shared-daemon files and startup timing are never used to guess its current conversation. Copy and
+session navigation wait for verified identity; the terminal stays reserved during a thread switch.
+Seshlog does not edit your agent configuration. See [tracking details](docs/codex-tracking.md).
 
 ## Find your way back
 

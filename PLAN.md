@@ -8,7 +8,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 
 | Area | Status | Evidence / next action |
 | --- | --- | --- |
-| Codex terminal identity and ownership | Review found reproducible incorrect associations; repair pending | Execute C1–C7 below before returning to the existing acceptance work. |
+| Codex terminal identity and ownership | C1–C6 implemented and tested; C7 physical acceptance partially verified | [Tracking report](docs/codex-tracking.md); finish the remaining C7 matrix before returning to existing acceptance work. |
 | Persistent SQLite FTS5 BM25 | Implemented and automatically tested; release acceptance open | [Production report](docs/production-bm25.md); finish responsiveness, relevance/resource and manual checks below. |
 | Main search sorting and grouping | Implemented and tested; focused synthetic physical checks passed | [Presentation report](docs/search-presentation.md); broader action/accessibility/platform checks remain open. |
 | Source filters and match provenance | Implemented and automatically tested; release acceptance open | [Source-filter report](docs/search-source-filters.md); all physical UI checks remain unverified. |
@@ -157,6 +157,11 @@ last-known/ended context from a verified current association. Agent data remains
   Align `CodexLiveCheck` and its instructions with the new evidence contract: it remains opt-in,
   aggregate-only and cannot certify terminal identity merely from daemon fields/startup shape.
   Configuration guidance must not write into agent-owned config or launch a real agent implicitly.
+  Progress 2026-10-31: release ZIP and Plugin Verifier pass; 661 tests, zero failures/errors,
+  10 opt-in skips. Verified macOS reworked-terminal checks cover stale resume with mixed titles,
+  unindexed replacement/publication, latest-reply Copy, confirmed exit/ended Copy, tab reuse and
+  `/clear`. The [report](docs/codex-tracking.md) records hashes, diagnostics and the remaining
+  classic/reworked action, lifecycle and supported-OS matrix. C7 stays open.
 
 Deferred alternative: a documented per-TUI session-ID event delivered to Seshlog-owned local state
 could replace title parsing, but it would need CLI cooperation for in-TUI switches. Revisit only

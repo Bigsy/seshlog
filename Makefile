@@ -23,8 +23,8 @@ semantic-bench:
 	@SESHLOG_SEMANTIC_BENCH=1 ./gradlew test --offline --tests '*SemanticSearchBenchmark*' --rerun -i > build/semantic-bench.log 2>&1; status=$$?; \
 	grep -E 'SESHLOG_SEMANTIC |SemanticSearchBenchmark.*(SKIPPED|FAILED)|^\* What went wrong:|^[[:space:]]+java\..*Exception:' build/semantic-bench.log | grep -v '"event":"case"'; exit $$status
 
-# After a Codex upgrade, with a plain codex tab open and prompted: does Codex still leave the
-# evidence that matches its tabs to sessions? Prints counts only.
+# Optional aggregate inspection of already-running Codex processes and writable descriptors.
+# Never starts an agent; daemon fields cannot certify terminal identity. Prints counts only.
 codex-check:
 	@mkdir -p build
 	@SESHLOG_CODEX_CHECK=1 ./gradlew test --tests '*CodexLiveCheck*' --rerun -i > build/codex-check.log 2>&1; status=$$?; \

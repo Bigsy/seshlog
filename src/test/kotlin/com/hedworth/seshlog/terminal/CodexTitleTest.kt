@@ -105,4 +105,23 @@ class CodexTitleTest {
         assertEquals(setOf(old), result.discoveries.getValue(10L).discovery.sessionIds)
         assertEquals(setOf(current), result.discoveries.getValue(20L).discovery.sessionIds)
     }
+    @Test fun `stale resume never reserves another terminals current thread for polling or Copy`() {
+        val handle = ProcessHandle.current()
+        val table = ProcessTableSnapshot.of(listOf(
+            ProcessRecord(10, 1, "zsh", emptyList(), handle),
+            ProcessRecord(11, 10, "codex", listOf("resume", old), handle),
+            ProcessRecord(20, 1, "zsh", emptyList(), handle),
+            ProcessRecord(21, 20, "codex", listOf("resume"), handle),
+        ))
+        val inspector = ProcessBatchInspector(snapshot = { table }, writableFiles = { ProcessTranscripts.Result(emptyMap()) })
+        for (title in listOf(shortened(current), null)) {
+            val result = inspector.inspect(setOf(10L, 20L), sessions, executables, titles = mapOf(10L to title))
+            val first = result.discoveries.getValue(10L).discovery
+            val second = result.discoveries.getValue(20L).discovery
+            assertEquals(if (title == null) emptySet<String>() else setOf(current), first.sessionIds)
+            assertNull(second.copySession(current))
+            if (title == null) assertNull(first.copySession(old))
+        }
+    }
+
 }

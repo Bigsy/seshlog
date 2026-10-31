@@ -8,7 +8,7 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.model.Session
 import java.nio.file.Path
 
-/** Resume arguments identify the session; an arbitrary busy shell is not evidence of an agent. */
+/** Launch arguments are intent, not evidence of the current Codex thread. */
 internal object SessionProcess {
     fun matches(kind: AgentKind, id: String, transcript: String?, arguments: List<String>): Boolean {
         // These commands name the source session, but run a newly minted session.
@@ -35,19 +35,34 @@ internal object SessionProcess {
 
     /** A PID marker takes precedence over old resume arguments after an in-agent session switch. */
     internal fun identify(process: Evidence, sessions: List<Session>, executables: Map<AgentKind, String>): Set<String> {
-        val live = sessions.filter { it.isLive && it.livePid == process.pid }
+        val live = sessions.filter { it.kind != AgentKind.CODEX && it.isLive && it.livePid == process.pid }
         if (live.isNotEmpty()) return live.mapTo(HashSet()) { it.id }
         return sessions.filter { session ->
+            if (session.kind == AgentKind.CODEX) return@filter false
             val executable = executables[session.kind] ?: return@filter false
             isAgent(process, executable) && matches(session.kind, session.id, session.transcriptPath?.toString(), process.arguments)
         }.mapTo(HashSet()) { it.id }
     }
 
-    /** [processes] maps each identified session to the PID seen running it. */
-    internal data class Discovery(val sessionIds: Set<String>, val hasAgent: Boolean, val processes: Map<String, Long> = emptyMap(), val unknown: Boolean = false, val uncertainSessionIds: Set<String>? = null) {
-        // A different/unidentified running agent must never copy the previous agent's reply.
+    internal enum class IdentityState { VERIFIED, UNINDEXED, AMBIGUOUS, UNAVAILABLE, EXITED }
+    internal enum class Provenance { TITLE, WRITER, PROVIDER, NONE }
+
+    /** Current evidence only; launch reservations and ended context live outside discovery. */
+    internal data class Discovery(
+        val sessionIds: Set<String>, val hasAgent: Boolean,
+        val processes: Map<String, Long> = emptyMap(), val unknown: Boolean = false,
+        val state: IdentityState = when {
+            unknown -> IdentityState.UNAVAILABLE
+            sessionIds.size == 1 -> IdentityState.VERIFIED
+            hasAgent -> IdentityState.AMBIGUOUS
+            else -> IdentityState.EXITED
+        },
+        val provenance: Provenance = Provenance.NONE,
+        /** Indexed identities positively excluded by a recognized current thread. */
+        val excludedSessionIds: Set<String> = emptySet(),
+    ) {
         fun copySession(previous: String?): String? = sessionIds.singleOrNull()
-            ?: previous?.takeIf { sessionIds.isEmpty() && (!hasAgent || (unknown && (uncertainSessionIds == null || previous in uncertainSessionIds))) }
+            ?: previous?.takeIf { state == IdentityState.EXITED && !hasAgent }
     }
 
     /**
@@ -122,7 +137,17 @@ internal object SessionProcess {
             "title" to when { titled == null -> "none"; titledId == null -> "unindexed"; else -> "matched" }, "titleSession" to DiagnosticRef.of(titledId),
             "selected" to DiagnosticRef.ids(owners.keys))
         return Discovery(owners.keys, processes.any { p -> executables.values.any { isAgent(p, it) } } || owners.isNotEmpty(), owners,
-            titled == null && unknown && paths.isEmpty(), codexIds)
+            unknown = titled == null && unknown && paths.isEmpty(),
+            state = when {
+                owners.size == 1 -> IdentityState.VERIFIED
+                titled != null -> IdentityState.UNINDEXED
+                unknown -> IdentityState.UNAVAILABLE
+                processes.any { p -> executables.values.any { isAgent(p, it) } } -> IdentityState.AMBIGUOUS
+                else -> IdentityState.EXITED
+            },
+            provenance = when { titled != null -> Provenance.TITLE; written.isNotEmpty() -> Provenance.WRITER
+                identified.isNotEmpty() -> Provenance.PROVIDER; else -> Provenance.NONE },
+            excludedSessionIds = if (titled != null) codexIds - setOfNotNull(titledId) else emptySet())
     }
 
     /** Discover fresh or resumed agents under one shell, entirely off the EDT, as polling does. */
@@ -146,9 +171,9 @@ internal object SessionProcess {
         val parent = ProcessHandle.of(shell).orElse(null)
         if (parent == null) null else parent.descendants().use { descendants ->
             (sequenceOf(parent) + descendants.iterator().asSequence()).firstOrNull { process ->
-                process.isAlive && (session.livePid == process.pid() ||
+                process.isAlive && (session.kind != AgentKind.CODEX && (session.livePid == process.pid() ||
                     matches(session.kind, session.id, session.transcriptPath?.toString(),
-                        process.info().arguments().orElse(emptyArray()).toList()))
+                        process.info().arguments().orElse(emptyArray()).toList())))
             }
         }
     } catch (_: Exception) {

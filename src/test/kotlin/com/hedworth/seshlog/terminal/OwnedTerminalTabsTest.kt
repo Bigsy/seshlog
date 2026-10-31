@@ -34,10 +34,10 @@ class OwnedTerminalTabsTest : BasePlatformTestCase() {
         }
     }
 
-    private fun track(owned: OwnedTerminalTabs, manager: ContentManager, id: String): Content {
+    private fun track(owned: OwnedTerminalTabs, manager: ContentManager, id: String, kind: AgentKind = AgentKind.CLAUDE_CODE): Content {
         val content = ContentFactory.getInstance().createContent(JPanel(), id, false)
         manager.addContent(content)
-        val session = Session(AgentKind.CODEX, id, id, Path.of("/same/project"), null, null,
+        val session = Session(kind, id, id, Path.of("/same/project"), null, null,
             Instant.EPOCH, null, false, null, null, 0, false)
         owned.track(session, object : TerminalHandle {
             override val content = content
@@ -82,6 +82,17 @@ class OwnedTerminalTabsTest : BasePlatformTestCase() {
         assertTrue(owned.close("a"))
         assertFalse(owned.owns("a"))
         assertTrue(owned.close("already-closed"))
+    }
+
+    fun testCodexLaunchIntentReservesTabWithoutClaimingCurrentIdentity() {
+        val owned = OwnedTerminalTabs(project)
+        Disposer.register(testRootDisposable, owned)
+        val content = track(owned, manager(), "intended", AgentKind.CODEX)
+        assertTrue(owned.ownsTab(content))
+        assertNull(owned.sessionFor(content))
+        assertNull(owned.lastSessionFor(content))
+        assertFalse(owned.owns("intended"))
+        assertTrue(content in owned.knownContents())
     }
 
     fun testForkedTabIsOwnedWhileItsNewSessionStarts() {

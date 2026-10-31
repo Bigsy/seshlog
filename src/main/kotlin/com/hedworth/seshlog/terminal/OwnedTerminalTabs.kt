@@ -42,6 +42,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private val pendingSessions = PendingSessionAssociations<Content>(onExpired = {
         trace.event("pending_expired", "tab" to DiagnosticRef.tab(it))
     })
+    // A requested Codex launch reserves a terminal, but is never its verified current thread.
+    private val launchIntents = java.util.WeakHashMap<Content, String>()
     private val agents = ObservedAgents<ProcessHandle>()
     // A tab's session after its agent exited: no longer attached, but copy/fork still act on it.
     private val endedSessions = EndedSessions<Content>()
@@ -58,7 +60,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         selectionChanged = { content -> updateActiveSession(content) },
         tabClosed = { content ->
             trace.event("tab_closed", "tab" to DiagnosticRef.tab(content), "session" to DiagnosticRef.of(registry.sessionFor(content)))
-            registry.forget(content); endedSessions.remove(content); pendingSessions.forget(content)
+            registry.forget(content); endedSessions.remove(content); pendingSessions.forget(content); launchIntents.remove(content)
         },
     )
 
@@ -81,7 +83,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** The id of the session running in terminal tab [content], if we know one. */
     fun sessionFor(content: Content): String? = registry.sessionFor(content)
 
-    internal fun ownsTab(content: Content): Boolean = sessionFor(content) != null || pendingSessions.isPending(content)
+    internal fun ownsTab(content: Content): Boolean = sessionFor(content) != null || pendingSessions.isPending(content) || content in launchIntents
 
     internal fun trackPending(terminal: TerminalHandle, existingIds: Set<String>) {
         trace.event("pending_launch", "tab" to DiagnosticRef.tab(terminal.content), "engine" to terminal.diagnosticEngine, "existingSessions" to existingIds.size)
@@ -99,7 +101,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** Includes temporarily detached tabs; disposal is the only definitive end of ownership. */
     internal fun knownContents(): List<Content> =
-        (registry.sessionIds.mapNotNull(::undisposedContent) + pendingSessions.tabs).filter { !Disposer.isDisposed(it) }.distinct()
+        (registry.sessionIds.mapNotNull(::undisposedContent) + pendingSessions.tabs + launchIntents.keys).filter { !Disposer.isDisposed(it) }.distinct()
 
     /** Repair a missed adoption before an action, without waiting for transcript activity. EDT only. */
     fun resolveSession(content: Content): String? {
@@ -313,6 +315,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         poll.event("adoption_rejected", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id), "reason" to "ownership_or_generation_changed")
                         continue
                     }
+                    launchIntents.remove(tab)
                     poll.event("tab_adopted", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id),
                         "previous" to DiagnosticRef.of(previousOwners[tab]), "generation" to registry.generation(tab), "pending" to pending)
                     if (pending) {
@@ -384,7 +387,11 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         }
         trace.event("tab_tracked", "tab" to DiagnosticRef.tab(content), "session" to DiagnosticRef.of(session.id), "kind" to session.kind,
             "previous" to DiagnosticRef.of(registry.sessionFor(content)), "engine" to widget.diagnosticEngine)
-        registry.register(session.id, content)
+        endedSessions.remove(content)
+        if (session.kind == AgentKind.CODEX) {
+            registry.forget(content)
+            launchIntents[content] = session.id
+        } else registry.register(session.id, content)
         agents.forget(session.id)
         tabObserver.refresh()
         refreshRunning()

@@ -47,7 +47,7 @@ class ProcessTranscriptsTest {
         val discovery = SessionProcess.identifyTree(listOf(process), listOf(old, current),
             mapOf(AgentKind.CODEX to "codex"), ProcessTranscripts.Result(emptyMap(), setOf(123L)))
         assertTrue(discovery.sessionIds.isEmpty())
-        assertEquals("present", discovery.copySession("present"))
+        assertNull(discovery.copySession("present"))
         assertNull("A known Codex process cannot copy an ended Claude session", discovery.copySession("old-claude"))
     }
 
@@ -59,7 +59,7 @@ class ProcessTranscriptsTest {
             listOf(SessionProcess.Evidence(123, "/bin/codex", listOf("resume", "prior"))), listOf(old, current),
             mapOf(AgentKind.CODEX to "codex"), mapOf(123L to setOf(current.transcriptPath)))
         assertTrue(discovery.sessionIds.isEmpty())
-        assertEquals("large", discovery.copySession("large"))
+        assertNull(discovery.copySession("large"))
     }
 
     private fun session(id: String, source: String = "\"cli\"", originator: String = "codex_cli_rs"): Session {

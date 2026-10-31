@@ -26,13 +26,13 @@ class SessionProcessTest {
         assertFalse(SessionProcess.matches(AgentKind.PI, "s1", "/a b/s.jsonl", listOf("--session", "s1")))
     }
 
-    @Test fun `manual resume adoption requires the agent executable and exact session identity`() {
+    @Test fun `Codex resume arguments never establish current identity`() {
         val sessions = listOf(session(AgentKind.CODEX, "one"), session(AgentKind.CODEX, "two"))
         val executables = mapOf(AgentKind.CODEX to "codex")
         for (process in listOf(
             SessionProcess.Evidence(123, "/usr/bin/codex", listOf("resume", "two")),
             SessionProcess.Evidence(123, "/usr/bin/node", listOf("/npm/codex/bin/codex.js", "resume", "two")),
-        )) assertEquals(setOf("two"), SessionProcess.identify(process, sessions, executables))
+        )) assertTrue(SessionProcess.identify(process, sessions, executables).isEmpty())
         for (process in listOf(
             SessionProcess.Evidence(123, "/usr/bin/printf", listOf("resume", "two")),
             SessionProcess.Evidence(123, "/bin/zsh", listOf("-c", "codex resume two")),

@@ -42,8 +42,8 @@ class ProcessBatchSnapshotTest {
         )
         assertEquals(1, snapshots)
         assertEquals(1, descriptorQueries)
-        assertEquals(setOf("one"), result.discoveries.getValue(10).discovery.sessionIds)
-        assertEquals(setOf("two"), result.discoveries.getValue(20).discovery.sessionIds)
+        assertTrue(result.discoveries.getValue(10).discovery.sessionIds.isEmpty())
+        assertTrue(result.discoveries.getValue(20).discovery.sessionIds.isEmpty())
         assertTrue(result.table.isDescendantOf(11L, setOf(10L)))
         assertEquals(handle, result.handles.getValue(11L))
     }

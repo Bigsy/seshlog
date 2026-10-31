@@ -148,12 +148,10 @@ internal object CodexDaemon {
                 continue
             }
             exact.forEach { trace.event("daemon_reserved", "method" to "writer", "pids" to it.instance.pids.sorted(), "session" to DiagnosticRef.of(it.own.single().id)) }
-            // A resume argument pairs only with a held thread; a stale one leaves its TUI unpaired.
-            val rest = (here - exact.toSet()).filterNot { launch ->
-                (launch.instance.resumeId?.let(unpaired::remove) == true).also { reserved ->
-                    if (reserved) trace.event("daemon_reserved", "method" to "resume", "pids" to launch.instance.pids.sorted(), "session" to DiagnosticRef.of(launch.instance.resumeId))
-                }
-            }
+            // Resume arguments can be stale after an in-TUI switch. Until daemon heuristics
+            // are retired, never let such an instance reserve or eliminate a held thread.
+            if (here.any { it.instance.resumed }) continue
+            val rest = here - exact.toSet()
             val left = threads.filter { it.id in unpaired }
             val started = startupPairs(rest, left, here, trace)
             for ((launch, thread) in started) {

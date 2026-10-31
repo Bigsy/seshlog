@@ -1,6 +1,6 @@
 # Current work plan
 
-Updated 2026-10-29. This is the authoritative execution checklist.
+Updated 2026-10-31. This is the authoritative execution checklist.
 Before editing, inspect `git status --short`, preserve user work, and re-find symbols rather than
 trusting historical line numbers. Take the open items below in order unless the user directs otherwise.
 
@@ -8,6 +8,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 
 | Area | Status | Evidence / next action |
 | --- | --- | --- |
+| Codex terminal identity and ownership | Review found reproducible incorrect associations; repair pending | Execute C1–C7 below before returning to the existing acceptance work. |
 | Persistent SQLite FTS5 BM25 | Implemented and automatically tested; release acceptance open | [Production report](docs/production-bm25.md); finish responsiveness, relevance/resource and manual checks below. |
 | Main search sorting and grouping | Implemented and tested; focused synthetic physical checks passed | [Presentation report](docs/search-presentation.md); broader action/accessibility/platform checks remain open. |
 | Source filters and match provenance | Implemented and automatically tested; release acceptance open | [Source-filter report](docs/search-source-filters.md); all physical UI checks remain unverified. |
@@ -17,6 +18,130 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Worktree review, new-worktree forks and attention inbox | Implemented; automated checks passed; UI attachment repaired, physical acceptance in progress | [Follow-up report](docs/worktree-follow-up.md). |
 | Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
+
+### Codex tracking correctness (user priority, 2026-10-31)
+
+Repair the process-tracking review findings before the remaining feature acceptance work. This
+section is a plan, not implementation or acceptance evidence. Existing unchecked work stays open.
+Use one focused commit per C-item; add regressions that fail before each reliability fix and tick
+the item only after they pass under `make check`. Re-find the named symbols before editing.
+
+Review baseline: `d7df6cb`, covering daemon matching (`5b14b67`, `aed44eb`), title tracking
+(`2d94a05`) and their ownership/action consumers. A temporary harness compiled the reviewed classes
+outside the checkout and reproduced the four scenarios below. Of 65 targeted existing tests,
+64 passed; the live-descriptor test failed because `ProcessHandle.allProcesses()` threw in the
+review environment. This was neither a full `make check` run nor a live IDE smoke check. Promote
+the reproducers into permanent synthetic tests; do not depend on the temporary harness.
+
+| Regression | Reproduction | Required result |
+| --- | --- | --- |
+| Stale resume reservation | Tab 1 launched `resume A`, switched to B and titles itself B; tab 2 picked A and has no thread-id title. The daemon holds A and B in the same cwd. | Tab 1 resolves B; tab 2 remains unresolved without direct evidence. Copy from tab 2 must never return B. |
+| Startup-time mispairing | An older TUI does `/new` two seconds after another TUI starts; the new TUI creates its own thread after 20 seconds. Both headers have the accepted delayed-first-write shape. | Timing and equal counts cannot assign the threads backwards; unresolved TUIs remain unresolved. |
+| Exchanged ownership | Owned tabs A and B switch to B and A between polls; both titles confirm the exchange and both processes remain alive. | Apply the exchange together, without permanent `session_owned_elsewhere` rejection. |
+| Unindexed replacement | A tab owned by A titles itself with a different thread C before C reaches the index. | Invalidate A as the current identity immediately, keep the terminal reserved, and adopt C when indexed. Copy and session navigation must not use A meanwhile. |
+
+Design contract: a current per-terminal thread title, validated against the live TUI and index,
+is the primary Codex identity. Direct writable TUI-rollout evidence remains the fallback for
+legacy/non-daemon operation. Launch arguments describe launch intent; cwd, timestamps, fork
+ancestry, daemon-held files and equal counts do not prove a terminal's current thread. Keep
+uncertainty explicit, preserve terminal handles during temporary inspection failures, and separate
+last-known/ended context from a verified current association. Agent data remains read-only.
+
+- [x] **C1. Stop treating Codex resume arguments as current ownership.** In `SessionProcess.identify`,
+  `identifyTree` and `CodexDaemon.match`, distinguish verified identity, a recognized but unindexed
+  identity, ambiguous/unavailable evidence, and confirmed agent exit. Carry evidence provenance and
+  any positive exclusion of the old identity through discovery. Prevent stale `resume` arguments
+  from reserving a daemon thread or reappearing through the empty-descriptor fallback. Keep explicit
+  launch intent/pending reservations separate from verified running identity. Consider captured
+  titles before fallback evidence; another terminal's missing title must not become a guessed pair.
+  Add the stale-resume regression to `CodexDaemonTest`/`CodexTitleTest`/`ProcessBatchSnapshotTest`,
+  checking polling and Copy with mixed title configuration and with no titles. Preserve direct
+  writable-rollout matching and other providers' existing identity rules.
+  Completed 2026-10-31: both new stale-resume regressions failed before the fix; clean
+  `make check` passes. Codex launch intent reserves a tab separately from current identity;
+  unavailable active identity cannot copy the previous reply. Further heuristic removal is C2.
+
+- [ ] **C2. Remove timing and elimination as authoritative identity evidence.** Retire the ownership
+  decisions from `CodexDaemon.startupPairs` and cwd/count-based elimination in `CodexDaemon.match`,
+  including the apparent single-TUI/single-thread case and fork-source inference. Remove unused
+  heuristic code; any retained diagnostic candidate must be unable to reach adoption, running
+  badges, Copy or navigation as a verified identity. Add the slow-start plus `/new` reproducer,
+  old rollouts retained by the daemon, multiple clients on one thread, external terminals,
+  simultaneous launches/forks, missing start times and incomplete enumeration. Assert uncertainty
+  rather than a guessed association. Update tests that currently encode heuristic success; retain
+  explicit positive tests for title and direct-writer identification.
+
+- [ ] **C3. Reconcile thread changes and exchanges atomically.** Extend `TerminalReconciler` and
+  `TabRegistry` with a generation-checked batch transition for affected tabs. Validate the whole
+  affected set before mutation, release identities positively displaced by current evidence, then
+  install unambiguous replacements together. Recheck expected owners, generations, shell/process
+  identity and disposal when applying on the EDT; reject a stale transition without partially
+  applying an exchange. Carry unindexed replacement evidence through `OwnedTerminalTabs.refreshRunning`
+  instead of dropping every discovery without a single indexed id. Preserve a reservation while
+  the new identity is unresolved; clear stale current labels, activity and selection associations.
+  A thread switch must not populate ended-session fallback as though the TUI exited. Cover two-tab
+  swaps, longer cycles, one-way moves, duplicate/conflicting claims, unindexed C then index arrival,
+  delayed results after close/reuse, PID reuse and temporary inspection/adapter failure in
+  `TerminalReconcilerTest`, `TabRegistryTest` and platform ownership tests.
+
+- [ ] **C4. Apply the same identity policy to terminal actions and delayed results.** Audit
+  `OwnedTerminalTabs.copySessionResolver`, `navigationTarget`, focus/close, `TerminalTabs.resume`,
+  switcher actions, restore snapshots and completion acknowledgement. Capture titles on the EDT
+  with terminal identity; revalidate title/thread, shell, TUI process identity and tab generation
+  before applying a delayed result or performing its effect. A surviving shell alone is insufficient
+  when its TUI has changed threads or restarted. Ignore titles left by an earlier process or a
+  non-TUI Codex command; multiple independent TUIs under a shell require unambiguous ownership.
+  Distinguish an absent title from malformed/conflicting/truncated-prefix evidence without
+  resurrecting launch arguments. Copy may rescan once for index lag, but uncertain active identity
+  must not copy the previous reply. Keep ended-session Copy only after a confirmed exit/no-agent
+  observation. Preserve busy/reserved tabs and reject stale Resume, focus, close and acknowledgement
+  targets. Add race tests for switches during inspection/rescan, changed titles before EDT delivery,
+  process replacement, ambiguous prefixes and the normal confirmed-exit/resume lifecycle.
+
+- [ ] **C5. Make verified title matching the cheap path and expose useful diagnostics.** In
+  `ProcessBatchInspector.inspect`, resolve usable captured titles against the process snapshot
+  before requesting descriptors. Query only the unresolved processes that can supply direct-writer
+  evidence, in one bounded batch; skip daemon-wide lsof/header work that can no longer establish
+  identity. A known unindexed title still excludes the previous identity without a descriptor scan.
+  Keep process/filesystem work off the EDT, retain failure recovery and the process-inspection guard,
+  and prove call counts with injected runners in `ProcessBatchSnapshotTest`. Extend
+  `SessionTrackingDiagnosticsTest` to cover evidence provenance, unresolved reasons, stale-result
+  rejection and atomic replacement without raw titles, commands or conversation content. Distinguish
+  unavailable OS enumeration from a successful empty snapshot in tests and diagnostics; rerun the
+  live-descriptor regression where OS enumeration is available before claiming it passes.
+
+- [ ] **C6. Exercise the daemon/title model in the synthetic sandbox.** Extend the test-only
+  `stub-agent.cjs` and sandbox support with an optional shared synthetic daemon that holds rollouts
+  while the TUIs do not, and actual terminal-title escape sequences containing synthetic thread ids.
+  Support scripted `/new`, `/clear`, `/resume`/picker equivalents, delayed index visibility,
+  controlled startup delay, retained old descriptors and mixed title configuration. Keep the direct
+  writer mode to cover legacy behavior. Put new parsing fixtures in `src/test/resources/fixtures/`.
+  Add deterministic provider/inspection/reconciliation integration tests for all four review
+  scenarios and action results, using explicit readiness barriers rather than sleep-based timing.
+  Keep daemon, processes, histories and cleanup inside the marked synthetic profile; no dependency
+  on real agent state, model calls or real Codex processes. Confirm all helpers remain test-only and
+  update `docs/synthetic-sandbox.md` and its verifier for the new mode.
+
+- [ ] **C7. Complete physical, package and documentation acceptance.** Run `make check`,
+  `make release` and Plugin Verifier (offline when necessary), inspect the ZIP for helper/fixture
+  leakage, and record commands, counts, warnings, artifact hash and outstanding limits in a new
+  `docs/codex-tracking.md` report. Start the rebuilt synthetic sandbox and obtain a fresh passing
+  `make sandbox-verify` report before physical checks; use the documented macOS attachment wrapper
+  when required. Verify classic and reworked terminals: new/resume/fork, `/new`/`/clear`/picker,
+  all four regressions, Copy Session ID/latest reply, switcher/Resume navigation, correct labels and
+  running/unread state, confirmed exit, tab reuse, split/move and two project windows. Check both
+  title-enabled and title-disabled operation, index delay and descriptor/enumeration failure.
+  Record supported-OS checks separately; leave unavailable platforms and unperformed UI checks open.
+  Update README/usage guidance to state the verified thread-id requirement and unresolved behavior,
+  including the deliberate loss of automatic guessing when title/direct-writer evidence is absent.
+  Align `CodexLiveCheck` and its instructions with the new evidence contract: it remains opt-in,
+  aggregate-only and cannot certify terminal identity merely from daemon fields/startup shape.
+  Configuration guidance must not write into agent-owned config or launch a real agent implicitly.
+
+Deferred alternative: a documented per-TUI session-ID event delivered to Seshlog-owned local state
+could replace title parsing, but it would need CLI cooperation for in-TUI switches. Revisit only
+with a verified upstream contract and a separate scope decision; a wrapper that knows only the
+launch command or a shared-daemon thread listing does not solve terminal ownership.
 
 ### Main search ordering and presentation (user priority, 2026-10-29)
 

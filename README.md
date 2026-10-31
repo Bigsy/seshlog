@@ -23,18 +23,12 @@ launcher, including for `codex resume …` and `codex fork …`. No Codex config
 these launches. **Settings → Tools → Seshlog → Enable Codex tracking in new terminals** controls
 this behavior; reopen terminal tabs after changing it.
 
-For Windows, unsupported shells, aliases/functions, full executable paths, remote sessions or
-launches that bypass the wrapper, add this to `~/.codex/config.toml` (or your custom Codex home).
-If you already have a `[tui]` section, add the setting there:
+Windows, unsupported shells, aliases/functions, full executable paths and remote sessions can
+bypass automatic setup; see [setup limits and fallback configuration](docs/usage.md).
 
-```toml
-[tui]
-terminal_title = ["project", "thread-id"]
-```
-
-Restart any running Codex terminals after saving. Keep `thread-id` enabled so Seshlog can identify
-the current conversation after `/new`, `/clear`, `/resume` or a switch through the resume picker. A
-shortened ID must uniquely identify an indexed thread. Without a usable thread-ID title or a
+The thread-ID title lets Seshlog identify the current conversation after `/new`, `/clear`, `/resume`
+or a switch through the resume picker. A shortened ID must uniquely identify an indexed thread.
+Without a usable thread-ID title or a
 rollout written directly by that TUI, Seshlog leaves the terminal unresolved: launch arguments,
 shared-daemon files and startup timing are never used to guess its current conversation. Copy and
 session navigation wait for verified identity; the terminal stays reserved during a thread switch.

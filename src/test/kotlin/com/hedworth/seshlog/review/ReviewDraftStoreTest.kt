@@ -125,4 +125,19 @@ class ReviewDraftStoreTest {
         rejects { store.confirm(draft.id, refreshed.comments[0].id) }
         rejects { store.load(draft.id, file.copy(base = "b".repeat(40))) }
     }
+    @Test fun `failed retries cannot erase an earlier unknown delivery`() {
+        val store = ReviewDraftStore()
+        val draft = seeded(store)
+        val original = store.prepare(draft.id)
+        store.finish(original, ReviewDeliveryResult(ReviewDeliveryStatus.UNKNOWN, "connection_lost_after_dispatch"))
+        store.recordResult(draft.id, ReviewDeliveryResult(ReviewDeliveryStatus.UNAVAILABLE, "target_unavailable"))
+        assertEquals(ReviewDeliveryStatus.UNAVAILABLE, store.get(draft.id).lastResult?.status)
+        assertTrue(store.get(draft.id).hasUnknownDelivery)
+        for (status in listOf(ReviewDeliveryStatus.UNAVAILABLE, ReviewDeliveryStatus.REJECTED, ReviewDeliveryStatus.QUEUED)) {
+            val retry = store.prepare(draft.id)
+            store.finish(retry, ReviewDeliveryResult(status, "synthetic retry"))
+            assertEquals(status, store.get(draft.id).lastResult?.status)
+            assertTrue(store.get(draft.id).hasUnknownDelivery)
+        }
+    }
 }

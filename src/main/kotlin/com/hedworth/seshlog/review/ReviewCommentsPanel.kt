@@ -98,7 +98,9 @@ internal class ReviewCommentsPanel(private val project: Project, private val dra
         availability.text = if (recipient.kind == AgentKind.CODEX) "Direct send: local Codex daemon 0.166.0; recipient and source files are verified on send."
             else "Direct send unavailable for ${recipient.kind.displayName}. Copy Review and Go to Session are available."
         if (sending) status.text = "Validating or delivering the frozen review… You can keep editing notes; newer revisions will be retained."
-        else draft.lastResult?.let { status.text = deliveryMessage(it) }
+        else draft.lastResult?.let { status.text = deliveryMessage(it) +
+            if (draft.hasUnknownDelivery && it.status != ReviewDeliveryStatus.UNKNOWN)
+                " An earlier delivery remains unknown; another send may duplicate it." else "" }
         base.isEnabled = draft.base == null
         draft.base?.let { base.text = it }
     }
@@ -239,8 +241,8 @@ internal class ReviewCommentsPanel(private val project: Project, private val dra
         try { store.discard(draftId); service.changed(); closeView() } catch (e: Exception) { status.text = e.message }
     }
     private fun sendReview() {
-        val unknown = store.get(draftId).lastResult?.status == ReviewDeliveryStatus.UNKNOWN
-        if (unknown && Messages.showYesNoDialog(project, "The previous delivery is unknown. The agent may already have queued it; sending again may duplicate the review. Send again?",
+        val unknown = store.get(draftId).hasUnknownDelivery
+        if (unknown && Messages.showYesNoDialog(project, "An earlier delivery is unknown. The agent may already have queued it; sending again may duplicate the review. Send again?",
                 "Possible Duplicate Review", Messages.getWarningIcon()) != Messages.YES) return
         delivery.start(draftId, allowUnknownRetry = unknown)
     }

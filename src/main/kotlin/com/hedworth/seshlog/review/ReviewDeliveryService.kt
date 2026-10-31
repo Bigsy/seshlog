@@ -28,7 +28,7 @@ internal class ReviewDeliveryService : Disposable {
     @Synchronized fun start(id: String, allowUnknownRetry: Boolean = false): Boolean {
         if (id in jobs) return false
         val snapshot = drafts.store.get(id)
-        if (snapshot.lastResult?.status == ReviewDeliveryStatus.UNKNOWN && !allowUnknownRetry) return false
+        if (snapshot.hasUnknownDelivery && !allowUnknownRetry) return false
         val target = ReviewTargets.capture(snapshot.recipient)
         if (target == null) {
             drafts.store.recordResult(id, ReviewDeliveryResult(ReviewDeliveryStatus.UNAVAILABLE, "target_unavailable"))

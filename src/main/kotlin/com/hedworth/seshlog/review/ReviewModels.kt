@@ -47,6 +47,8 @@ internal data class ReviewDraft(
     val overallNote: String = "", val overallRevision: Long = 0, val generation: Long = 0, val pending: ReviewSubmission? = null,
     val lastResult: ReviewDeliveryResult? = null, val sent: List<ReviewSubmission> = emptyList(),
     val sentResults: Map<String, ReviewDeliveryResult> = emptyMap(),
+    // A different attempt's receipt cannot resolve whether an earlier batch arrived.
+    val hasUnknownDelivery: Boolean = false,
 )
 
 internal fun reviewHash(text: String): String = MessageDigest.getInstance("SHA-256")
@@ -153,7 +155,8 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         return prepare(id)
     }
     @Synchronized fun recordResult(id: String, result: ReviewDeliveryResult): ReviewDraft = get(id).let {
-        if (it.pending != null) it else put(it.copy(lastResult = result), enforceLimit = false)
+        if (it.pending != null) it else put(it.copy(lastResult = result,
+            hasUnknownDelivery = it.hasUnknownDelivery || result.status == ReviewDeliveryStatus.UNKNOWN), enforceLimit = false)
     }
     private fun batchId(draft: ReviewDraft) = UUID.nameUUIDFromBytes("${draft.id}:${draft.generation}".toByteArray(Charsets.UTF_8)).toString()
     @Synchronized fun finish(submission: ReviewSubmission, result: ReviewDeliveryResult): ReviewDraft {
@@ -163,6 +166,7 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         val included = submission.comments.associate { it.id to it.revision }
         // A late receipt can remove only the exact revisions frozen before dispatch.
         return put(draft.copy(pending = null, lastResult = result,
+            hasUnknownDelivery = draft.hasUnknownDelivery || result.status == ReviewDeliveryStatus.UNKNOWN,
             comments = if (accepted) draft.comments.filterNot { included[it.id] == it.revision } else draft.comments,
             overallNote = if (accepted && draft.overallRevision == submission.overallRevision) "" else draft.overallNote,
             sent = if (accepted) draft.sent + submission else draft.sent,

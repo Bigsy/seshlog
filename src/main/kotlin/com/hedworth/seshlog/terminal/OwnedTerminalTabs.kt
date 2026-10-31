@@ -200,6 +200,14 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     )
 
     internal fun navigationTarget(session: Session, sessionCurrent: () -> Boolean): NavigationTarget? {
+        return navigationTarget(session, sessionCurrent, localMessageTarget = false)
+    }
+
+    /** Addressed local delivery must not confuse a remote/embedded TUI with the default daemon. */
+    internal fun reviewTarget(session: Session, sessionCurrent: () -> Boolean): NavigationTarget? =
+        navigationTarget(session, sessionCurrent, localMessageTarget = true)
+
+    private fun navigationTarget(session: Session, sessionCurrent: () -> Boolean, localMessageTarget: Boolean): NavigationTarget? {
         val expected = registry.association(session.id) ?: return null
         val terminal = terminalFor(session.id) ?: return null
         val shell = terminal.shellPid() ?: return null
@@ -220,7 +228,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                     previousTitles = binding?.let { mapOf(shell to it) }.orEmpty())
                 val discovery = result.discoveries.getValue(shell).discovery
                 observed = discovery.processes[session.id]?.let(result.handles::get)
-                sessions.count { it.id == session.id } == 1 && discovery.sessionIds.singleOrNull() == session.id && observed != null
+                val arguments = if (localMessageTarget) observed?.info()?.arguments()?.orElse(null) else emptyArray()
+                val local = !localMessageTarget || supportsLocalReviewTransport(arguments)
+                local && sessions.count { it.id == session.id } == 1 && discovery.sessionIds.singleOrNull() == session.id && observed != null
             },
             current = current,
             focus = { current() && focus(session.id, current) },
@@ -545,4 +555,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val ACTIVE_SESSION_TOPIC = Topic.create("Seshlog active terminal", ActiveSessionListener::class.java)
         fun getInstance(project: Project): OwnedTerminalTabs = project.getService(OwnedTerminalTabs::class.java)
     }
+}
+
+/** Unknown process arguments cannot certify which server a TUI uses. */
+internal fun supportsLocalReviewTransport(arguments: Array<String>?): Boolean = arguments != null && arguments.none {
+    it == "--no-daemon" || it == "--remote" || it.startsWith("--remote=")
 }

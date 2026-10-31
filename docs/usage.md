@@ -22,6 +22,11 @@ unassociated, especially for new Pi and opencode sessions.
 Codex terminals can share a background server. Seshlog needs each terminal's current thread ID to
 follow `/new`, `/clear`, `/resume` and the resume picker reliably.
 
+On macOS/Linux, sessions started, resumed or forked through Seshlog get `thread-id` added to
+Codex's default title items through a command-line setting. This also covers custom executables.
+A `tui.terminal_title` setting in **Additional arguments** takes precedence. Your Codex config
+is unchanged.
+
 **Enable Codex tracking in new terminals** is on by default in **Settings → Tools → Seshlog**.
 For new local bash, zsh and fish terminals on macOS/Linux with IntelliJ shell integration enabled,
 Seshlog installs a small launcher in its own IDE config storage and puts it first on the terminal
@@ -32,14 +37,14 @@ itself from the child's PATH. It does not install Codex or change Codex config o
 An explicit later `-c` override remains the user's choice and may disable tracking.
 
 Reopen terminal tabs after installation or changing the setting. Existing shells and already
-running agents are not modified. Aliases/functions, absolute executable paths (including a custom
-Seshlog executable setting), later PATH changes, SSH/container sessions and unsupported shells can
-bypass the launcher. Windows and terminals with shell integration disabled are unchanged. For
-those cases, set this in your Codex home's `config.toml`, then restart Codex:
+running agents are not modified. Manually invoked aliases/functions, absolute executable paths,
+later PATH changes, SSH/container sessions and unsupported shells can bypass the launcher.
+Windows and terminals with shell integration disabled do not use the launcher. For launches
+without either automatic setting, set this in your Codex home's `config.toml`, then restart Codex:
 
 ```toml
 [tui]
-terminal_title = ["project", "thread-id"]
+terminal_title = ["activity", "thread-name", "project-name", "thread-id"]
 ```
 
 A full thread ID, or a shortened prefix matching exactly one indexed Codex session, identifies the

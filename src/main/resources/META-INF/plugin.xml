@@ -44,7 +44,7 @@
     <change-notes><![CDATA[
     <b>Unreleased</b>
     <ul>
-        <li>Automatic Codex tracking setup in new local bash, zsh and fish terminals on macOS/Linux.</li>
+        <li>Automatic Codex tracking setup for Seshlog launches and new local bash, zsh and fish terminals on macOS/Linux.</li>
         <li>Fix stale Codex session associations after thread switches, including Copy and navigation actions.</li>
         <li>Faster Codex tracking with fewer process scans.</li>
     </ul>

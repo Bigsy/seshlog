@@ -23,6 +23,9 @@ launcher, including for `codex resume …` and `codex fork …`. No Codex config
 these launches. **Settings → Tools → Seshlog → Enable Codex tracking in new terminals** controls
 this behavior; reopen terminal tabs after changing it.
 
+On macOS/Linux, Codex sessions started, resumed or forked through Seshlog also get the title
+setting directly, including when a custom executable bypasses the launcher.
+
 Windows, unsupported shells, aliases/functions, full executable paths and remote sessions can
 bypass automatic setup; see [setup limits and fallback configuration](docs/usage.md).
 

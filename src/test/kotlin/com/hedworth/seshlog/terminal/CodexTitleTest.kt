@@ -43,6 +43,21 @@ class CodexTitleTest {
         assertEquals(current, CodexTitle.thread("$current $current"))
     }
 
+    @Test fun `Seshlog's Codex launches add thread-id to Codex's default title, except on Windows`() {
+        assertEquals("""codex resume abc -c 'tui.terminal_title=["activity","thread-name","project-name","thread-id"]'""",
+            CodexTitle.launch("codex resume abc", windows = false))
+        // Windows PowerShell strips the inner quotes, and Codex then cannot load its config.
+        assertEquals("codex resume abc", CodexTitle.launch("codex resume abc", windows = true))
+    }
+
+    @Test fun `every title those launch items produce names the thread`() {
+        val id = current.take(29)
+        assertEquals(id, CodexTitle.thread("⠋ Fix the flaky test | unifhir | $id..."))
+        // Idle, and before Codex has named the thread.
+        assertEquals(id, CodexTitle.thread("unifhir | $id..."))
+        assertEquals(id, CodexTitle.thread("[ ! ] Action Required | Fix the flaky test | unifhir | $id..."))
+    }
+
     @Test fun `a shortened id matches only one indexed Codex session`() {
         assertEquals(current, CodexTitle.match(current.take(29), sessions))
         assertNull(CodexTitle.match(unindexed.take(29), sessions))

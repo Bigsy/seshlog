@@ -155,6 +155,9 @@ object TerminalTabs {
      */
     fun resume(project: Project, session: Session, command: String): TerminalHandle {
         val owned = OwnedTerminalTabs.getInstance(project)
+        if (session.kind == com.hedworth.seshlog.model.AgentKind.CODEX && owned.owns(session.id)) {
+            check(owned.terminalFor(session.id) != null) { "Terminal identity changed; refresh and try again" }
+        }
         val title = SessionOrganisation.getInstance().title(session)
         val trace = SessionDiagnostics.trace("resume", "project" to DiagnosticRef.of(project.basePath), "session" to DiagnosticRef.of(session.id))
         return ResumeTerminal.resume(

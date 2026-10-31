@@ -53,7 +53,8 @@ open class CopySessionContentAction(text: String, private val plan: Boolean = fa
                 target.isTerminal -> "terminal_content_not_found"
                 else -> "no_session_in_context"
             })
-        project.getService(SessionClipboard::class.java).requests.start(session, resolve = resolve) {
+        project.getService(SessionClipboard::class.java).requests.start(session, resolve = resolve?.resolve, current = resolve?.current ?: { true },
+            validate = resolve?.recheck ?: { true }) {
             try {
                 val provider = index.providerFor(it)
                 (if (plan) provider.latestPlan(it) else provider.lastAssistantMessage(it)).also { result ->

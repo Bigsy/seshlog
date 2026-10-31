@@ -91,7 +91,7 @@ last-known/ended context from a verified current association. Agent data remains
   ownership validates all members, supports cycles/unindexed reservations, and distinguishes
   displacement from exit. Shell/title/disposal and observed-handle checks guard EDT application.
 
-- [ ] **C4. Apply the same identity policy to terminal actions and delayed results.** Audit
+- [x] **C4. Apply the same identity policy to terminal actions and delayed results.** Audit
   `OwnedTerminalTabs.copySessionResolver`, `navigationTarget`, focus/close, `TerminalTabs.resume`,
   switcher actions, restore snapshots and completion acknowledgement. Capture titles on the EDT
   with terminal identity; revalidate title/thread, shell, TUI process identity and tab generation
@@ -104,6 +104,11 @@ last-known/ended context from a verified current association. Agent data remains
   observation. Preserve busy/reserved tabs and reject stale Resume, focus, close and acknowledgement
   targets. Add race tests for switches during inspection/rescan, changed titles before EDT delivery,
   process replacement, ambiguous prefixes and the normal confirmed-exit/resume lifecycle.
+  Completed 2026-10-31: non-TUI/stale-title and multiple-TUI regressions failed before
+  the fix. `make check` passes 655 tests (10 opt-in skips). Copy validates after loading
+  and on EDT delivery; navigation checks the captured title, generation and live handle;
+  process replacement cannot inherit an unchanged title. Resume/close, restore and completion
+  consumers use the same current-identity checks. Physical lifecycle acceptance remains C7.
 
 - [ ] **C5. Make verified title matching the cheap path and expose useful diagnostics.** In
   `ProcessBatchInspector.inspect`, resolve usable captured titles against the process snapshot

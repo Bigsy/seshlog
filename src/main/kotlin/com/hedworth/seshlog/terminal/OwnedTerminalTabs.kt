@@ -45,6 +45,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     // A requested Codex launch reserves a terminal, but is never its verified current thread.
     private val launchIntents = java.util.WeakHashMap<Content, String>()
     private val agents = ObservedAgents<ProcessHandle>()
+    private val titleBindings = java.util.WeakHashMap<Content, TitleProcessBinding>()
     // A tab's session after its agent exited: no longer attached, but copy/fork still act on it.
     private val endedSessions = EndedSessions<Content>()
     private val started = AtomicBoolean(false)
@@ -72,6 +73,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     fun close(sessionId: String): Boolean {
         trace.event("close_requested", "session" to DiagnosticRef.of(sessionId))
         val content = undisposedContent(sessionId) ?: return true
+        if (!currentTitleMatches(content, sessionId)) return false
         // A drag is in flight: do not claim the tab was closed or discard its association.
         val manager = content.manager ?: return false
         if (manager.isDisposed || !manager.removeContent(content, true)) return false
@@ -83,7 +85,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** The id of the session running in terminal tab [content], if we know one. */
     fun sessionFor(content: Content): String? = registry.sessionFor(content)
 
-    internal fun ownsTab(content: Content): Boolean = sessionFor(content) != null || pendingSessions.isPending(content) || content in launchIntents || registry.isReserved(content)
+    internal fun ownsTab(content: Content): Boolean = registry.sessionFor(content) != null || pendingSessions.isPending(content) || content in launchIntents || registry.isReserved(content)
 
     internal fun trackPending(terminal: TerminalHandle, existingIds: Set<String>) {
         trace.event("pending_launch", "tab" to DiagnosticRef.tab(terminal.content), "engine" to terminal.diagnosticEngine, "existingSessions" to existingIds.size)
@@ -117,37 +119,51 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             AgentKind.PI to settings.piExecutable)
     }
 
-    /** Capture the invoking tab on EDT; verify its current agent on the clipboard worker. */
-    internal fun copySessionResolver(content: Content, requestTrace: DiagnosticTrace = trace): () -> Session? {
-        val previous = sessionFor(content)
-        val previousGeneration = registry.generation(content)
-        val last = lastSessionFor(content)
+    internal class CopySessionTarget(val resolve: () -> Session?, val current: () -> Boolean, val recheck: () -> Boolean)
+
+    /** Capture UI evidence once; recheck process identity after loading and UI evidence at delivery. */
+    internal fun copySessionResolver(content: Content, requestTrace: DiagnosticTrace = trace): CopySessionTarget {
+        val previous = registry.sessionFor(content)
+        val generation = registry.generation(content)
+        val last = previous ?: endedSessions[content]
         val terminal = TerminalTabs.terminalOf(project, content)
         val shell = terminal?.shellPid()
         val title = terminal?.applicationTitle()
-        val executables = executables()
-        val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
-        requestTrace.event("copy_captured", "tab" to DiagnosticRef.tab(content), "shell" to shell,
-            "previous" to DiagnosticRef.of(previous), "ended" to DiagnosticRef.of(last), "generation" to previousGeneration)
-        return {
-            val index = SessionIndex.getInstance()
-            val id = if (shell == null) last else SessionProcess.copySession(last, index.sessions,
-                inspect = { SessionProcess.inspect(shell, it, executables, codexHome, title) }, rescan = { index.scanNow() })
-            requestTrace.event("copy_resolved", "tab" to DiagnosticRef.tab(content), "shell" to shell,
-                "previous" to DiagnosticRef.of(previous), "ended" to DiagnosticRef.of(last), "session" to DiagnosticRef.of(id))
-            // Copying from an agent that already exited must not re-attach it to the tab.
-            if (id != null && shell != null && (id == previous || id != last)) ApplicationManager.getApplication().invokeLater {
-                if (!disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
-                    TerminalTabs.terminalOf(project, content)?.shellPid() == shell &&
-                    registry.adoptDiscovered(id, content, previous, previousGeneration)) tabObserver.refresh()
-            }
-            id?.let(index::sessionById)
+        val binding = titleBindings[content]
+        val commands = executables()
+        val home = SeshlogSettings.getInstance().resolvedCodexDataDir()
+        var resolved: String? = null
+        var process: ProcessHandle? = null
+        var exited = false
+        fun inspect(sessions: List<Session>): SessionProcess.Discovery {
+            if (shell == null) return SessionProcess.Discovery(emptySet(), true, unknown = true)
+            val result = batchInspector.inspect(setOf(shell), sessions, commands, home, requestTrace,
+                mapOf(shell to title), binding?.let { mapOf(shell to it) }.orEmpty())
+            val discovery = result.discoveries.getValue(shell).discovery
+            process = discovery.sessionIds.singleOrNull()?.let(discovery.processes::get)?.let(result.handles::get)
+            exited = discovery.state == SessionProcess.IdentityState.EXITED
+            return discovery
         }
+        return CopySessionTarget(resolve = {
+            val index = SessionIndex.getInstance()
+            resolved = SessionProcess.copySession(last, index.sessions, ::inspect, index::scanNow)
+            requestTrace.event("copy_resolved", "tab" to DiagnosticRef.tab(content), "session" to DiagnosticRef.of(resolved))
+            resolved?.let(index::sessionById)
+        }, current = {
+            val now = TerminalTabs.terminalOf(project, content)
+            !disposed && !project.isDisposed && !Disposer.isDisposed(content) &&
+                registry.generation(content) == generation && now != null && now.shellPid() == shell && now.applicationTitle() == title &&
+                (resolved == null || process?.isAlive == true || (exited && now.state() == TerminalState.IDLE))
+        }, recheck = {
+            val id = resolved
+            id == null || inspect(SessionIndex.getInstance().sessions).copySession(last) == id
+        })
     }
 
     /** The terminal we own for [sessionId], if its tab still exists. Must be called on the EDT. */
     fun terminalFor(sessionId: String): TerminalHandle? {
         val content = undisposedContent(sessionId) ?: return null
+        if (!currentTitleMatches(content, sessionId)) return null
         // Missing manager/view is expected between mouse-down and drop. Activity/restore
         // polling must not turn a transient lookup failure into permanent loss of ownership.
         return TerminalTabs.terminalOf(project, content)
@@ -189,17 +205,22 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val shell = terminal.shellPid() ?: return null
         val title = terminal.applicationTitle()
         val commands = executables()
+        val binding = titleBindings[expected.tab]
+        var observed: ProcessHandle? = null
         val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val current = {
             !disposed && !project.isDisposed && sessionCurrent() && !Disposer.isDisposed(expected.tab) && registry.matches(expected) &&
-                terminalFor(session.id)?.shellPid() == shell
+                terminalFor(session.id)?.let { it.shellPid() == shell && it.applicationTitle() == title } == true && observed?.isAlive == true
         }
         return NavigationTarget(
             inspect = {
                 // Duplicate provider ids cannot be safely addressed by the older id-only tab registry.
                 val sessions = SessionIndex.getInstance().sessions
-                sessions.count { it.id == session.id } == 1 &&
-                    SessionProcess.inspect(shell, sessions, commands, codexHome, title).sessionIds.singleOrNull() == session.id
+                val result = batchInspector.inspect(setOf(shell), sessions, commands, codexHome, titles = mapOf(shell to title),
+                    previousTitles = binding?.let { mapOf(shell to it) }.orEmpty())
+                val discovery = result.discoveries.getValue(shell).discovery
+                observed = discovery.processes[session.id]?.let(result.handles::get)
+                sessions.count { it.id == session.id } == 1 && discovery.sessionIds.singleOrNull() == session.id && observed != null
             },
             current = current,
             focus = { current() && focus(session.id, current) },
@@ -235,17 +256,18 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 "engine" to terminal?.diagnosticEngine, "shell" to tabs[tab], "session" to DiagnosticRef.of(registry.sessionFor(tab)),
                 "generation" to registry.generation(tab), "pending" to pendingSessions.isPending(tab), "ended" to DiagnosticRef.of(endedSessions[tab]))
         }
+        val previousBindings = inspected.mapNotNull { (tab, shell) -> titleBindings[tab]?.let { shell!! to it } }.toMap()
         val previousOwners = inspected.keys.associateWith(registry::sessionFor)
         val previousGenerations = registry.generations(inspected.keys)
         val executables = executables()
         val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val watched = agents.snapshot()
         processInspection.run(inspect = {
-            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables, codexHome, poll, titles)
+            val batch = batchInspector.inspect(inspected.values.filterNotNull().toSet(), snapshot, executables, codexHome, poll, titles, previousBindings)
             val found = candidates.mapNotNull { (id, shell, _) ->
                 val discovery = batch.discoveries[shell]?.discovery ?: return@mapNotNull null
                 val handle = discovery.processes[id]?.let(batch.handles::get)
-                    ?: watched[id]?.takeIf { discovery.unknown && it.isAlive }
+
                 handle?.let { id to it }
             }.toMap()
             val inspections = inspected.mapNotNull { (content, shell) ->
@@ -259,9 +281,9 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             val invalidated = inspected.filter { (tab, shell) ->
                 previousOwners[tab] in batch.discoveries[shell]?.discovery?.excludedSessionIds.orEmpty()
             }.keys
-            ProcessObservations(found, discoveries, handles, exited, invalidated)
+            ProcessObservations(found, discoveries, handles, exited, invalidated, batch.titleBindings)
         }, apply = { result ->
-            val (found, discoveries, handles, exited, invalidated) = result
+            val (found, discoveries, handles, exited, invalidated, bindings) = result
             if (!disposed && !project.isDisposed) {
                 val ownershipBefore = registry.snapshot()
                 val generationNow = registry.generations(inspected.keys)
@@ -275,6 +297,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                     poll.event("atomic_transition_rejected", "reason" to "disposed_or_shell_or_title_changed")
                     return@run
                 }
+                stableTabs.forEach { tab -> bindings[inspected[tab]]?.let { titleBindings[tab] = it } }
                 val validFound = found.filter { (id, _) ->
                     val candidate = candidates.firstOrNull { it.first == id } ?: return@filter false
                     val tab = ownershipBefore[id] ?: return@filter false
@@ -393,6 +416,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val handles: Map<String, ProcessHandle>,
         val exited: Set<String>,
         val invalidated: Set<Content>,
+        val bindings: Map<Long, TitleProcessBinding>,
     )
 
     /** Remember that [widget]'s tab runs [session]. Must be called on the EDT. */
@@ -419,6 +443,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     private fun focus(sessionId: String, stillCurrent: () -> Boolean): Boolean {
         val content = undisposedContent(sessionId) ?: return false.also { trace.event("focus_failed", "session" to DiagnosticRef.of(sessionId), "reason" to "no_owned_tab") }
+        if (!currentTitleMatches(content, sessionId)) return false
         val expected = registry.association(sessionId) ?: return false
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)
             ?: return false
@@ -472,7 +497,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private fun updateActiveSession(content: Content?) {
         selectedContent = content
         acknowledgeVisibleCompletion()
-        val sessionId = content?.let(registry::sessionFor)
+        val sessionId = content?.let { tab -> sessionFor(tab)?.takeIf { currentTitleMatches(tab, it) } }
         if (sessionId == activeSessionId) return
         activeSessionId = sessionId
         project.messageBus.syncPublisher(ACTIVE_SESSION_TOPIC).activeSessionChanged(sessionId)
@@ -482,9 +507,22 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val content = selectedContent ?: return
         if (Disposer.isDisposed(content) || content.manager?.isSelected(content) != true) return
         if (!CompletionViewObserver.isViewed(content.component)) return
-        lastSessionFor(content)?.let {
+        sessionFor(content)?.takeIf { it in runningSessionIds() && currentTitleMatches(content, it) }?.let {
             SessionAttentionState.getInstance().viewedTerminal(it)
         }
+    }
+
+    /** Cheap UI-side revocation; process/file inspection remains in the worker proof. */
+    private fun currentTitleMatches(content: Content, id: String): Boolean {
+        if (SessionIndex.getInstance().sessionById(id)?.kind != AgentKind.CODEX) return true
+        if (id !in running) return false
+        val binding = titleBindings[content] ?: return false
+        val terminal = TerminalTabs.terminalOf(project, content) ?: return false
+        if (terminal.applicationTitle() != binding.title) return false
+        if (CodexTitle.read(binding.title) == CodexTitle.Reading.Absent) return true
+        if (!binding.trusted) return false
+        val thread = CodexTitle.thread(binding.title) ?: return true // Direct writer evidence has no title.
+        return CodexTitle.match(thread, SessionIndex.getInstance().sessions) == id
     }
 
     override fun dispose() {

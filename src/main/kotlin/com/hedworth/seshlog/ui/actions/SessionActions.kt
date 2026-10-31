@@ -32,6 +32,27 @@ import java.nio.file.Path
 import javax.swing.Icon
 import org.jetbrains.plugins.terminal.TerminalToolWindowFactory
 
+/** Every effect uses the same captured generation, title and process proof as switcher navigation. */
+private fun verifyCodexTerminal(project: Project, session: Session, effect: (OwnedTerminalTabs.NavigationTarget) -> Unit) {
+    val target = OwnedTerminalTabs.getInstance(project).navigationTarget(session) {
+        SessionIndex.getInstance().sessions.count { it.kind == session.kind && it.id == session.id } == 1
+    }
+    if (target == null) {
+        notify(project, "No verified associated terminal; refresh and try again", NotificationType.INFORMATION)
+        return
+    }
+    val app = ApplicationManager.getApplication()
+    app.executeOnPooledThread {
+        val verified = runCatching(target.inspect).getOrDefault(false)
+        app.invokeLater {
+            if (!project.isDisposed) {
+                if (verified && target.current()) effect(target)
+                else notify(project, "Terminal identity changed or is unresolved; refresh and try again", NotificationType.INFORMATION)
+            }
+        }
+    }
+}
+
 /** Base for actions that need a selected session. */
 abstract class SessionAction(text: String, description: String? = null, icon: Icon? = null) :
     DumbAwareAction(text, description, icon) {
@@ -73,6 +94,10 @@ class ResumeSessionAction : SessionAction("Resume", "Resume this session in a ne
             return
         }
         val owned = OwnedTerminalTabs.getInstance(project)
+        if (session.kind == AgentKind.CODEX && owned.owns(session.id)) {
+            verifyCodexTerminal(project, session) { target -> target.focus() }
+            return
+        }
         val widget = owned.terminalFor(session.id)
         if (widget != null && widget.state() != TerminalState.IDLE) {
             owned.focus(session.id)
@@ -153,6 +178,13 @@ class KillSessionAction : SessionAction("Kill Session", "Stop this session and c
         val index = SessionIndex.getInstance()
         val current = index.sessionById(session.id) ?: session
         val owned = OwnedTerminalTabs.getInstance(project)
+        if (current.kind == AgentKind.CODEX) {
+            verifyCodexTerminal(project, current) {
+                if (owned.close(current.id)) SessionRestoreManager.getInstance(project).recordStop(current.id)
+                else notify(project, "Terminal identity changed; refresh and try again", NotificationType.WARNING)
+            }
+            return
+        }
         try {
             val shellPid = owned.terminalFor(current.id)?.shellPid()
             val pid = current.livePid?.takeIf { pid ->
@@ -197,9 +229,18 @@ class CopyResumeCommandAction : SessionAction("Copy Resume Command", "Copy the s
     }
 }
 
-class CopySessionIdAction : SessionAction("Copy Session ID") {
-    override fun perform(project: Project, session: Session) {
-        CopyPasteManager.getInstance().setContents(StringSelection(session.id))
+class CopySessionIdAction : DumbAwareAction("Copy Session ID") {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+    override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val target = TerminalTabs.actionTarget(project, e)
+        val resolved = target.content?.let { OwnedTerminalTabs.getInstance(project).copySessionResolver(it) }
+        val session = com.hedworth.seshlog.copy.CopyTarget.resolve(target.isTerminal, null, sessionFrom(e))
+        project.getService(SessionClipboard::class.java).requests.start(session, resolve = resolved?.resolve,
+            current = resolved?.current ?: { true }, validate = resolved?.recheck ?: { true }) {
+            com.hedworth.seshlog.copy.CopyContent.Found(it.id)
+        }
     }
 }
 

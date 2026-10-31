@@ -101,4 +101,22 @@ class CopyRequestTest {
         assertEquals("two", clipboard)
         assertTrue(feedback.any { it.contains("could not be read") })
     }
+    @Test fun `thread change during load or before EDT delivery never copies stale content`() {
+        for (changeDuringLoad in listOf(true, false)) {
+            val workers = arrayListOf<() -> Unit>()
+            val ui = arrayListOf<() -> Unit>()
+            var current = true
+            var clipboard = "original"
+            val request = CopyRequest({ workers.add(it) }, { ui.add(it) }, { false }, { clipboard = it }, {})
+            request.start(one, current = { current }, validate = { current }) {
+                if (changeDuringLoad) current = false
+                CopyContent.Found("stale")
+            }
+            workers.single()()
+            current = false // title, process identity or tab generation changed before UI delivery
+            ui.single()()
+            assertEquals("original", clipboard)
+        }
+    }
+
 }

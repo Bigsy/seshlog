@@ -23,7 +23,7 @@ internal object SessionProcess {
         return arguments.zipWithNext().any { (key, value) -> key == option && value == target }
     }
 
-    internal data class Evidence(val pid: Long, val command: String?, val arguments: List<String>)
+    internal data class Evidence(val pid: Long, val command: String?, val arguments: List<String>, val parentPid: Long? = null)
 
     internal fun isAgent(process: Evidence, executable: String): Boolean {
         fun basename(value: String?): String? = value?.let { runCatching { Path.of(it).fileName?.toString() }.getOrNull() }
@@ -31,6 +31,14 @@ internal object SessionProcess {
         return basename(process.command) == expected ||
             (basename(process.command) in setOf("node", "nodejs", "bun") &&
                 basename(process.arguments.firstOrNull()) in setOf(expected, "$expected.js"))
+    }
+
+    internal fun isCodexTui(process: Evidence, executable: String): Boolean =
+        isAgent(process, executable) && process.arguments.none { it in setOf("app-server", "exec", "mcp-server") }
+
+    internal fun tuiRoots(processes: List<Evidence>): Set<Long> {
+        val pids = processes.mapTo(HashSet()) { it.pid }
+        return processes.filter { it.parentPid !in pids }.mapTo(HashSet()) { it.pid }
     }
 
     /** A PID marker takes precedence over old resume arguments after an in-agent session switch. */
@@ -92,10 +100,12 @@ internal object SessionProcess {
         trace: DiagnosticTrace = DiagnosticTrace.NONE,
         /** The terminal title the foreground program set; see [CodexTitle]. */
         title: String? = null,
+        titleTrusted: Boolean = true,
     ): Discovery {
         val writableFiles = evidence.files
         val codex = executables[AgentKind.CODEX]
-        val codexProcesses = processes.filter { codex != null && isAgent(it, codex) }
+        val codexProcesses = processes.filter { codex != null && isCodexTui(it, codex) }
+        val singleTui = tuiRoots(codexProcesses).size == 1
         var unknown = codexProcesses.any { it.pid in evidence.unknown }
         val writers = codexProcesses.flatMap { process ->
             writableFiles[process.pid].orEmpty().filter { path ->
@@ -117,32 +127,41 @@ internal object SessionProcess {
         val codexIds = sessions.filter { it.kind == AgentKind.CODEX }.mapTo(HashSet()) { it.id }
         // The title names the thread the TUI shows now, even after an in-TUI switch, so it overrides
         // every other Codex evidence. A thread the index lacks still rules out the older ones.
-        val titled = if (codexProcesses.isEmpty()) null else CodexTitle.thread(title)
-        val titledId = titled?.let { CodexTitle.match(it, sessions) }
-        val owners = when {
-            // A Node wrapper and its native binary exit together, so either pid observes the TUI.
-            titled != null -> identified.filterKeys { it !in codexIds } + listOfNotNull(titledId).associateWith { id ->
-                written[id] ?: identified[id] ?: codexProcesses.first().pid
-            }
-            paths.isEmpty() && !unknown -> identified
-            else -> identified.filterKeys { it !in codexIds } + written
+        val titleEvidence = if (singleTui && titleTrusted) CodexTitle.read(title) else CodexTitle.Reading.Absent
+        val titled = (titleEvidence as? CodexTitle.Reading.Named)?.thread
+        val titleCandidates = titled?.let { prefix -> sessions.filter { it.kind == AgentKind.CODEX && it.id.lowercase().startsWith(prefix) }.mapTo(HashSet()) { it.id } }.orEmpty()
+        val titledId = titleCandidates.singleOrNull()
+        val owners = identified.filterKeys { it !in codexIds } + when {
+            !singleTui -> emptyMap()
+            titled != null -> listOfNotNull(titledId).associateWith { codexProcesses.last().pid }
+            titleEvidence == CodexTitle.Reading.Invalid -> emptyMap()
+            paths.size == 1 -> written
+            else -> emptyMap()
         }
         trace.event("identity_evidence", "argumentOrMarker" to DiagnosticRef.ids(identified.keys), "writers" to DiagnosticRef.ids(written.keys),
             "rolloutCount" to paths.size, "descriptorOrHeaderUnknown" to unknown,
             "title" to when { titled == null -> "none"; titledId == null -> "unindexed"; else -> "matched" }, "titleSession" to DiagnosticRef.of(titledId),
+            "titleTrusted" to titleTrusted, "tuiCount" to tuiRoots(codexProcesses).size,
             "selected" to DiagnosticRef.ids(owners.keys))
         return Discovery(owners.keys, processes.any { p -> executables.values.any { isAgent(p, it) } } || owners.isNotEmpty(), owners,
             unknown = titled == null && unknown && paths.isEmpty(),
             state = when {
                 owners.size == 1 -> IdentityState.VERIFIED
-                titled != null -> IdentityState.UNINDEXED
+                titled != null -> if (titleCandidates.isEmpty()) IdentityState.UNINDEXED else IdentityState.AMBIGUOUS
+                titleEvidence == CodexTitle.Reading.Invalid || !singleTui && codexProcesses.isNotEmpty() -> IdentityState.AMBIGUOUS
+                paths.size == 1 && written.isEmpty() && !unknown -> IdentityState.UNINDEXED
                 unknown -> IdentityState.UNAVAILABLE
                 processes.any { p -> executables.values.any { isAgent(p, it) } } -> IdentityState.AMBIGUOUS
                 else -> IdentityState.EXITED
             },
             provenance = when { titled != null -> Provenance.TITLE; written.isNotEmpty() -> Provenance.WRITER
                 identified.isNotEmpty() -> Provenance.PROVIDER; else -> Provenance.NONE },
-            excludedSessionIds = if (titled != null) codexIds - setOfNotNull(titledId) else emptySet())
+            excludedSessionIds = when {
+                titled != null -> codexIds - titleCandidates
+                paths.size == 1 && !unknown -> codexIds - written.keys
+                !titleTrusted && codexProcesses.isNotEmpty() -> codexIds - owners.keys
+                else -> emptySet()
+            })
     }
 
     /** Discover fresh or resumed agents under one shell, entirely off the EDT, as polling does. */

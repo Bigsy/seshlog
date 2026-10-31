@@ -64,10 +64,11 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         later = { action -> restoreAlarm.addRequest(Runnable { action() }, 100) },
         cancelled = { disposed || closing || project.isDisposed },
     )
-    private val snapshots = RestoreSnapshotCollector<TerminalHandle>(
+    private class SnapshotTerminal(val terminal: TerminalHandle, val proof: OwnedTerminalTabs.NavigationTarget?)
+    private val snapshots = RestoreSnapshotCollector<SnapshotTerminal>(
         background = { ApplicationManager.getApplication().executeOnPooledThread(it) },
         ui = { ApplicationManager.getApplication().invokeLater(it) },
-        isBusy = TerminalTabs::isBusy,
+        isBusy = { it.proof?.inspect?.invoke() ?: TerminalTabs.isBusy(it.terminal) },
         tree = ProcessTree.System,
     )
 
@@ -165,9 +166,15 @@ class SessionRestoreManager(private val project: Project) : Disposable {
         val stillStarting = awaitingLive.filter { owned.owns(it) }
         awaitingLive.retainAll(stillStarting.toSet())
         val launchedIds = launched.toSet()
-        val widgets = owned.sessionIds.mapNotNull { id -> owned.terminalFor(id)?.let { id to it } }.toMap()
+        val widgets = owned.sessionIds.mapNotNull { id ->
+            val session = byId[id] ?: return@mapNotNull null
+            val terminal = owned.terminalFor(id) ?: return@mapNotNull null
+            val proof = if (session.kind == com.hedworth.seshlog.model.AgentKind.CODEX)
+                owned.navigationTarget(session) { index.sessionById(id)?.kind == session.kind } ?: return@mapNotNull null else null
+            id to SnapshotTerminal(terminal, proof)
+        }.toMap()
         snapshots.collect(sessions, launchedIds, stillStarting, TerminalTabs.shellPids(project), widgets) { ids ->
-            applySnapshot(ids)
+            applySnapshot(ids.filter { id -> widgets[id]?.proof?.current?.invoke() != false })
         }
     }
 

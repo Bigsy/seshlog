@@ -17,7 +17,7 @@ internal data class ProcessRecord(
     val handle: ProcessHandle,
     val startedAt: Instant? = null,
 ) {
-    fun evidence() = SessionProcess.Evidence(pid, command, arguments)
+    fun evidence() = SessionProcess.Evidence(pid, command, arguments, parentPid)
 }
 
 /** Immutable process table that is also a cheap [ProcessTree] view for one polling tick. */
@@ -76,6 +76,21 @@ internal class ProcessTableSnapshot private constructor(
     }
 }
 
+/** A title is not transferable to a replacement process, even when its PID is reused. */
+internal data class TitleProcessBinding(val title: String?, val processes: Set<Pair<Long, Instant?>>, val trusted: Boolean) {
+    companion object {
+        fun observe(previous: TitleProcessBinding?, title: String?, processes: Set<Pair<Long, Instant?>>): TitleProcessBinding {
+            val trusted = processes.isNotEmpty() && when {
+                previous == null -> true
+                previous.title != title -> true
+                previous.processes != processes -> false
+                else -> previous.trusted
+            }
+            return TitleProcessBinding(title, processes, trusted)
+        }
+    }
+}
+
 internal data class ShellProcessDiscovery(
     val shellPid: Long,
     val discovery: SessionProcess.Discovery,
@@ -86,6 +101,7 @@ internal data class ProcessBatchResult(
     val discoveries: Map<Long, ShellProcessDiscovery>,
     /** Exact handles keyed by pid, from the same process snapshot as [discoveries]. */
     val handles: Map<Long, ProcessHandle>,
+    val titleBindings: Map<Long, TitleProcessBinding> = emptyMap(),
 )
 
 /**
@@ -109,6 +125,7 @@ internal class ProcessBatchInspector(
         codexHome: Path? = null,
         trace: DiagnosticTrace = DiagnosticTrace.NONE,
         titles: Map<Long, String?> = emptyMap(),
+        previousTitles: Map<Long, TitleProcessBinding> = emptyMap(),
     ): ProcessBatchResult {
         val start = System.nanoTime()
         trace.event("inspection_started", "shells" to shellPids.sorted(), "indexedSessions" to sessions.size,
@@ -151,11 +168,15 @@ internal class ProcessBatchInspector(
                 "rollouts" to paths.filter { it.fileName.toString().let { name -> name.startsWith("rollout-") && name.endsWith(".jsonl") } }.map(DiagnosticRef::path))
         }
         trace.event("daemon_match_skipped", "reason" to "not_terminal_identity")
+        val bindings = shellPids.associateWith { shell ->
+            val processes = table.under(shell).filter { codexExecutable != null && SessionProcess.isCodexTui(it.evidence(), codexExecutable) }
+            TitleProcessBinding.observe(previousTitles[shell], titles[shell], processes.mapTo(HashSet()) { it.pid to it.startedAt })
+        }
         val discoveries = evidenceByShell.mapValues { (shell, processes) ->
             ShellProcessDiscovery(
                 shell,
                 if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors,
-                    trace = trace.with("shell" to shell), title = titles[shell])
+                    trace = trace.with("shell" to shell), title = titles[shell], titleTrusted = bindings.getValue(shell).trusted)
                 else SessionProcess.Discovery(emptySet(), hasAgent = true, unknown = true),
             )
         }
@@ -163,6 +184,6 @@ internal class ProcessBatchInspector(
             "hasAgent" to result.discovery.hasAgent, "unknown" to result.discovery.unknown,
             "processes" to result.discovery.processes.mapKeys { DiagnosticRef.of(it.key)!! }) }
         trace.event("inspection_finished", "elapsedMs" to (System.nanoTime() - start) / 1_000_000)
-        return ProcessBatchResult(table, discoveries, table.handles())
+        return ProcessBatchResult(table, discoveries, table.handles(), if (table.complete) bindings else previousTitles)
     }
 }

@@ -13,15 +13,22 @@ internal object CodexTitle {
     private val ID = Regex("""(?<![0-9A-Za-z_-])([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{0,12})(?![0-9A-Za-z_])(\.\.\.|…)?""")
     private const val FULL_LENGTH = 36
 
-    /** The thread id or shortened id prefix in [title]; null when it names none or several. */
-    fun thread(title: String?): String? {
-        if (title.isNullOrEmpty()) return null
-        return ID.findAll(title)
-            // An unmarked partial id is some other text, not a shortened title item.
-            .filter { it.groupValues[1].length == FULL_LENGTH || it.groupValues[2].isNotEmpty() }
-            .map { it.groupValues[1].lowercase() }
-            .distinct().singleOrNull()
+    sealed interface Reading {
+        data object Absent : Reading
+        data object Invalid : Reading
+        data class Named(val thread: String) : Reading
     }
+
+    fun read(title: String?): Reading {
+        if (title.isNullOrBlank()) return Reading.Absent
+        val ids = ID.findAll(title).filter { it.groupValues[1].length == FULL_LENGTH || it.groupValues[2].isNotEmpty() }
+            .map { it.groupValues[1].lowercase() }.distinct().toList()
+        if (ids.size == 1) return Reading.Named(ids.single())
+        return if (ids.isNotEmpty() || Regex("[0-9a-fA-F]{8}-").containsMatchIn(title)) Reading.Invalid else Reading.Absent
+    }
+
+    /** The thread id or shortened id prefix in [title]; null when it names none or several. */
+    fun thread(title: String?): String? = (read(title) as? Reading.Named)?.thread
 
     /** The one indexed Codex session [thread] names, or null when none or several match. */
     fun match(thread: String, sessions: List<Session>): String? =

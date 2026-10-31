@@ -23,7 +23,7 @@ class CodexTitleTest {
     private val sessions = listOf(session(old), session(current))
     // `codex resume` from the picker: nothing on the command line names the thread.
     private val picker = listOf(SessionProcess.Evidence(122, "/bin/node", listOf("/opt/homebrew/bin/codex", "resume")),
-        SessionProcess.Evidence(123, "/bin/codex", listOf("resume")))
+        SessionProcess.Evidence(123, "/bin/codex", listOf("resume"), parentPid = 122))
 
     @Test fun `full and shortened thread ids are read from the title`() {
         assertEquals(current, CodexTitle.thread(current))
@@ -121,6 +121,36 @@ class CodexTitleTest {
             assertEquals(if (title == null) emptySet<String>() else setOf(current), first.sessionIds)
             assertNull(second.copySession(current))
             if (title == null) assertNull(first.copySession(old))
+        }
+    }
+
+    @Test fun `a title left for a non TUI Codex command cannot establish identity`() {
+        for (command in listOf("exec", "app-server", "mcp-server")) {
+            val result = SessionProcess.identifyTree(listOf(SessionProcess.Evidence(123, "codex", listOf(command))),
+                sessions, executables, ProcessTranscripts.Result(emptyMap()), title = current)
+            assertTrue(result.sessionIds.isEmpty())
+            assertNull(result.copySession(old))
+        }
+    }
+
+    @Test fun `two independent TUIs under a shell cannot share title ownership`() {
+        val result = SessionProcess.identifyTree(listOf(SessionProcess.Evidence(123, "codex", emptyList()),
+            SessionProcess.Evidence(124, "codex", emptyList())), sessions, executables,
+            ProcessTranscripts.Result(emptyMap()), title = current)
+        assertTrue(result.sessionIds.isEmpty())
+        assertNull(result.copySession(old))
+    }
+
+    @Test fun `ambiguous prefixes and malformed titles do not fall through to old writer evidence`() {
+        val twin = session(current.take(29) + "0000000")
+        val writer = session(old).copy(transcriptPath = Path.of("/synthetic/rollout-old.jsonl"))
+        for (title in listOf(shortened(current), "$old | $current", current.take(29))) {
+            val discovery = SessionProcess.identifyTree(listOf(SessionProcess.Evidence(123, "codex", emptyList())),
+                sessions + twin + writer, executables, ProcessTranscripts.Result(mapOf(123L to setOf(writer.transcriptPath!!))),
+                isCliTranscript = { true }, title = title)
+            assertTrue(discovery.sessionIds.isEmpty())
+            assertNull(discovery.copySession(old))
+            assertEquals(SessionProcess.IdentityState.AMBIGUOUS, discovery.state)
         }
     }
 

@@ -100,7 +100,7 @@ class ProcessTranscriptsTest {
         val old = session("old")
         val current = session("current")
         val processes = listOf(SessionProcess.Evidence(122, "/bin/node", listOf("/npm/codex.js", "resume", "old")),
-            SessionProcess.Evidence(123, "/bin/codex", listOf("resume", "old")))
+            SessionProcess.Evidence(123, "/bin/codex", listOf("resume", "old"), parentPid = 122))
         val files = mapOf(123L to setOf(current.transcriptPath!!))
         val executables = mapOf(AgentKind.CODEX to "codex")
         assertEquals(setOf("current"), SessionProcess.identifyTree(processes, listOf(old, current), executables, files).sessionIds)
@@ -133,4 +133,13 @@ class ProcessTranscriptsTest {
             process.waitFor(5, TimeUnit.SECONDS)
         }
     }
+    @Test fun `an indexed old writer and an unindexed new writer cannot identify the current thread`() {
+        val old = session("old-held")
+        val fresh = session("fresh-held")
+        val discovery = SessionProcess.identifyTree(listOf(SessionProcess.Evidence(123, "codex", emptyList())),
+            listOf(old), mapOf(AgentKind.CODEX to "codex"), mapOf(123L to setOf(old.transcriptPath!!, fresh.transcriptPath!!)))
+        assertTrue(discovery.sessionIds.isEmpty())
+        assertNull(discovery.copySession(old.id))
+    }
+
 }

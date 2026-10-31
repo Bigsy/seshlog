@@ -59,4 +59,33 @@ class ProcessBatchSnapshotTest {
         assertTrue(discovery.hasAgent)
         assertTrue(discovery.sessionIds.isEmpty())
     }
+    @Test fun `process replacement cannot inherit a prior title including reused PIDs`() {
+        val id = "01a18370-5a52-7d90-bb35-d6cf1976ebf9"
+        val start = Instant.parse("2026-10-31T12:00:00Z")
+        val before = TitleProcessBinding(id, setOf(11L to start), true)
+        for (pid in listOf(11L, 12L)) {
+            val table = ProcessTableSnapshot.of(listOf(row(10, 1, "zsh"),
+                row(pid, 10, "codex").copy(startedAt = start.plusSeconds(10))))
+            val inspector = ProcessBatchInspector(snapshot = { table }, writableFiles = { ProcessTranscripts.Result(emptyMap()) })
+            val blocked = inspector.inspect(setOf(10L), listOf(session(id)), mapOf(AgentKind.CODEX to "codex"),
+                titles = mapOf(10L to id), previousTitles = mapOf(10L to before))
+            val discovery = blocked.discoveries.getValue(10L).discovery
+            assertTrue(discovery.sessionIds.isEmpty())
+            assertTrue(id in discovery.excludedSessionIds)
+            val stillBlocked = inspector.inspect(setOf(10L), listOf(session(id)), mapOf(AgentKind.CODEX to "codex"),
+                titles = mapOf(10L to id), previousTitles = blocked.titleBindings)
+            assertTrue(stillBlocked.discoveries.getValue(10L).discovery.sessionIds.isEmpty())
+            val fresh = inspector.inspect(setOf(10L), listOf(session(id)), mapOf(AgentKind.CODEX to "codex"),
+                titles = mapOf(10L to "new title | $id"), previousTitles = blocked.titleBindings)
+            assertEquals(setOf(id), fresh.discoveries.getValue(10L).discovery.sessionIds)
+        }
+    }
+
+    @Test fun `confirmed no agent prevents a later TUI from inheriting the leftover title`() {
+        val first = TitleProcessBinding.observe(null, "leftover", setOf(11L to Instant.EPOCH))
+        val exited = TitleProcessBinding.observe(first, "leftover", emptySet())
+        assertTrue(!exited.trusted)
+        assertTrue(!TitleProcessBinding.observe(exited, "leftover", setOf(12L to Instant.EPOCH)).trusted)
+    }
+
 }

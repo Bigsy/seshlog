@@ -130,4 +130,33 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         Disposer.dispose(editors.single())
         assertNull(viewer.editor1.getUserData(ReviewDiffExtension.EDITOR_BINDING))
     }
+    fun `test an open native diff counts against snapshot refresh memory until its editor closes`() {
+        val draft = draft()
+        val file = ReviewFileSnapshot("large.txt", "a".repeat(40), "", "x".repeat(7 * 1024 * 1024))
+        service.store.load(draft.id, file)
+        val factory = DiffContentFactory.getInstance()
+        val request = SimpleDiffRequest("Synthetic bounded diff", factory.create(project, file.before), factory.create(project, file.current), "Base", "Snapshot")
+        val context = ReviewDiffContext(draft.id, file.path, file.revision, { _, _, _ -> })
+        val editors = mutableListOf<DiffEditorViewerFileEditor>()
+        val tab = ReviewDiffEditors.open(project, request, context, { emptyList() }, { tab ->
+            Array(2) {
+                val processor = tab.createProcessor(project)
+                processor.updateRequest()
+                DiffEditorViewerFileEditor(project, tab, processor).also { editors += it; Disposer.register(testRootDisposable, it) }
+            }
+        })
+        val refreshed = file.copy(current = "y".repeat(10 * 1024 * 1024))
+        try {
+            service.store.load(draft.id, refreshed)
+            fail("The open old revision must still count towards the 32 MiB bound")
+        } catch (_: IllegalStateException) {}
+        assertEquals(file.revision, service.store.get(draft.id).files.getValue(file.path).revision)
+        Disposer.dispose(editors[0])
+        assertFalse("The other split still retains the snapshot", (tab.request as SimpleDiffRequest).contents.isEmpty())
+        try { service.store.load(draft.id, refreshed); fail("Closing one split must not release the live second split") }
+        catch (_: IllegalStateException) {}
+        Disposer.dispose(editors[1])
+        assertTrue("Closed native tabs must release their retained text", (tab.request as SimpleDiffRequest).contents.isEmpty())
+        assertEquals(refreshed.revision, service.store.load(draft.id, refreshed).files.getValue(file.path).revision)
+    }
 }

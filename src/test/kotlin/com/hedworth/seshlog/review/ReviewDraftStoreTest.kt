@@ -140,4 +140,20 @@ class ReviewDraftStoreTest {
             assertTrue(store.get(draft.id).hasUnknownDelivery)
         }
     }
+    @Test fun `editor text stays bounded after a draft is discarded and closing releases exactly once`() {
+        val store = ReviewDraftStore(100)
+        val draft = store.open(recipient)
+        val snapshot = ReviewFileSnapshot("small", "base", "x".repeat(10), "y".repeat(10))
+        store.load(draft.id, snapshot) // 40 bytes in the draft.
+        val lease = store.retainDiff(draft.id, snapshot.path, snapshot.revision) // 40 in native documents.
+        rejects { store.retainDiff(draft.id, snapshot.path, snapshot.revision) }
+        store.discard(draft.id)
+        val next = store.open(recipient)
+        val bigger = snapshot.copy(current = "z".repeat(30)) // 80 plus the retained 40 exceeds 100.
+        rejects { store.load(next.id, bigger) }
+        lease.close(); lease.close()
+        store.load(next.id, bigger)
+        rejects { store.retainDiff(next.id, bigger.path, bigger.revision) }
+        assertEquals(bigger, store.get(next.id).files[bigger.path])
+    }
 }

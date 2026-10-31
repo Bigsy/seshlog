@@ -58,6 +58,21 @@ internal fun reviewHash(text: String): String = MessageDigest.getInstance("SHA-2
 /** Pure, bounded, in-memory ownership. Returned collections cannot mutate the stored draft. */
 internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 1024) {
     private val drafts = LinkedHashMap<String, ReviewDraft>()
+    private var editorBytes = 0L
+    /** Native documents retain their own text, including revisions no longer in a draft. */
+    @Synchronized fun retainDiff(id: String, path: String, revision: String): AutoCloseable {
+        val file = get(id).files[path] ?: error("Refresh this file before opening its diff")
+        check(file.revision == revision) { "This diff is outdated; open the refreshed snapshot" }
+        val bytes = file.memoryBytes
+        checkMemory(drafts.values, bytes)
+        editorBytes += bytes
+        return object : AutoCloseable {
+            private var closed = false
+            override fun close() = synchronized(this@ReviewDraftStore) {
+                if (!closed) { closed = true; editorBytes -= bytes }
+            }
+        }
+    }
     @Synchronized fun all(): List<ReviewDraft> = drafts.values.toList()
     @Synchronized fun get(id: String): ReviewDraft = drafts[id] ?: error("This review has been discarded")
     @Synchronized fun open(recipient: ReviewRecipient): ReviewDraft {
@@ -187,8 +202,7 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
             if (frozen.comments.isNotEmpty()) require(ReviewFormatter.format(frozen, "0".repeat(36)).toByteArray(Charsets.UTF_8).size <= 128 * 1024) {
                 "Review would exceed 128 KiB UTF-8; shorten this note or submit the current batch first"
             }
-            val bytes = (drafts.values.filterNot { it.id == draft.id } + frozen).sumOf(::memory)
-            check(bytes <= memoryLimit) { "Review memory limit reached; explicitly discard a review before loading more content" }
+            checkMemory(drafts.values.filterNot { it.id == draft.id } + frozen)
         }
         drafts[draft.id] = frozen
         return frozen
@@ -197,6 +211,11 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         draft.comments.sumOf { (it.selected.length.toLong() + it.note.length) * 2 } + draft.overallNote.length * 2L +
         draft.sent.sumOf(::submissionMemory) + (draft.pending?.let { submissionMemory(it) + 1024 } ?: 0) +
         draft.sentResults.values.sumOf { (it.receipt?.length ?: 0) * 2L + it.reason.length * 2L + 32 }
+    private fun checkMemory(values: Collection<ReviewDraft>, extraEditorBytes: Long = 0) {
+        check(values.sumOf(::memory) + editorBytes + extraEditorBytes <= memoryLimit) {
+            "Review memory limit reached; close review diff tabs or explicitly discard a review before loading more content"
+        }
+    }
     private fun submissionMemory(submission: ReviewSubmission): Long = submission.payload.length * 2L +
         submission.comments.sumOf { (it.selected.length.toLong() + it.note.length) * 2 }
 }

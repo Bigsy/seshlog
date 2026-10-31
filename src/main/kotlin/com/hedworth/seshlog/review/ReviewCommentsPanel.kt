@@ -269,7 +269,7 @@ internal class ReviewCommentsPanel(private val project: Project, private val dra
             "checkout_changed" -> " The checkout changed; start a review in the session's current checkout."
             "codex_version_unsupported", "queue_method_unsupported", "protocol_unavailable" -> " This local Codex server version does not support the verified delivery contract."
             "thread_not_loaded", "thread_unavailable", "thread_mismatch", "server_home_mismatch" -> " The original thread is not verified on this local server. No session was resumed."
-            "local_transport_unavailable", "socket_not_private" -> " A supported private local Codex server is unavailable. Copy the review or go to the session."
+            "local_transport_unavailable", "socket_not_private", "endpoint_unverified" -> " A supported private local Codex server tied to this terminal is unavailable. Copy the review or go to the session."
             "cancelled_before_dispatch" -> " Cancelled before dispatch."
             "draft_or_validation_changed" -> " The draft changed during validation; review it and send again."
             else -> ""

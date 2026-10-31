@@ -29,12 +29,12 @@ internal class ReviewDeliveryService : Disposable {
         if (id in jobs) return false
         val snapshot = drafts.store.get(id)
         if (snapshot.hasUnknownDelivery && !allowUnknownRetry) return false
-        val target = ReviewTargets.capture(snapshot.recipient)
+        val home = SeshlogSettings.getInstance().resolvedCodexDataDir()
+        val target = ReviewTargets.capture(snapshot.recipient, deliveryHome = home)
         if (target == null) {
             drafts.store.recordResult(id, ReviewDeliveryResult(ReviewDeliveryStatus.UNAVAILABLE, "target_unavailable"))
             drafts.changed(); return false
         }
-        val home = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val app = ApplicationManager.getApplication()
         val job = Job()
         jobs[id] = job
@@ -95,5 +95,5 @@ internal object ReviewDeliveryDiagnostics {
         "codex_version_unsupported", "server_home_mismatch", "thread_unavailable", "thread_mismatch", "thread_not_loaded", "checkout_changed",
         "recipient_or_files_changed", "queue_method_unsupported", "agent_refused", "server_error_after_dispatch", "receipt_mismatch", "queued_by_agent",
         "connection_lost_after_dispatch", "local_transport_unavailable", "cancelled_before_dispatch", "unsaved_buffers", "files_changed", "recipient_changed",
-        "dispatch_interrupted", "draft_or_validation_changed", "target_unavailable", "validation_unavailable", "invalid_receipt")) value else "other"
+        "dispatch_interrupted", "draft_or_validation_changed", "target_unavailable", "validation_unavailable", "invalid_receipt", "endpoint_unverified")) value else "other"
 }

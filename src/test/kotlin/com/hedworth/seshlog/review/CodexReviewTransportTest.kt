@@ -12,6 +12,18 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class CodexReviewTransportTest {
+    @Test fun `replacing the endpoint during final target validation cannot send to the old daemon`() = scenario { server, batch ->
+        val replacement = java.nio.channels.ServerSocketChannel.open(java.net.StandardProtocolFamily.UNIX)
+        try {
+            val result = CodexReviewTransport().submit(batch, server.home) {
+                Files.delete(server.socket)
+                replacement.bind(java.net.UnixDomainSocketAddress.of(server.socket))
+                true
+            }
+            assertEquals(ReviewDeliveryStatus.UNAVAILABLE, result.status)
+            assertEquals(0, server.enqueued.get())
+        } finally { replacement.close() }
+    }
     private fun scenario(work: (SyntheticReviewServer, ReviewSubmission) -> Unit) {
         org.junit.Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         val root = Files.createTempDirectory(Path.of("/tmp"), "sl-rq-").toRealPath()

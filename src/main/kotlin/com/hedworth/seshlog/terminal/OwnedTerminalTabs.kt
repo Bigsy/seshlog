@@ -204,10 +204,11 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 
     /** Addressed local delivery must not confuse a remote/embedded TUI with the default daemon. */
-    internal fun reviewTarget(session: Session, sessionCurrent: () -> Boolean): NavigationTarget? =
-        navigationTarget(session, sessionCurrent, localMessageTarget = true)
+    internal fun reviewTarget(session: Session, home: java.nio.file.Path, sessionCurrent: () -> Boolean): NavigationTarget? =
+        navigationTarget(session, sessionCurrent, localMessageTarget = true, codexHome = home)
 
-    private fun navigationTarget(session: Session, sessionCurrent: () -> Boolean, localMessageTarget: Boolean): NavigationTarget? {
+    private fun navigationTarget(session: Session, sessionCurrent: () -> Boolean, localMessageTarget: Boolean,
+                                 codexHome: java.nio.file.Path = SeshlogSettings.getInstance().resolvedCodexDataDir()): NavigationTarget? {
         val expected = registry.association(session.id) ?: return null
         val terminal = terminalFor(session.id) ?: return null
         val shell = terminal.shellPid() ?: return null
@@ -215,7 +216,6 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val commands = executables()
         val binding = titleBindings[expected.tab]
         var observed: ProcessHandle? = null
-        val codexHome = SeshlogSettings.getInstance().resolvedCodexDataDir()
         val current = {
             !disposed && !project.isDisposed && sessionCurrent() && !Disposer.isDisposed(expected.tab) && registry.matches(expected) &&
                 terminalFor(session.id)?.let { it.shellPid() == shell && it.applicationTitle() == title } == true && observed?.isAlive == true
@@ -229,7 +229,8 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 val discovery = result.discoveries.getValue(shell).discovery
                 observed = discovery.processes[session.id]?.let(result.handles::get)
                 val arguments = if (localMessageTarget) observed?.info()?.arguments()?.orElse(null) else emptyArray()
-                val local = !localMessageTarget || supportsLocalReviewTransport(arguments)
+                val local = !localMessageTarget || supportsLocalReviewTransport(arguments,
+                    endpointProven = observed?.let { CodexReviewEndpoint.connected(it, codexHome) } == true)
                 local && sessions.count { it.id == session.id } == 1 && discovery.sessionIds.singleOrNull() == session.id && observed != null
             },
             current = current,
@@ -557,7 +558,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     }
 }
 
-/** Unknown process arguments cannot certify which server a TUI uses. */
-internal fun supportsLocalReviewTransport(arguments: Array<String>?): Boolean = arguments != null && arguments.none {
+/** Arguments can exclude delivery, but only live endpoint evidence can permit it. */
+internal fun supportsLocalReviewTransport(arguments: Array<String>?, endpointProven: Boolean = false): Boolean = endpointProven && arguments != null && arguments.none {
     it == "--no-daemon" || it == "--remote" || it.startsWith("--remote=")
 }

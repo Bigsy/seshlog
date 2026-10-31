@@ -65,6 +65,17 @@ async function main(agent, config) {
   }
   const title = () => titles ? `synthetic codex | ${session.id}` : 'synthetic codex';
   let reviewBusy = false, reviewPolicy = 'accept', reviewPending = false, reviewClock = null;
+  // Model an actual TUI-to-daemon connection, so the production endpoint proof can be tested.
+  let reviewConnection = null;
+  if (agent === 'codex') {
+    const endpoint = guard(path.join(config.codex, 'app-server-control/app-server-control.sock'));
+    if (fs.existsSync(endpoint)) await new Promise((resolve) => {
+      reviewConnection = require('node:net').createConnection(endpoint);
+      reviewConnection.once('connect', () => { reviewConnection.setTimeout(0); resolve(); });
+      reviewConnection.on('error', resolve);
+      reviewConnection.setTimeout(1000, () => { reviewConnection.destroy(); resolve(); });
+    });
+  }
   const reviewDirectory = guard(path.join(root, '.review-terminals'));
   const reviewMarker = guard(path.join(reviewDirectory, `${process.pid}.json`));
   const reviewState = () => {
@@ -94,6 +105,7 @@ async function main(agent, config) {
     if (closed) return;
     closed = true;
     if (reviewClock) clearInterval(reviewClock);
+    if (reviewConnection) reviewConnection.destroy();
     if (agent === 'codex') fs.rmSync(reviewMarker, { force: true });
     try { session.close(); } finally { process.exit(0); }
   };

@@ -7,6 +7,7 @@ import com.hedworth.seshlog.model.AgentKind
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.BasicFileAttributes
 
 internal fun interface ReviewDeliveryTransport {
     fun submit(batch: ReviewSubmission, home: Path, beforeDispatch: () -> Boolean): ReviewDeliveryResult
@@ -21,6 +22,8 @@ internal class CodexReviewTransport(private val timeoutMillis: Long = 10_000) : 
         var dispatched = false
         try {
             val socket = home.resolve("app-server-control/app-server-control.sock").toRealPath()
+            val socketKey = Files.readAttributes(socket, BasicFileAttributes::class.java).fileKey()
+                ?: return unavailable("endpoint_unverified")
             val owner = Files.getOwner(Path.of(System.getProperty("user.home")))
             val publicBits = PosixFilePermission.entries.filter { it.name.startsWith("GROUP_") || it.name.startsWith("OTHERS_") }.toSet()
             if (Files.getOwner(socket) != owner || Files.getOwner(socket.parent) != owner ||
@@ -47,6 +50,10 @@ internal class CodexReviewTransport(private val timeoutMillis: Long = 10_000) : 
                 val checkout = GitRepository.checkout(Path.of(thread["cwd"].asString), batch.recipient.checkout)
                 if (checkout == null || !checkout.available || !batch.recipient.checkout.sameIdentity(checkout)) return unavailable("checkout_changed")
                 if (!beforeDispatch()) return unavailable("recipient_or_files_changed")
+                // The proof must describe the same socket we connected to, even across a daemon restart.
+                if (home.resolve("app-server-control/app-server-control.sock").toRealPath() != socket ||
+                    Files.readAttributes(socket, BasicFileAttributes::class.java).fileKey() != socketKey)
+                    return unavailable("endpoint_unverified")
                 val input = JsonArray().apply { add(JsonObject().apply {
                     addProperty("type", "text"); addProperty("text", batch.payload); add("text_elements", JsonArray())
                 }) }

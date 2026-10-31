@@ -7,14 +7,16 @@ import com.hedworth.seshlog.model.Session
 import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
+import java.nio.file.Path
 
 internal data class ReviewOpenTarget(
     val project: Project, val session: Session, val proof: OwnedTerminalTabs.NavigationTarget, val tabRef: String?,
 )
 internal object ReviewTargets {
     /** EDT capture; process and filesystem proof is performed separately on the send worker. */
-    fun capture(recipient: ReviewRecipient, delivery: Boolean = true): ReviewOpenTarget? {
+    fun capture(recipient: ReviewRecipient, delivery: Boolean = true, deliveryHome: Path? = null): ReviewOpenTarget? {
         if (delivery && recipient.kind != AgentKind.CODEX) return null
+        if (delivery && deliveryHome == null) return null
         val sessions = SessionIndex.getInstance().sessions.filter { it.id == recipient.sessionId }
         if (sessions.size != 1 || sessions.single().kind != recipient.kind) return null
         val session = sessions.single()
@@ -26,7 +28,7 @@ internal object ReviewTargets {
                 current.size == 1 && current.single().kind == recipient.kind &&
                     current.single().checkout?.let(recipient.checkout::sameIdentity) == true
             }
-            val proof = (if (delivery) owned.reviewTarget(session, current) else owned.navigationTarget(session, current)) ?: return@mapNotNull null
+            val proof = (if (delivery) owned.reviewTarget(session, deliveryHome!!, current) else owned.navigationTarget(session, current)) ?: return@mapNotNull null
             ReviewOpenTarget(project, session, proof, DiagnosticRef.tab(terminal.content))
         }
         return matches.singleOrNull() // Conflicting ownership is unavailable, never "nearest".

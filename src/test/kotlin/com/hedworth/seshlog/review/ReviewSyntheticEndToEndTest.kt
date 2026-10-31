@@ -69,6 +69,8 @@ class ReviewSyntheticEndToEndTest {
         return store to store.get(review.id)
     }
     @Test fun `one batch across files and sides queues while held then reaches only the intended fictional session`() = scenario { layout, first, second, provider ->
+        if (System.getProperty("os.name").startsWith("Mac"))
+            assertTrue(com.hedworth.seshlog.terminal.CodexReviewEndpoint.connected(first.process.toHandle(), layout.codex))
         first.policy("hold")
         val (store, review) = draft(layout, first.id)
         val batch = store.prepare(review.id)
@@ -86,6 +88,21 @@ class ReviewSyntheticEndToEndTest {
         assertEquals(1, text(first.id).count { it == batch.payload })
         assertFalse(text(second.id).contains(batch.payload))
         assertTrue(store.get(review.id).comments.isEmpty())
+    }
+    @Test fun `a copied loaded thread and checkout in another home cannot receive this TUIs review`() = scenario { layout, first, _, _ ->
+        assumeTrue(System.getProperty("os.name").startsWith("Mac"))
+        val (store, snapshot) = draft(layout, first.id)
+        val otherHome = Files.createDirectories(layout.root.parent.resolve("b")) // macOS Unix socket path bound.
+        SyntheticReviewServer(otherHome, layout.projects.harbor, first.id).use { other ->
+            var sends = 0
+            val result = ReviewSendOperation(store, snapshot, { ReviewSnapshots.validate(it, emptySet()) },
+                { com.hedworth.seshlog.terminal.CodexReviewEndpoint.connected(first.process.toHandle(), otherHome) },
+                { batch, before -> sends++; CodexReviewTransport().submit(batch, otherHome, before) }).run()
+            assertEquals(ReviewDeliveryStatus.UNAVAILABLE, result.status)
+            assertEquals(0, sends)
+            assertEquals(0, other.enqueued.get())
+            assertEquals(2, store.get(snapshot.id).comments.size)
+        }
     }
     @Test fun `refusal and lost receipt retain drafts and never automatically retry`() = scenario { layout, first, _, provider ->
         val (store, review) = draft(layout, first.id)

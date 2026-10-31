@@ -3,6 +3,12 @@
 The five most recent releases are kept in `src/main/resources/META-INF/plugin.xml`.
 Older entries are preserved here when that list is rotated.
 
+## 0.8.0
+
+- Search ranks results by relevance across titles, paths and conversations. Use "quoted phrases" for exact text.
+- The search index is kept between restarts and updates as sessions change. Everything runs locally.
+- Opening a result jumps to the matching passage.
+
 ## 0.7.1
 
 - New Open Worktree and Fork Session: start a separate copy of the conversation in the session's worktree window, leaving the original running.

@@ -42,6 +42,12 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Automatic Codex tracking setup in new local bash, zsh and fish terminals on macOS/Linux.</li>
+        <li>Fix stale Codex session associations after thread switches, including Copy and navigation actions.</li>
+        <li>Faster Codex tracking with fewer process scans.</li>
+    </ul>
     <b>0.8.5</b>
     <ul>
         <li>Search now defaults to a flat list, with Best match / Recently active sorting and optional folder grouping.</li>
@@ -69,12 +75,6 @@
         <li>Each result shows where it matched and opens at that passage.</li>
         <li>Faster search, and exact or quoted matches no longer rank below partial title matches.</li>
         <li>Upgrading from 0.8.0? Rebuild the search index once in Settings → Tools → Seshlog → Search.</li>
-    </ul>
-    <b>0.8.0</b>
-    <ul>
-        <li>Search ranks results by relevance across titles, paths and conversations. Use "quoted phrases" for exact text.</li>
-        <li>The search index is kept between restarts and updates as sessions change. Everything runs locally.</li>
-        <li>Opening a result jumps to the matching passage.</li>
     </ul>
     <p><a href="https://github.com/Bigsy/seshlog/blob/main/docs/changelog-archive.md">Older release notes</a></p>
     ]]></change-notes>

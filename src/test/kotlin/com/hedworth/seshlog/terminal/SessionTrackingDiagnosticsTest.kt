@@ -37,28 +37,20 @@ class SessionTrackingDiagnosticsTest {
             ProcessTranscripts.Result(mapOf(900L to setOf(path), 11L to emptySet()), cwds = mapOf(11L to cwd))
         }, codexDaemon = { _, _ -> 900 })
         val result = inspector.inspect(setOf(10), listOf(session(path)), mapOf(AgentKind.CODEX to "codex"), temporary.root.toPath(), trace)
-        assertEquals(setOf("terminal"), result.discoveries.getValue(10).discovery.sessionIds)
-        assertTrue(events.any { it.first == "daemon_match" && it.second["method"] == "elimination" })
-        assertTrue(events.any { it.first == "shell_discovery" && it.second["sessions"] == listOf(DiagnosticRef.of("terminal")) })
+        assertTrue(result.discoveries.getValue(10).discovery.sessionIds.isEmpty())
+        assertTrue(events.any { it.first == "daemon_match_skipped" && it.second["reason"] == "not_terminal_identity" })
+        assertTrue(events.any { it.first == "shell_discovery" && it.second["sessions"] == emptyList<String>() })
         assertTrue(events.all { it.second["poll"] == 123 })
         val text = events.toString()
         listOf("private prompt", "private session title", "--token", "secret", path.toString(), cwd.toString()).forEach { assertFalse(it, text.contains(it)) }
         assertTrue(text.contains(DiagnosticRef.path(path)!!))
     }
 
-    @Test fun `external Codex TUI preventing a match has an explicit count reason`() {
-        val path = rollout()
-        val result = CodexDaemon.match(listOf(CodexDaemon.Instance(setOf(11), null), CodexDaemon.Instance(setOf(21), null)), 900,
-            ProcessTranscripts.Result(mapOf(900L to setOf(path)), cwds = mapOf(11L to cwd, 21L to cwd)), trace)
-        assertTrue(result.isEmpty())
-        assertTrue(events.any { it.first == "daemon_directory" && it.second["launches"] == 2 && it.second["threads"] == 1 })
-        assertTrue(events.any { it.second["reason"] == "unequal_counts" })
-    }
-
     @Test fun `unknown evidence and stale generations are distinguishable`() {
-        CodexDaemon.match(listOf(CodexDaemon.Instance(setOf(11), null)), 900,
-            ProcessTranscripts.Result(emptyMap(), setOf(900)), trace)
-        assertTrue(events.any { it.second["reason"] == "daemon_descriptors_unknown" })
+        val inspector = ProcessBatchInspector(snapshot = { ProcessTableSnapshot.of(emptyList(), complete = false) })
+        val result = inspector.inspect(setOf(10), emptyList(), emptyMap(), trace = trace)
+        assertTrue(result.discoveries.getValue(10).discovery.unknown)
+        assertTrue(events.any { it.first == "process_table" && it.second["complete"] == false })
         val tab = Any()
         val input = TerminalReconcileInput(
             sessions = listOf(session(temporary.root.toPath())), ownership = emptyMap<String, Any>(),

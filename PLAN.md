@@ -58,10 +58,10 @@ last-known/ended context from a verified current association. Agent data remains
   checking polling and Copy with mixed title configuration and with no titles. Preserve direct
   writable-rollout matching and other providers' existing identity rules.
   Completed 2026-10-31: both new stale-resume regressions failed before the fix; clean
-  `make check` passes. Codex launch intent reserves a tab separately from current identity;
+  `make check` passes 641 tests (10 opt-in skips). Codex launch intent reserves a tab separately from current identity;
   unavailable active identity cannot copy the previous reply. Further heuristic removal is C2.
 
-- [ ] **C2. Remove timing and elimination as authoritative identity evidence.** Retire the ownership
+- [x] **C2. Remove timing and elimination as authoritative identity evidence.** Retire the ownership
   decisions from `CodexDaemon.startupPairs` and cwd/count-based elimination in `CodexDaemon.match`,
   including the apparent single-TUI/single-thread case and fork-source inference. Remove unused
   heuristic code; any retained diagnostic candidate must be unable to reach adoption, running
@@ -70,6 +70,9 @@ last-known/ended context from a verified current association. Agent data remains
   simultaneous launches/forks, missing start times and incomplete enumeration. Assert uncertainty
   rather than a guessed association. Update tests that currently encode heuristic success; retain
   explicit positive tests for title and direct-writer identification.
+  Completed 2026-10-31: slow-start plus `/new` failed before removal. Clean `make check`
+  passes 641 tests (10 opt-in skips), including title and direct-writer positives. Daemon
+  scenarios now exercise the production batch inspector and assert unresolved identity.
 
 - [ ] **C3. Reconcile thread changes and exchanges atomically.** Extend `TerminalReconciler` and
   `TabRegistry` with a generation-checked batch transition for affected tabs. Validate the whole

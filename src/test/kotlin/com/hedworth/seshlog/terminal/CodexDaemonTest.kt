@@ -42,16 +42,45 @@ class CodexDaemonTest {
     private fun instance(vararg pids: Long, resume: String? = null, started: Instant? = null, fork: String? = null) =
         CodexDaemon.Instance(pids.toSet(), resume, started, forkOf = fork)
 
+    /** Exercise the production inspector: daemon evidence must never reach polling or Copy. */
+    private fun match(instances: List<CodexDaemon.Instance>, daemon: Long, evidence: ProcessTranscripts.Result): Map<Long, String> {
+        val rows = instances.flatMap { instance ->
+            val shell = instance.pids.min() * 100
+            listOf(row(shell, 1, "zsh")) + instance.pids.map { pid ->
+                row(pid, shell, "codex", *listOfNotNull("resume".takeIf { instance.resumed }, instance.resumeId).toTypedArray(),
+                    started = instance.startedAt)
+            }
+        } + row(daemon, 1, "codex", "app-server")
+        val sessions = evidence.files.values.flatten().distinct().mapNotNull { path ->
+            val header = com.hedworth.seshlog.codex.CodexTranscriptParser.rolloutHeader(path) ?: return@mapNotNull null
+            header.id?.let { session(it).copy(transcriptPath = path) }
+        }
+        val result = ProcessBatchInspector(snapshot = { ProcessTableSnapshot.of(rows) },
+            writableFiles = { evidence }, codexDaemon = { _, _ -> daemon }).inspect(
+            instances.mapTo(HashSet()) { it.pids.min() * 100 }, sessions, mapOf(AgentKind.CODEX to "codex"), temporary.root.toPath())
+        return result.discoveries.values.flatMap { it.discovery.processes.entries }.associate { it.value to it.key }
+    }
+
     @Test fun `stale resume reservation cannot give the other TUI the wrong held thread`() {
         val instances = listOf(instance(11, resume = "a"), instance(21).copy(resumed = true))
-        assertTrue(CodexDaemon.match(instances, daemon,
+        assertTrue(match(instances, daemon,
             evidence(listOf(rollout("a"), rollout("b")), mapOf(11L to app, 21L to app))).isEmpty())
     }
 
-    @Test fun `fresh TUI adopts the only daemon-held terminal thread in its directory`() {
+    @Test fun `slow startup and an older TUIs new thread cannot be paired backwards`() {
+        val older = instance(11, started = t0.minusSeconds(60))
+        val newer = instance(21, started = t0)
+        // Older does /new at +2, newer creates its thread at +20. Both have delayed writes.
+        val held = listOf(rollout("older-new", created = t0.plusSeconds(2)),
+            rollout("newer-first", created = t0.plusSeconds(20)))
+        assertTrue(match(listOf(older, newer), daemon,
+            evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
+    }
+
+    @Test fun `single TUI and single daemon-held thread are insufficient identity`() {
         val held = listOf(rollout("fresh"), rollout("review", source = guardian), rollout("editor", originator = "codex_vscode"))
-        assertEquals(mapOf(11L to "fresh", 12L to "fresh"),
-            CodexDaemon.match(listOf(instance(11, 12)), daemon, evidence(held, mapOf(11L to app, 12L to app))))
+        assertEquals(emptyMap<Long, String>(),
+            match(listOf(instance(11, 12)), daemon, evidence(held, mapOf(11L to app, 12L to app))))
     }
 
     @Test fun `a TUI outside IntelliJ in the same directory leaves both unmatched`() {
@@ -59,27 +88,27 @@ class CodexDaemonTest {
         val outside = instance(21)
         val cwds = mapOf(11L to app, 21L to app)
         // The tab's thread is not open yet: the outside TUI's thread must not be taken for it.
-        assertTrue(CodexDaemon.match(listOf(tab, outside), daemon, evidence(listOf(rollout("outside")), cwds)).isEmpty())
-        assertTrue(CodexDaemon.match(listOf(tab, outside), daemon, evidence(listOf(rollout("outside"), rollout("tab")), cwds)).isEmpty())
+        assertTrue(match(listOf(tab, outside), daemon, evidence(listOf(rollout("outside")), cwds)).isEmpty())
+        assertTrue(match(listOf(tab, outside), daemon, evidence(listOf(rollout("outside"), rollout("tab")), cwds)).isEmpty())
         // In another directory it is irrelevant.
-        val apart = CodexDaemon.match(listOf(tab, outside), daemon,
+        val apart = match(listOf(tab, outside), daemon,
             evidence(listOf(rollout("tab"), rollout("outside", other)), mapOf(11L to app, 21L to other)))
-        assertEquals("tab", apart[11L])
+        assertNull(apart[11L])
     }
 
     @Test fun `startup race before the daemon opens the thread matches nothing`() {
-        assertTrue(CodexDaemon.match(listOf(instance(11)), daemon, evidence(emptyList(), mapOf(11L to app))).isEmpty())
-        assertTrue(CodexDaemon.match(listOf(instance(11, resume = "old")), daemon, evidence(emptyList(), mapOf(11L to app))).isEmpty())
+        assertTrue(match(listOf(instance(11)), daemon, evidence(emptyList(), mapOf(11L to app))).isEmpty())
+        assertTrue(match(listOf(instance(11, resume = "old")), daemon, evidence(emptyList(), mapOf(11L to app))).isEmpty())
     }
 
     @Test fun `a stale thread the daemon still holds makes the directory ambiguous`() {
         val held = listOf(rollout("old"), rollout("new"))
-        assertTrue(CodexDaemon.match(listOf(instance(11, resume = "old")), daemon, evidence(held, mapOf(11L to app))).isEmpty())
+        assertTrue(match(listOf(instance(11, resume = "old")), daemon, evidence(held, mapOf(11L to app))).isEmpty())
     }
 
     @Test fun `a released resume target cannot identify the one held thread`() {
         assertEquals(emptyMap<Long, String>(),
-            CodexDaemon.match(listOf(instance(11, resume = "old")), daemon, evidence(listOf(rollout("new")), mapOf(11L to app))))
+            match(listOf(instance(11, resume = "old")), daemon, evidence(listOf(rollout("new")), mapOf(11L to app))))
     }
 
     @Test fun `stale resume intent prevents elimination in a shared directory`() {
@@ -88,20 +117,20 @@ class CodexDaemonTest {
         val fresh = instance(21)
         val cwds = mapOf(11L to app, 21L to app, 31L to app)
         val own = mapOf(31L to setOf(rollout("own", source = "\"cli\"", originator = "codex_cli_rs")))
-        val result = CodexDaemon.match(listOf(resumed, ownWriter, fresh), daemon,
+        val result = match(listOf(resumed, ownWriter, fresh), daemon,
             evidence(listOf(rollout("resumed"), rollout("fresh")), cwds, own))
-        assertTrue(result.isEmpty())
+        assertEquals(mapOf(31L to "own"), result)
     }
 
-    @Test fun `fresh TUIs sharing a directory each take the thread they created as they started`() {
+    @Test fun `fresh TUIs sharing a directory cannot be identified by creation times`() {
         // Two plain `codex` tabs in one project: neither has a resume argument or its own rollout.
         val first = instance(11, 12, started = t0)
         val second = instance(21, 22, started = t0.plusSeconds(22))
         val held = listOf(rollout("second", created = t0.plusSeconds(23)), rollout("first", created = t0.plusMillis(1_500)),
             rollout("review", source = guardian, created = t0.plusSeconds(23)))
         val cwds = mapOf(11L to app, 12L to app, 21L to app, 22L to app)
-        assertEquals(mapOf(11L to "first", 12L to "first", 21L to "second", 22L to "second"),
-            CodexDaemon.match(listOf(first, second), daemon, evidence(held, cwds)))
+        assertEquals(emptyMap<Long, String>(),
+            match(listOf(first, second), daemon, evidence(held, cwds)))
     }
 
     @Test fun `launches started within one window of a thread stay unknown`() {
@@ -110,13 +139,13 @@ class CodexDaemonTest {
         val second = instance(21, started = t0.plusSeconds(2))
         // Both were running before either thread was created, so either could own either.
         val held = listOf(rollout("a", created = t0.plusSeconds(3)), rollout("b", created = t0.plusSeconds(4)))
-        assertTrue(CodexDaemon.match(listOf(first, second), daemon, evidence(held, cwds)).isEmpty())
+        assertTrue(match(listOf(first, second), daemon, evidence(held, cwds)).isEmpty())
         // The same start time cannot tell two launches apart either.
         val twin = instance(21, started = t0)
         val apart = listOf(rollout("a", created = t0.plusSeconds(1)), rollout("b", created = t0.plusSeconds(30)))
-        assertTrue(CodexDaemon.match(listOf(first, twin), daemon, evidence(apart, cwds)).isEmpty())
+        assertTrue(match(listOf(first, twin), daemon, evidence(apart, cwds)).isEmpty())
         // Without a process start time there is no window at all.
-        assertTrue(CodexDaemon.match(listOf(first, instance(21)), daemon, evidence(apart, cwds)).isEmpty())
+        assertTrue(match(listOf(first, instance(21)), daemon, evidence(apart, cwds)).isEmpty())
     }
 
     @Test fun `a resumed TUI never takes a thread by startup time`() {
@@ -125,9 +154,9 @@ class CodexDaemonTest {
         val fresh = instance(11, started = t0.minusSeconds(5))
         val resumed = instance(21, resume = "gone", started = t0)
         val held = listOf(rollout("fresh", created = t0.plusMillis(500)), rollout("new", created = t0.plusSeconds(300)))
-        assertTrue(CodexDaemon.match(listOf(fresh, resumed), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
+        assertTrue(match(listOf(fresh, resumed), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
         val picker = instance(21, started = t0).copy(resumed = true)
-        assertTrue(CodexDaemon.match(listOf(fresh, picker), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
+        assertTrue(match(listOf(fresh, picker), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
     }
 
     @Test fun `a thread written as soon as it was created says nothing about which launch started`() {
@@ -137,34 +166,34 @@ class CodexDaemonTest {
         val second = instance(21, started = t0.plusSeconds(22))
         val held = listOf(rollout("first", created = t0.plusSeconds(1), written = t0.plusMillis(1_045)),
             rollout("second", created = t0.plusSeconds(23), written = t0.plusMillis(23_045)))
-        assertTrue(CodexDaemon.match(listOf(first, second), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
+        assertTrue(match(listOf(first, second), daemon, evidence(held, mapOf(11L to app, 21L to app))).isEmpty())
     }
 
-    @Test fun `a fork takes the thread forked from its source`() {
+    @Test fun `fork ancestry cannot identify the terminal`() {
         // The fork writes its copied history at once, and a fresh launch started just after it.
         val fork = instance(11, started = t0, fork = "source")
         val fresh = instance(21, started = t0.plusMillis(500))
         val held = listOf(rollout("forked", created = t0.plusSeconds(1), written = t0.plusMillis(1_045), forkedFrom = "source"),
             rollout("fresh", created = t0.plusSeconds(2)))
         val cwds = mapOf(11L to app, 21L to app, 31L to app)
-        assertEquals(mapOf(11L to "forked", 21L to "fresh"), CodexDaemon.match(listOf(fork, fresh), daemon, evidence(held, cwds)))
+        assertEquals(emptyMap<Long, String>(), match(listOf(fork, fresh), daemon, evidence(held, cwds)))
         // Two forks of one source cannot be told apart by it.
         val twin = instance(31, started = t0.plusSeconds(30), fork = "source")
         val twins = held + listOf(rollout("twin", created = t0.plusSeconds(31), written = t0.plusMillis(31_045), forkedFrom = "source"))
-        assertEquals(mapOf(21L to "fresh"), CodexDaemon.match(listOf(fork, fresh, twin), daemon, evidence(twins, cwds)))
+        assertEquals(emptyMap<Long, String>(), match(listOf(fork, fresh, twin), daemon, evidence(twins, cwds)))
     }
 
     @Test fun `any gap in the evidence matches nothing`() {
         val held = listOf(rollout("fresh"))
         val cwds = mapOf(11L to app)
         val tui = listOf(instance(11))
-        assertEquals(1, CodexDaemon.match(tui, daemon, evidence(held, cwds)).size)
-        assertTrue(CodexDaemon.match(tui, daemon, evidence(held, cwds, unknown = setOf(daemon))).isEmpty())
-        assertTrue(CodexDaemon.match(tui, daemon, ProcessTranscripts.Result(emptyMap(), cwds = cwds)).isEmpty())
-        assertTrue(CodexDaemon.match(tui, daemon, evidence(held, cwds, unknown = setOf(11L))).isEmpty())
-        assertTrue(CodexDaemon.match(tui, daemon, evidence(held, emptyMap())).isEmpty())
+        assertEquals(0, match(tui, daemon, evidence(held, cwds)).size)
+        assertTrue(match(tui, daemon, evidence(held, cwds, unknown = setOf(daemon))).isEmpty())
+        assertTrue(match(tui, daemon, ProcessTranscripts.Result(emptyMap(), cwds = cwds)).isEmpty())
+        assertTrue(match(tui, daemon, evidence(held, cwds, unknown = setOf(11L))).isEmpty())
+        assertTrue(match(tui, daemon, evidence(held, emptyMap())).isEmpty())
         val unreadable = temporary.root.toPath().resolve("rollout-unreadable.jsonl").also { Files.writeString(it, "{not json\n") }
-        assertTrue(CodexDaemon.match(tui, daemon, evidence(held + listOf(unreadable), cwds)).isEmpty())
+        assertTrue(match(tui, daemon, evidence(held + listOf(unreadable), cwds)).isEmpty())
     }
 
     private fun row(pid: Long, parent: Long?, command: String, vararg args: String, started: Instant? = null) =

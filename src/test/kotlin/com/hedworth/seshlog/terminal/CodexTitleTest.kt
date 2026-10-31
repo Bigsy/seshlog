@@ -61,10 +61,10 @@ class CodexTitleTest {
         assertEquals(current, discovery.copySession(old))
     }
 
-    @Test fun `title overrides resume arguments and daemon pairing after an in-TUI thread switch`() {
+    @Test fun `title overrides resume arguments after an in-TUI thread switch`() {
         val process = SessionProcess.Evidence(123, "/bin/codex", listOf("resume", old))
         val discovery = SessionProcess.identifyTree(listOf(process), sessions, executables, ProcessTranscripts.Result(emptyMap()),
-            daemonThreads = mapOf(123L to old), title = shortened(current))
+            title = shortened(current))
         assertEquals(setOf(current), discovery.sessionIds)
         assertEquals(mapOf(current to 123L), discovery.processes)
     }

@@ -8,10 +8,10 @@ import org.junit.Test
 import java.nio.file.Path
 
 /**
- * Manual check, after a Codex upgrade, that Codex still leaves the evidence [CodexDaemon] matches on;
+ * Manual check, after a Codex upgrade, of daemon metadata availability; it cannot certify terminal identity. It
  * only runs when SESHLOG_CODEX_CHECK=1 (`make codex-check`). Open a plain `codex` tab and send it a
  * prompt first. Fails when the evidence can no longer be read, warns when it reads but no longer has
- * the startup shape (matching then fails safe: tabs stay unattached). Prints counts only.
+ * the expected metadata. Prints counts only.
  */
 class CodexLiveCheck {
     @Test
@@ -40,16 +40,10 @@ class CodexLiveCheck {
             "id" to { it.id == null }, "cwd" to { it.cwd == null },
             "payload.timestamp" to { it.createdAt == null }, "record timestamp" to { it.writtenAt == null },
         )) assertTrue("${terminal.count(missing)} of ${terminal.size} held terminal headers lack $field", terminal.none(missing))
-        val startup = terminal.count { CodexDaemon.startupShaped(it.createdAt, it.writtenAt) }
+        val startup = terminal.count { it.createdAt != null && it.writtenAt?.isAfter(it.createdAt) == true }
 
-        val started = System.nanoTime()
-        val matched = CodexDaemon.match(launches, pid, evidence)
-        val millis = (System.nanoTime() - started) / 1_000_000
-        report("heldTerminal=${terminal.size} startupShaped=$startup heldOther=${held.size - terminal.size} " +
-            "matchedLaunches=${launches.count { launch -> launch.pids.any(matched::containsKey) }} matchMs=$millis")
-        if (startup == 0 && launches.any { !it.resumed && it.forkOf == null })
-            report("WARN no held thread was created before its first write, so startup matching is off. Codex may now " +
-                "create threads at the first prompt; plain tabs sharing a directory will stay unattached.")
+        report("heldTerminal=${terminal.size} delayedWrite=$startup heldOther=${held.size - terminal.size} " +
+            "terminalIdentityVerified=0 (daemon metadata cannot certify terminal identity)")
     }
 
     private fun report(line: String) = println("SESHLOG_CODEX_CHECK $line")

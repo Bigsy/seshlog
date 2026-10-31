@@ -89,7 +89,6 @@ internal object SessionProcess {
         processes: List<Evidence>, sessions: List<Session>, executables: Map<AgentKind, String>,
         evidence: ProcessTranscripts.Result,
         isCliTranscript: (Path) -> Boolean = CodexTranscriptParser::isCliTranscript,
-        daemonThreads: Map<Long, String> = emptyMap(),
         trace: DiagnosticTrace = DiagnosticTrace.NONE,
         /** The terminal title the foreground program set; see [CodexTitle]. */
         title: String? = null,
@@ -116,9 +115,6 @@ internal object SessionProcess {
         }.toMap()
         val identified = processes.flatMap { process -> identify(process, sessions, executables).map { it to process.pid } }.toMap()
         val codexIds = sessions.filter { it.kind == AgentKind.CODEX }.mapTo(HashSet()) { it.id }
-        // A TUI on the app-server daemon holds no rollout. A one-to-one daemon match stands in for
-        // one, and only such a positive match overrides its resume argument.
-        val matched = codexProcesses.mapNotNull { process -> daemonThreads[process.pid]?.let { it to process.pid } }.toMap()
         // The title names the thread the TUI shows now, even after an in-TUI switch, so it overrides
         // every other Codex evidence. A thread the index lacks still rules out the older ones.
         val titled = if (codexProcesses.isEmpty()) null else CodexTitle.thread(title)
@@ -126,13 +122,12 @@ internal object SessionProcess {
         val owners = when {
             // A Node wrapper and its native binary exit together, so either pid observes the TUI.
             titled != null -> identified.filterKeys { it !in codexIds } + listOfNotNull(titledId).associateWith { id ->
-                written[id] ?: matched[id] ?: identified[id] ?: codexProcesses.first().pid
+                written[id] ?: identified[id] ?: codexProcesses.first().pid
             }
-            paths.isEmpty() && !unknown && matched.isEmpty() -> identified
-            else -> identified.filterKeys { it !in codexIds } + written + matched.filterKeys { it in codexIds }
+            paths.isEmpty() && !unknown -> identified
+            else -> identified.filterKeys { it !in codexIds } + written
         }
         trace.event("identity_evidence", "argumentOrMarker" to DiagnosticRef.ids(identified.keys), "writers" to DiagnosticRef.ids(written.keys),
-            "daemon" to DiagnosticRef.ids(matched.keys), "daemonMissingFromIndex" to DiagnosticRef.ids(matched.keys - codexIds),
             "rolloutCount" to paths.size, "descriptorOrHeaderUnknown" to unknown,
             "title" to when { titled == null -> "none"; titledId == null -> "unindexed"; else -> "matched" }, "titleSession" to DiagnosticRef.of(titledId),
             "selected" to DiagnosticRef.ids(owners.keys))

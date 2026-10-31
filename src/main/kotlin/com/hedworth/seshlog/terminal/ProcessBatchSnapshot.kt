@@ -150,11 +150,11 @@ internal class ProcessBatchInspector(
                 "cwd" to DiagnosticRef.path(descriptors.cwds[pid]), "fileCount" to paths.size,
                 "rollouts" to paths.filter { it.fileName.toString().let { name -> name.startsWith("rollout-") && name.endsWith(".jsonl") } }.map(DiagnosticRef::path))
         }
-        val daemonThreads = daemon?.let { CodexDaemon.match(instances, it, descriptors, trace) }.orEmpty()
+        trace.event("daemon_match_skipped", "reason" to "not_terminal_identity")
         val discoveries = evidenceByShell.mapValues { (shell, processes) ->
             ShellProcessDiscovery(
                 shell,
-                if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors, daemonThreads = daemonThreads,
+                if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors,
                     trace = trace.with("shell" to shell), title = titles[shell])
                 else SessionProcess.Discovery(emptySet(), hasAgent = true, unknown = true),
             )

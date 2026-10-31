@@ -9,15 +9,34 @@ import java.util.UUID
 internal data class ReviewRecipient(val kind: AgentKind, val sessionId: String, val checkout: Checkout)
 internal enum class ReviewSide { BASE, CURRENT }
 internal enum class ReviewValidation { CURRENT, NEEDS_RECHECK }
-internal data class ReviewFileSnapshot(
-    val path: String, val base: String, val before: String, val current: String,
+internal class ReviewFileSnapshot(
+    val path: String, val base: String, before: String, current: String,
     val gitStatus: String = "M", val beforeBytesHash: String? = null, val currentBytesHash: String? = null,
     val beforeExists: Boolean = gitStatus !in setOf("?", "A"), val currentExists: Boolean = gitStatus != "D",
 ) {
+    private data class Text(val before: CharSequence, val current: CharSequence)
+    @Volatile private var contents = Text(normalize(before), normalize(current))
+    val before: String get() = contents.before.toString()
+    val current: String get() = contents.current.toString()
     val beforeHash = beforeBytesHash ?: reviewHash(before)
     val currentHash = currentBytesHash ?: reviewHash(current)
     val revision = reviewHash("$base\n$beforeExists:$beforeHash\n$currentExists:$currentHash")
-    val memoryBytes: Long get() = (before.length.toLong() + current.length) * 2
+    val memoryBytes: Long get() = contents.let { (it.before.length.toLong() + it.current.length) * 2 }
+    fun content(side: ReviewSide): CharSequence = contents.let { if (side == ReviewSide.BASE) it.before else it.current }
+    /** The UI supplies immutable document snapshots, never a live mutable document sequence.
+     * Only storage changes: text, raw-byte hashes, revision and anchors remain immutable. */
+    fun shareImmutableText(before: CharSequence, current: CharSequence) {
+        val previous = contents
+        check(previous.before.contentEquals(before) && previous.current.contentEquals(current)) { "Native diff text differs from the reviewed snapshot" }
+        contents = Text(before, current)
+    }
+    fun copy(path: String = this.path, base: String = this.base, before: String = this.before, current: String = this.current,
+             gitStatus: String = this.gitStatus,
+             beforeBytesHash: String? = if (contents.before.contentEquals(before)) beforeHash else null,
+             currentBytesHash: String? = if (contents.current.contentEquals(current)) currentHash else null,
+             beforeExists: Boolean = this.beforeExists, currentExists: Boolean = this.currentExists) =
+        ReviewFileSnapshot(path, base, before, current, gitStatus, beforeBytesHash, currentBytesHash, beforeExists, currentExists)
+    private fun normalize(text: String) = text.replace("\r\n", "\n").replace('\r', '\n')
     fun text(side: ReviewSide) = if (side == ReviewSide.BASE) before else current
     fun selection(side: ReviewSide, first: Int, last: Int): String {
         val text = text(side)
@@ -58,18 +77,21 @@ internal fun reviewHash(text: String): String = MessageDigest.getInstance("SHA-2
 /** Pure, bounded, in-memory ownership. Returned collections cannot mutate the stored draft. */
 internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 1024) {
     private val drafts = LinkedHashMap<String, ReviewDraft>()
-    private var editorBytes = 0L
-    /** Native documents retain their own text, including revisions no longer in a draft. */
+    private val editorSnapshots = java.util.IdentityHashMap<ReviewFileSnapshot, Int>()
+    /** Native documents and snapshots share immutable text; old revisions still count after refresh. */
     @Synchronized fun retainDiff(id: String, path: String, revision: String): AutoCloseable {
         val file = get(id).files[path] ?: error("Refresh this file before opening its diff")
         check(file.revision == revision) { "This diff is outdated; open the refreshed snapshot" }
-        val bytes = file.memoryBytes
-        checkMemory(drafts.values, bytes)
-        editorBytes += bytes
+        checkMemory(drafts.values, file)
+        editorSnapshots[file] = (editorSnapshots[file] ?: 0) + 1
         return object : AutoCloseable {
             private var closed = false
             override fun close() = synchronized(this@ReviewDraftStore) {
-                if (!closed) { closed = true; editorBytes -= bytes }
+                if (!closed) {
+                    closed = true
+                    val count = editorSnapshots.getValue(file)
+                    if (count == 1) editorSnapshots.remove(file) else editorSnapshots[file] = count - 1
+                }
             }
         }
     }
@@ -94,7 +116,8 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
             if (comment.path == file.path && comment.fileRevision != file.revision && comment.validation != ReviewValidation.NEEDS_RECHECK)
                 comment.copy(revision = comment.revision + 1, validation = ReviewValidation.NEEDS_RECHECK) else comment
         }
-        return put(draft.copy(base = file.base, files = draft.files + (file.path to file), comments = comments))
+        val retained = draft.files[file.path]?.takeIf { it.revision == file.revision && it.gitStatus == file.gitStatus } ?: file
+        return put(draft.copy(base = file.base, files = draft.files + (file.path to retained), comments = comments))
     }
     @Synchronized fun add(id: String, path: String, side: ReviewSide, first: Int, last: Int, note: String, expectedRevision: String? = null): ReviewDraft {
         val draft = get(id)
@@ -207,13 +230,17 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         drafts[draft.id] = frozen
         return frozen
     }
-    private fun memory(draft: ReviewDraft): Long = draft.files.values.sumOf { it.memoryBytes } +
+    private fun memory(draft: ReviewDraft): Long =
         draft.comments.sumOf { (it.selected.length.toLong() + it.note.length) * 2 } + draft.overallNote.length * 2L +
         draft.sent.sumOf(::submissionMemory) + (draft.pending?.let { submissionMemory(it) + 1024 } ?: 0) +
         draft.sentResults.values.sumOf { (it.receipt?.length ?: 0) * 2L + it.reason.length * 2L + 32 }
-    private fun checkMemory(values: Collection<ReviewDraft>, extraEditorBytes: Long = 0) {
-        check(values.sumOf(::memory) + editorBytes + extraEditorBytes <= memoryLimit) {
-            "Review memory limit reached; close review diff tabs or explicitly discard a review before loading more content"
+    private fun checkMemory(values: Collection<ReviewDraft>, extra: ReviewFileSnapshot? = null) {
+        val snapshots = Collections.newSetFromMap(java.util.IdentityHashMap<ReviewFileSnapshot, Boolean>())
+        values.forEach { snapshots.addAll(it.files.values) }
+        snapshots.addAll(editorSnapshots.keys)
+        extra?.let(snapshots::add)
+        check(values.sumOf(::memory) + snapshots.sumOf { it.memoryBytes } <= memoryLimit) {
+            "Review memory limit reached; close older review diff tabs or explicitly discard a review before loading more content"
         }
     }
     private fun submissionMemory(submission: ReviewSubmission): Long = submission.payload.length * 2L +

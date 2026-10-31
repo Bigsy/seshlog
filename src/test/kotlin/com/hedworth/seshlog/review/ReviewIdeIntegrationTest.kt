@@ -106,11 +106,10 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         val current = service.store.add(draft.id, file.path, ReviewSide.CURRENT, 1, 1, "Keep current").comments.last()
         val opened = mutableMapOf<ReviewDiffVirtualFile, DiffEditorViewerFileEditor>()
         fun open(focus: ReviewComment): ReviewDiffVirtualFile {
-            val factory = DiffContentFactory.getInstance()
             val context = ReviewDiffContext(draft.id, file.path, file.revision, { _, _, _ -> }, focus)
-            val request = SimpleDiffRequest("Synthetic review editor", factory.create(project, file.before), factory.create(project, file.current), "Base", "Snapshot")
-            request.putUserData(ReviewDiffExtension.REVIEW_CONTEXT, context)
-            return ReviewDiffEditors.open(project, request, context, { opened.keys.toList() }, { tab ->
+            return ReviewDiffEditors.open(project, context, { before, current ->
+                SimpleDiffRequest("Synthetic review editor", before, current, "Base", "Snapshot").apply { putUserData(ReviewDiffExtension.REVIEW_CONTEXT, context) }
+            }, { opened.keys.toList() }, { tab ->
                 arrayOf(opened.getOrPut(tab) {
                     val processor = tab.createProcessor(project)
                     processor.updateRequest()
@@ -134,11 +133,9 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         val draft = draft()
         val file = ReviewFileSnapshot("refresh.kt", "base", "old\n", "new\n")
         service.store.load(draft.id, file)
-        val factory = DiffContentFactory.getInstance()
-        val request = SimpleDiffRequest("Synthetic refresh", factory.create(project, file.before), factory.create(project, file.current), "Base", "Snapshot")
         val context = ReviewDiffContext(draft.id, file.path, file.revision, { _, _, _ -> })
         lateinit var processor: DiffRequestProcessor
-        val tab = ReviewDiffEditors.open(project, request, context, { emptyList() }, { tab ->
+        val tab = ReviewDiffEditors.open(project, context, { before, current -> SimpleDiffRequest("Synthetic refresh", before, current, "Base", "Snapshot") }, { emptyList() }, { tab ->
             processor = tab.createProcessor(project)
             processor.updateRequest()
             arrayOf(DiffEditorViewerFileEditor(project, tab, processor).also { Disposer.register(testRootDisposable, it) })
@@ -157,11 +154,9 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         val draft = draft()
         val file = ReviewFileSnapshot("large.txt", "a".repeat(40), "", "x".repeat(7 * 1024 * 1024))
         service.store.load(draft.id, file)
-        val factory = DiffContentFactory.getInstance()
-        val request = SimpleDiffRequest("Synthetic bounded diff", factory.create(project, file.before), factory.create(project, file.current), "Base", "Snapshot")
         val context = ReviewDiffContext(draft.id, file.path, file.revision, { _, _, _ -> })
         val editors = mutableListOf<DiffEditorViewerFileEditor>()
-        val tab = ReviewDiffEditors.open(project, request, context, { emptyList() }, { tab ->
+        val tab = ReviewDiffEditors.open(project, context, { before, current -> SimpleDiffRequest("Synthetic bounded diff", before, current, "Base", "Snapshot") }, { emptyList() }, { tab ->
             Array(2) {
                 val processor = tab.createProcessor(project)
                 processor.updateRequest()
@@ -181,5 +176,32 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         Disposer.dispose(editors[1])
         assertTrue("Closed native tabs must release their retained text", (tab.request as SimpleDiffRequest).contents.isEmpty())
         assertEquals(refreshed.revision, service.store.load(draft.id, refreshed).files.getValue(file.path).revision)
+    }
+    fun `test a five MiB file on each side opens within the shared review text budget`() {
+        val draft = draft()
+        val size = 5 * 1024 * 1024
+        val file = ReviewFileSnapshot("permitted.txt", "base", "base\n" + "a".repeat(size - 5), "next\n" + "b".repeat(size - 5))
+        service.store.load(draft.id, file)
+        service.store.add(draft.id, file.path, ReviewSide.CURRENT, 1, 1, "Keep this reviewable")
+        val context = ReviewDiffContext(draft.id, file.path, file.revision, { _, _, _ -> })
+        fun open() = ReviewDiffEditors.open(project, context, { before, current -> SimpleDiffRequest("Permitted file", before, current, "Base", "Snapshot") }, { emptyList() }, { tab ->
+            val processor = tab.createProcessor(project)
+            processor.updateRequest()
+            arrayOf(DiffEditorViewerFileEditor(project, tab, processor).also { Disposer.register(testRootDisposable, it) })
+        })
+        val tab = open()
+        val other = open() // Independent native tabs, as in two project windows.
+        assertEquals(2, tab.request.contents.size)
+        tab.request.contents.map { it as com.intellij.diff.contents.DocumentContent }.forEachIndexed { index, content ->
+            assertFalse(content.document.isWritable)
+            assertSame(file.content(if (index == 0) ReviewSide.BASE else ReviewSide.CURRENT), content.document.immutableCharSequence)
+        }
+        val firstDocument = (tab.request.contents[1] as com.intellij.diff.contents.DocumentContent).document
+        val otherDocument = (other.request.contents[1] as com.intellij.diff.contents.DocumentContent).document
+        assertNotSame(firstDocument, otherDocument)
+        assertSame(firstDocument.immutableCharSequence, otherDocument.immutableCharSequence)
+        assertSame(file, service.store.load(draft.id, file.copy()).files[file.path])
+        assertTrue(tab.isValid)
+        assertEquals("Keep this reviewable", service.store.get(draft.id).comments.single().note)
     }
 }

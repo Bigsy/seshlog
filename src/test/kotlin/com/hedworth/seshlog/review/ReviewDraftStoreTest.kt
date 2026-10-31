@@ -144,16 +144,48 @@ class ReviewDraftStoreTest {
         val store = ReviewDraftStore(100)
         val draft = store.open(recipient)
         val snapshot = ReviewFileSnapshot("small", "base", "x".repeat(10), "y".repeat(10))
-        store.load(draft.id, snapshot) // 40 bytes in the draft.
-        val lease = store.retainDiff(draft.id, snapshot.path, snapshot.revision) // 40 in native documents.
-        rejects { store.retainDiff(draft.id, snapshot.path, snapshot.revision) }
+        store.load(draft.id, snapshot) // 40 bytes, shared by the draft and native documents.
+        val lease = store.retainDiff(draft.id, snapshot.path, snapshot.revision)
+        val second = store.retainDiff(draft.id, snapshot.path, snapshot.revision)
         store.discard(draft.id)
         val next = store.open(recipient)
         val bigger = snapshot.copy(current = "z".repeat(30)) // 80 plus the retained 40 exceeds 100.
         rejects { store.load(next.id, bigger) }
         lease.close(); lease.close()
+        rejects { store.load(next.id, bigger) } // Another native tab still owns the old text.
+        second.close()
         store.load(next.id, bigger)
-        rejects { store.retainDiff(next.id, bigger.path, bigger.revision) }
+        store.retainDiff(next.id, bigger.path, bigger.revision).close()
         assertEquals(bigger, store.get(next.id).files[bigger.path])
+    }
+    @Test fun `sharing normalized display text preserves raw revision hashes and immutable anchors`() {
+        val file = ReviewFileSnapshot("lines", "base", "old\r\n", "new\rkeep\r\n")
+        assertEquals(reviewHash("old\r\n"), file.beforeHash)
+        assertEquals(reviewHash("new\rkeep\r\n"), file.currentHash)
+        assertEquals("old\n", file.before)
+        assertEquals("new\nkeep\n", file.current)
+        val revision = file.revision
+        rejects { file.shareImmutableText("changed", file.current) }
+        file.shareImmutableText(file.before, file.current)
+        assertEquals(revision, file.revision)
+        assertEquals(revision, file.copy().revision)
+        assertEquals("new\nkeep", file.selection(ReviewSide.CURRENT, 1, 2))
+    }
+    @Test fun `retained revisions remain bounded while unchanged refreshes reuse their text`() {
+        val store = ReviewDraftStore(64)
+        val draft = store.open(recipient)
+        val first = ReviewFileSnapshot("a", "base", "", "a".repeat(10))
+        store.load(draft.id, first)
+        val leases = mutableListOf(store.retainDiff(draft.id, first.path, first.revision))
+        assertSame(first, store.load(draft.id, first.copy()).files[first.path])
+        for (text in listOf("b", "c")) {
+            val next = first.copy(current = text.repeat(10))
+            store.load(draft.id, next)
+            leases += store.retainDiff(draft.id, next.path, next.revision)
+        }
+        rejects { store.load(draft.id, first.copy(current = "d".repeat(10))) }
+        leases.first().close()
+        store.load(draft.id, first.copy(current = "d".repeat(10)))
+        leases.forEach(AutoCloseable::close)
     }
 }

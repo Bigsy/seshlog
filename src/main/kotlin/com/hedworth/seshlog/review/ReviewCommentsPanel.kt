@@ -5,7 +5,6 @@ import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.worktree.ReviewFile
 import com.hedworth.seshlog.worktree.WorktreeReviewSnapshot
-import com.intellij.diff.DiffContentFactory
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.tools.simple.SimpleDiffViewer
 import com.intellij.diff.util.DiffNotificationProvider
@@ -20,7 +19,6 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ide.CopyPasteManager
-import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
@@ -154,30 +152,29 @@ internal class ReviewCommentsPanel(private val project: Project, private val dra
         store.get(draftId).files[comment.path]?.let { showDiff(it, comment) }
     }
     private fun showDiff(file: ReviewFileSnapshot, focus: ReviewComment? = null) {
-        val factory = DiffContentFactory.getInstance()
-        val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.path)
         val unsaved = file.path in ReviewUnsavedBuffers.capture(recipient)
         lateinit var context: ReviewDiffContext
         context = ReviewDiffContext(draftId, file.path, file.revision, { side, first, last ->
             ReviewCommentUi.add(project, context, side, first, last)
         }, focus)
-        val request = SimpleDiffRequest("Checkout changes — ${file.path} — ${recipient.kind.displayName}: ${recipientTitle()} [${recipient.sessionId.takeLast(8)}]",
-            factory.create(project, file.before, fileType), factory.create(project, file.current, fileType),
-            "Base ${file.base.take(12)}", "Reviewed on-disk snapshot (all contributors)")
-        request.putUserData(ReviewDiffExtension.REVIEW_CONTEXT, context)
-        request.putUserData(DiffUserDataKeys.FORCE_READ_ONLY, true)
-        request.putUserData(DiffUserDataKeys.NOTIFICATION_PROVIDERS, listOf(DiffNotificationProvider { viewer ->
-            JPanel(BorderLayout()).apply {
-                add(JTextArea(reviewRecipientLabel(draftId), 3, 65).apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }, BorderLayout.NORTH)
-                when {
-                    viewer !is SimpleDiffViewer -> add(JLabel("Seshlog comments require a side-by-side text diff. Switch presentation to add comments."), BorderLayout.SOUTH)
-                    unsaved -> add(JLabel("An unsaved IDE buffer differs from this on-disk snapshot. Save and refresh before sending comments for this file."), BorderLayout.SOUTH)
-                }
+        ReviewDiffEditors.open(project, context, { before, current ->
+            SimpleDiffRequest("Checkout changes — ${file.path} — ${recipient.kind.displayName}: ${recipientTitle()} [${recipient.sessionId.takeLast(8)}]",
+                before, current, "Base ${file.base.take(12)}", "Reviewed on-disk snapshot (all contributors)").also { request ->
+                request.putUserData(ReviewDiffExtension.REVIEW_CONTEXT, context)
+                request.putUserData(DiffUserDataKeys.FORCE_READ_ONLY, true)
+                request.putUserData(DiffUserDataKeys.NOTIFICATION_PROVIDERS, listOf(DiffNotificationProvider { viewer ->
+                    JPanel(BorderLayout()).apply {
+                        add(JTextArea(reviewRecipientLabel(draftId), 3, 65).apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }, BorderLayout.NORTH)
+                        when {
+                            viewer !is SimpleDiffViewer -> add(JLabel("Seshlog comments require a side-by-side text diff. Switch presentation to add comments."), BorderLayout.SOUTH)
+                            unsaved -> add(JLabel("An unsaved IDE buffer differs from this on-disk snapshot. Save and refresh before sending comments for this file."), BorderLayout.SOUTH)
+                        }
+                    }
+                }))
+                focus?.let { request.putUserData(DiffUserDataKeys.SCROLL_TO_LINE,
+                    Pair(if (it.side == ReviewSide.BASE) Side.LEFT else Side.RIGHT, it.firstLine - 1)) }
             }
-        }))
-        focus?.let { request.putUserData(DiffUserDataKeys.SCROLL_TO_LINE,
-            Pair(if (it.side == ReviewSide.BASE) Side.LEFT else Side.RIGHT, it.firstLine - 1)) }
-        ReviewDiffEditors.open(project, request, context)
+        })
     }
     private fun edit() {
         val comment = comments.selectedValue ?: return

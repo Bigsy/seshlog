@@ -3,10 +3,14 @@ package com.hedworth.seshlog.review
 import com.intellij.diff.editor.DiffEditorTabFilesManager
 import com.intellij.diff.editor.DiffEditorViewerFileEditor
 import com.intellij.diff.editor.DiffViewerVirtualFile
+import com.intellij.diff.DiffContentFactory
+import com.intellij.diff.contents.DocumentContent
 import com.intellij.diff.impl.DiffRequestProcessor
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.tools.simple.SimpleDiffViewer
 import com.intellij.openapi.editor.ScrollType
+import com.intellij.openapi.editor.EditorFactory
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.project.Project
@@ -15,7 +19,7 @@ import com.intellij.openapi.vfs.VirtualFile
 
 internal object ReviewDiffEditors {
     private val identity = Key.create<List<String>>("seshlog.review.editor.identity")
-    fun open(project: Project, request: SimpleDiffRequest, context: ReviewDiffContext,
+    fun open(project: Project, context: ReviewDiffContext, request: (DocumentContent, DocumentContent) -> SimpleDiffRequest,
              openFiles: () -> List<VirtualFile> = { FileEditorManager.getInstance(project).openFiles.toList() },
              show: (ReviewDiffVirtualFile) -> Array<out FileEditor> = { DiffEditorTabFilesManager.getInstance(project).showDiffFile(it, true) },
     ): ReviewDiffVirtualFile {
@@ -24,10 +28,28 @@ internal object ReviewDiffEditors {
         val tab = openFiles().filterIsInstance<ReviewDiffVirtualFile>()
             .firstOrNull { it.isValid && it.getUserData(identity) == key }
             ?: run {
-                val lease = ReviewDraftService.getInstance().store.retainDiff(context.draftId, context.path, context.revision)
-                ReviewDiffVirtualFile(request, lease).apply {
-                    putUserData(identity, key)
-                    created = this
+                val store = ReviewDraftService.getInstance().store
+                val lease = store.retainDiff(context.draftId, context.path, context.revision)
+                try {
+                    val file = store.get(context.draftId).files.getValue(context.path)
+                    val factory = DiffContentFactory.getInstance()
+                    val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.path)
+                    fun document(side: ReviewSide) = file.content(side).let { text ->
+                        EditorFactory.getInstance().createDocument(text).apply {
+                            setReadOnly(true)
+                            check(text is String || immutableCharSequence === text) { "Native immutable text sharing is unavailable" }
+                        }
+                    }
+                    val before = document(ReviewSide.BASE)
+                    val current = document(ReviewSide.CURRENT)
+                    file.shareImmutableText(before.immutableCharSequence, current.immutableCharSequence)
+                    ReviewDiffVirtualFile(request(factory.create(project, before, fileType), factory.create(project, current, fileType)), lease).apply {
+                        putUserData(identity, key)
+                        created = this
+                    }
+                } catch (e: Exception) {
+                    lease.close()
+                    throw e
                 }
             }
         val editors = try { show(tab).also { check(it.isNotEmpty()) { "The native diff editor could not be opened" } } }

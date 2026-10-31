@@ -7,7 +7,8 @@ import java.nio.file.LinkOption.NOFOLLOW_LINKS
 
 internal data class ReviewFile(val path: String, val status: String)
 internal data class WorktreeReviewSnapshot(val checkout: Checkout, val base: String, val files: List<ReviewFile>)
-internal data class ReviewContent(val before: String, val current: String, val beforeHash: String, val currentHash: String)
+internal data class ReviewContent(val before: String, val current: String, val beforeHash: String, val currentHash: String,
+                                 val beforeExists: Boolean, val currentExists: Boolean)
 
 /** A net comparison of the chosen commit and current files, including untracked files. */
 internal object WorktreeReview {
@@ -44,7 +45,8 @@ internal object WorktreeReview {
         verify(checkout)
         val path = checkout.root.resolve(file.path).normalize()
         check(path.startsWith(checkout.root) && path != checkout.root) { "File is outside this checkout" }
-        val before = if (file.status == "?" || file.status == "A") byteArrayOf() else
+        val beforeExists = file.status != "?" && file.status != "A"
+        val before = if (!beforeExists) byteArrayOf() else
             GitRead.run(checkout.root, listOf("show", "${snapshot.base}:${file.path}"), LIMIT)
         // Do not follow file or parent symlinks into another checkout or private agent storage.
         var cursor = path
@@ -52,7 +54,8 @@ internal object WorktreeReview {
             check(!Files.isSymbolicLink(cursor)) { "Symlink content is not previewed; use the IDE Git tools" }
             cursor = cursor.parent
         }
-        val current = if (Files.notExists(path, NOFOLLOW_LINKS)) byteArrayOf() else {
+        val currentExists = !Files.notExists(path, NOFOLLOW_LINKS)
+        val current = if (!currentExists) byteArrayOf() else {
             check(Files.isRegularFile(path, NOFOLLOW_LINKS)) { "Not a regular file; use the IDE Git tools" }
             Files.newInputStream(path, NOFOLLOW_LINKS).use { it.readNBytes(LIMIT + 1) }
         }
@@ -63,6 +66,6 @@ internal object WorktreeReview {
         verify(checkout)
         fun hash(bytes: ByteArray) = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it) }
-        return ReviewContent(before.toString(Charsets.UTF_8), current.toString(Charsets.UTF_8), hash(before), hash(current))
+        return ReviewContent(before.toString(Charsets.UTF_8), current.toString(Charsets.UTF_8), hash(before), hash(current), beforeExists, currentExists)
     }
 }

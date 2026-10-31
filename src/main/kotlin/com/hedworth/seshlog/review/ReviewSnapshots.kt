@@ -15,7 +15,8 @@ internal object ReviewSnapshots {
     fun scan(recipient: ReviewRecipient, ref: String): WorktreeReviewSnapshot = WorktreeReview.scan(recipient.checkout, ref)
     fun read(scan: WorktreeReviewSnapshot, file: ReviewFile): ReviewFileSnapshot {
         val content = WorktreeReview.content(scan, file)
-        return ReviewFileSnapshot(file.path, scan.base, content.before, content.current, file.status, content.beforeHash, content.currentHash)
+        return ReviewFileSnapshot(file.path, scan.base, content.before, content.current, file.status, content.beforeHash, content.currentHash,
+            content.beforeExists, content.currentExists)
     }
     fun verifyRecipient(recipient: ReviewRecipient, session: Session?): Boolean {
         if (session == null || session.id != recipient.sessionId || session.kind != recipient.kind || session.location?.uncertain == true) return false

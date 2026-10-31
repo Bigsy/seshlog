@@ -12,10 +12,11 @@ internal enum class ReviewValidation { CURRENT, NEEDS_RECHECK }
 internal data class ReviewFileSnapshot(
     val path: String, val base: String, val before: String, val current: String,
     val gitStatus: String = "M", val beforeBytesHash: String? = null, val currentBytesHash: String? = null,
+    val beforeExists: Boolean = gitStatus !in setOf("?", "A"), val currentExists: Boolean = gitStatus != "D",
 ) {
     val beforeHash = beforeBytesHash ?: reviewHash(before)
     val currentHash = currentBytesHash ?: reviewHash(current)
-    val revision = reviewHash("$base\n$beforeHash\n$currentHash")
+    val revision = reviewHash("$base\n$beforeExists:$beforeHash\n$currentExists:$currentHash")
     val memoryBytes: Long get() = (before.length.toLong() + current.length) * 2
     fun text(side: ReviewSide) = if (side == ReviewSide.BASE) before else current
     fun selection(side: ReviewSide, first: Int, last: Int): String {

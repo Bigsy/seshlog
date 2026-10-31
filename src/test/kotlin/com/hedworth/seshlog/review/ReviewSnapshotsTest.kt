@@ -10,6 +10,23 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 class ReviewSnapshotsTest {
+    @Test fun `recreating a reviewed deletion as an empty file invalidates base comments`() = repository { root ->
+        val recipient = ReviewRecipient(AgentKind.CODEX, "synthetic", GitRepository.checkout(root)!!)
+        Files.delete(root.resolve("file"))
+        val scan = ReviewSnapshots.scan(recipient, "HEAD")
+        val deleted = ReviewSnapshots.read(scan, scan.files.single())
+        val store = ReviewDraftStore()
+        val draft = store.open(recipient)
+        store.load(draft.id, deleted)
+        store.add(draft.id, "file", ReviewSide.BASE, 1, 1, "Inspect this deletion")
+        Files.writeString(root.resolve("file"), "")
+        val recreated = ReviewSnapshots.read(scan, scan.files.single()) // Even with the old D status.
+        assertEquals(deleted.currentHash, recreated.currentHash)
+        assertNotEquals(deleted.revision, recreated.revision)
+        assertEquals(setOf("file"), ReviewSnapshots.validate(store.get(draft.id), emptySet()).changed)
+        assertEquals(ReviewValidation.NEEDS_RECHECK, store.load(draft.id, recreated).comments.single().validation)
+        assertThrows(IllegalStateException::class.java) { store.prepare(draft.id) }
+    }
     @Test fun `recorded filter preserves partial operation provenance unusual paths and moves`() = repository { root ->
         val recipient = ReviewRecipient(AgentKind.CODEX, "synthetic", GitRepository.checkout(root)!!)
         val operation = com.hedworth.seshlog.model.ChangedFile(root.resolve("a\\b"),

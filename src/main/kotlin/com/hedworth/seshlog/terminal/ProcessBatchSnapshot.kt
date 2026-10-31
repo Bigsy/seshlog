@@ -51,8 +51,12 @@ internal class ProcessTableSnapshot private constructor(
         fun capture(trace: DiagnosticTrace = DiagnosticTrace.NONE): ProcessTableSnapshot = try {
             ProcessHandle.allProcesses().use { stream ->
                 val rows = ArrayList<ProcessRecord>()
-                stream.forEach { process -> record(process, trace)?.let(rows::add) }
-                of(rows)
+                var complete = true
+                stream.forEach { process ->
+                    val row = record(process, trace)
+                    if (row == null) complete = false else rows.add(row)
+                }
+                of(rows, complete)
             }
         } catch (e: Exception) {
             trace.failure("process_table_failed", e)
@@ -112,10 +116,9 @@ internal data class ProcessBatchResult(
 internal class ProcessBatchInspector(
     private val snapshot: (() -> ProcessTableSnapshot)? = null,
     private val writableFiles: ((Set<Long>) -> ProcessTranscripts.Result)? = null,
-    private val codexDaemon: ((Path, ProcessTableSnapshot) -> Long?)? = null,
 ) {
     /**
-     * [codexHome] locates the Codex app-server daemon; without it daemon-held threads are not matched.
+     * [codexHome] is diagnostic context only; shared-daemon files cannot identify terminal threads.
      * [titles] are the terminal titles captured on the EDT with each shell pid.
      */
     fun inspect(
@@ -149,18 +152,23 @@ internal class ProcessBatchInspector(
         }
         val evidenceByShell = shellPids.associateWith { shell -> table.under(shell).map { it.evidence() } }
         val codexExecutable = executables[AgentKind.CODEX]
-        val codexPids = evidenceByShell.values.asSequence().flatten()
-            .filter { codexExecutable != null && SessionProcess.isAgent(it, codexExecutable) }
-            .mapTo(LinkedHashSet()) { it.pid }
-        val daemon = if (codexPids.isEmpty() || codexHome == null || !table.complete) null
-            else if (codexDaemon != null) codexDaemon.invoke(codexHome, table) else CodexDaemon.pid(codexHome, table, trace)
-        trace.event("daemon_lookup", "pid" to daemon, "localCodexPids" to codexPids.sorted())
-        val instances = if (daemon == null || codexExecutable == null) emptyList()
-            else CodexDaemon.instances(table, codexExecutable, daemon)
-        // One descriptor query covers every Codex process under every inspected shell, plus the
-        // daemon and every other Codex TUI when daemon-held threads have to be matched.
-        val requested = codexPids + instances.flatMap { it.pids } + listOfNotNull(daemon)
-        val descriptors = if (writableFiles != null) writableFiles.invoke(requested) else ProcessTranscripts.writableFiles(requested, trace)
+        val bindings = shellPids.associateWith { shell ->
+            val processes = table.under(shell).filter { codexExecutable != null && SessionProcess.isCodexTui(it.evidence(), codexExecutable) }
+            TitleProcessBinding.observe(previousTitles[shell], titles[shell], processes.mapTo(HashSet()) { it.pid to it.startedAt })
+        }
+        // Titles (including known unindexed/ambiguous ones) need no filesystem evidence. Query
+        // only local unresolved TUIs; a daemon or unrelated machine-wide client cannot help.
+        val requested = if (!table.complete) emptySet() else evidenceByShell.flatMap { (shell, processes) ->
+            val tuis = processes.filter { codexExecutable != null && SessionProcess.isCodexTui(it, codexExecutable) }
+            val title = if (bindings.getValue(shell).trusted) CodexTitle.read(titles[shell]) else CodexTitle.Reading.Absent
+            if (SessionProcess.tuiRoots(tuis).size == 1 && title == CodexTitle.Reading.Absent) tuis.map { it.pid } else emptyList()
+        }.toSet()
+        trace.event("descriptor_request", "pids" to requested.sorted(), "reason" to if (requested.isEmpty()) "no_direct_evidence_needed" else "unresolved_local_tui")
+        val descriptors = when {
+            requested.isEmpty() -> ProcessTranscripts.Result(emptyMap())
+            writableFiles != null -> writableFiles.invoke(requested)
+            else -> ProcessTranscripts.writableFiles(requested, trace)
+        }
         requested.sorted().forEach { pid ->
             val paths = descriptors.files[pid].orEmpty()
             trace.event("descriptors", "pid" to pid, "unknown" to (pid in descriptors.unknown), "present" to descriptors.files.containsKey(pid),
@@ -168,20 +176,18 @@ internal class ProcessBatchInspector(
                 "rollouts" to paths.filter { it.fileName.toString().let { name -> name.startsWith("rollout-") && name.endsWith(".jsonl") } }.map(DiagnosticRef::path))
         }
         trace.event("daemon_match_skipped", "reason" to "not_terminal_identity")
-        val bindings = shellPids.associateWith { shell ->
-            val processes = table.under(shell).filter { codexExecutable != null && SessionProcess.isCodexTui(it.evidence(), codexExecutable) }
-            TitleProcessBinding.observe(previousTitles[shell], titles[shell], processes.mapTo(HashSet()) { it.pid to it.startedAt })
-        }
         val discoveries = evidenceByShell.mapValues { (shell, processes) ->
             ShellProcessDiscovery(
                 shell,
-                if (table.complete) SessionProcess.identifyTree(processes, sessions, executables, descriptors,
+                if (table.complete && processes.none { it.command == null }) SessionProcess.identifyTree(processes, sessions, executables, descriptors,
                     trace = trace.with("shell" to shell), title = titles[shell], titleTrusted = bindings.getValue(shell).trusted)
                 else SessionProcess.Discovery(emptySet(), hasAgent = true, unknown = true),
             )
         }
         discoveries.forEach { (shell, result) -> trace.event("shell_discovery", "shell" to shell, "sessions" to DiagnosticRef.ids(result.discovery.sessionIds),
             "hasAgent" to result.discovery.hasAgent, "unknown" to result.discovery.unknown,
+            "state" to result.discovery.state, "provenance" to result.discovery.provenance,
+            "excluded" to DiagnosticRef.ids(result.discovery.excludedSessionIds),
             "processes" to result.discovery.processes.mapKeys { DiagnosticRef.of(it.key)!! }) }
         trace.event("inspection_finished", "elapsedMs" to (System.nanoTime() - start) / 1_000_000)
         return ProcessBatchResult(table, discoveries, table.handles(), if (table.complete) bindings else previousTitles)

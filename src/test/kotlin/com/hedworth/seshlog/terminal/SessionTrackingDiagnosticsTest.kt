@@ -34,8 +34,8 @@ class SessionTrackingDiagnosticsTest {
         val table = ProcessTableSnapshot.of(listOf(row(10, 1, "zsh"), row(11, 10, "codex", "private prompt --token secret"),
             row(900, 1, "codex", "app-server")))
         val inspector = ProcessBatchInspector(snapshot = { table }, writableFiles = {
-            ProcessTranscripts.Result(mapOf(900L to setOf(path), 11L to emptySet()), cwds = mapOf(11L to cwd))
-        }, codexDaemon = { _, _ -> 900 })
+            ProcessTranscripts.Result(mapOf(11L to emptySet()), cwds = mapOf(11L to cwd))
+        })
         val result = inspector.inspect(setOf(10), listOf(session(path)), mapOf(AgentKind.CODEX to "codex"), temporary.root.toPath(), trace)
         assertTrue(result.discoveries.getValue(10).discovery.sessionIds.isEmpty())
         assertTrue(events.any { it.first == "daemon_match_skipped" && it.second["reason"] == "not_terminal_identity" })
@@ -43,7 +43,7 @@ class SessionTrackingDiagnosticsTest {
         assertTrue(events.all { it.second["poll"] == 123 })
         val text = events.toString()
         listOf("private prompt", "private session title", "--token", "secret", path.toString(), cwd.toString()).forEach { assertFalse(it, text.contains(it)) }
-        assertTrue(text.contains(DiagnosticRef.path(path)!!))
+        assertFalse("daemon paths are no longer inspected", text.contains(DiagnosticRef.path(path)!!))
     }
 
     @Test fun `unknown evidence and stale generations are distinguishable`() {
@@ -82,4 +82,31 @@ class SessionTrackingDiagnosticsTest {
         repeat(3) { assertFalse(pending.isPending("tab")) }
         assertEquals(listOf("tab"), expired)
     }
+    @Test fun `title provenance and excluded identities are hashed without raw title data`() {
+        val id = "01a18370-5a52-7d90-bb35-d6cf1976ebf9"
+        val old = session(temporary.root.toPath())
+        val table = ProcessTableSnapshot.of(listOf(row(10, 1, "zsh"), row(11, 10, "codex")))
+        ProcessBatchInspector(snapshot = { table }, writableFiles = { error("title needs no descriptors") })
+            .inspect(setOf(10), listOf(old), mapOf(AgentKind.CODEX to "codex"), trace = trace,
+                titles = mapOf(10L to "private title | $id"))
+        val discovery = events.single { it.first == "shell_discovery" }.second
+        assertEquals(SessionProcess.IdentityState.UNINDEXED, discovery["state"])
+        assertEquals(SessionProcess.Provenance.TITLE, discovery["provenance"])
+        assertEquals(listOf(DiagnosticRef.of(old.id)), discovery["excluded"])
+        assertFalse(events.toString().contains(id))
+        assertFalse(events.toString().contains("private title"))
+    }
+
+    @Test fun `unavailable enumeration and successful empty enumeration remain distinct`() {
+        for (complete in listOf(true, false)) {
+            var descriptors = 0
+            val result = ProcessBatchInspector(snapshot = { ProcessTableSnapshot.of(emptyList(), complete) },
+                writableFiles = { descriptors++; ProcessTranscripts.Result(emptyMap()) })
+                .inspect(setOf(10), emptyList(), emptyMap(), trace = trace)
+            assertEquals(0, descriptors)
+            assertEquals(if (complete) SessionProcess.IdentityState.EXITED else SessionProcess.IdentityState.UNAVAILABLE,
+                result.discoveries.getValue(10).discovery.state)
+        }
+    }
+
 }

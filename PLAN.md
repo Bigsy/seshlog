@@ -110,7 +110,7 @@ last-known/ended context from a verified current association. Agent data remains
   process replacement cannot inherit an unchanged title. Resume/close, restore and completion
   consumers use the same current-identity checks. Physical lifecycle acceptance remains C7.
 
-- [ ] **C5. Make verified title matching the cheap path and expose useful diagnostics.** In
+- [x] **C5. Make verified title matching the cheap path and expose useful diagnostics.** In
   `ProcessBatchInspector.inspect`, resolve usable captured titles against the process snapshot
   before requesting descriptors. Query only the unresolved processes that can supply direct-writer
   evidence, in one bounded batch; skip daemon-wide lsof/header work that can no longer establish
@@ -121,6 +121,10 @@ last-known/ended context from a verified current association. Agent data remains
   rejection and atomic replacement without raw titles, commands or conversation content. Distinguish
   unavailable OS enumeration from a successful empty snapshot in tests and diagnostics; rerun the
   live-descriptor regression where OS enumeration is available before claiming it passes.
+  Completed 2026-10-31: both descriptor-call-count regressions failed before the change.
+  `make check` passes 659 tests (10 opt-in skips), including the real-process writable-descriptor
+  regression with OS enumeration available. Verified/unindexed titles skip descriptors; unresolved
+  local TUIs share one query. Shared-daemon headers are no longer read for identity.
 
 - [ ] **C6. Exercise the daemon/title model in the synthetic sandbox.** Extend the test-only
   `stub-agent.cjs` and sandbox support with an optional shared synthetic daemon that holds rollouts

@@ -56,7 +56,7 @@ class CodexDaemonTest {
             header.id?.let { session(it).copy(transcriptPath = path) }
         }
         val result = ProcessBatchInspector(snapshot = { ProcessTableSnapshot.of(rows) },
-            writableFiles = { evidence }, codexDaemon = { _, _ -> daemon }).inspect(
+            writableFiles = { evidence }).inspect(
             instances.mapTo(HashSet()) { it.pids.min() * 100 }, sessions, mapOf(AgentKind.CODEX to "codex"), temporary.root.toPath())
         return result.discoveries.values.flatMap { it.discovery.processes.entries }.associate { it.value to it.key }
     }
@@ -248,7 +248,7 @@ class CodexDaemonTest {
         ))
         for (held in listOf(emptyList(), listOf(rollout("new")))) {
             val inspector = ProcessBatchInspector(snapshot = { table },
-                writableFiles = { evidence(held, mapOf(11L to app)) }, codexDaemon = { _, _ -> daemon })
+                writableFiles = { evidence(held, mapOf(11L to app)) })
             val discovery = inspector.inspect(setOf(10L), listOf(session("old"), session("new")),
                 mapOf(AgentKind.CODEX to "codex"), temporary.root.toPath()).discoveries.getValue(10L).discovery
             assertTrue(discovery.sessionIds.isEmpty())

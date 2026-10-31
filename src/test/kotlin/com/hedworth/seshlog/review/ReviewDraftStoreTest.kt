@@ -188,4 +188,78 @@ class ReviewDraftStoreTest {
         store.load(draft.id, first.copy(current = "d".repeat(10)))
         leases.forEach(AutoCloseable::close)
     }
+    @Test fun `maximum file sides leave room for comments submission and late edits`() {
+        val sideBytes = 8 * 1024 * 1024
+        val snapshot = ReviewFileSnapshot("maximum.txt", "base",
+            "old\n" + "a".repeat(sideBytes - 4), "new\n" + "b".repeat(sideBytes - 4))
+        assertEquals(sideBytes, snapshot.before.toByteArray(Charsets.UTF_8).size)
+        assertEquals(sideBytes, snapshot.current.toByteArray(Charsets.UTF_8).size)
+        assertEquals(32L * 1024 * 1024, snapshot.memoryBytes)
+        val store = ReviewDraftStore()
+        val draft = store.open(recipient)
+        store.load(draft.id, snapshot)
+        val lease = store.retainDiff(draft.id, snapshot.path, snapshot.revision)
+        try {
+            rejects { store.load(draft.id, snapshot.copy(path = "extra.txt", before = "", current = "x")) }
+            store.add(draft.id, snapshot.path, ReviewSide.CURRENT, 1, 1, "Check this boundary")
+            store.add(draft.id, snapshot.path, ReviewSide.BASE, 1, 1, "x".repeat(4000))
+            store.overall(draft.id, "o".repeat(4000))
+            val batch = store.prepare(draft.id)
+            store.edit(draft.id, batch.comments.first().id, "Edited while sending")
+            store.overall(draft.id, "New overall note")
+            val receipt = ReviewDeliveryResult(ReviewDeliveryStatus.QUEUED, "queued_by_agent", "r".repeat(256))
+            val finished = store.finish(batch, receipt)
+            assertEquals(listOf(batch), finished.sent)
+            assertEquals(receipt, finished.sentResults[batch.id])
+            assertEquals("Edited while sending", finished.comments.single().note)
+            assertEquals("New overall note", finished.overallNote)
+            assertNull(finished.pending)
+            val next = store.prepare(draft.id)
+            assertTrue(next.payload.contains("Edited while sending"))
+            store.finish(next, ReviewDeliveryResult(ReviewDeliveryStatus.UNAVAILABLE, "synthetic refusal"))
+            assertEquals("Edited while sending", store.get(draft.id).comments.single().note)
+        } finally {
+            lease.close()
+        }
+    }
+    @Test fun `review state headroom is bounded across drafts including archived batches`() {
+        val store = ReviewDraftStore(128)
+        val reviews = (0..1).map { index ->
+            val draft = store.open(recipient.copy(sessionId = "review-$index"))
+            store.load(draft.id, file)
+            repeat(20) { store.add(draft.id, file.path, ReviewSide.CURRENT, 1, 1, "x".repeat(4000)) }
+            draft.id
+        }
+        var accepted = 0
+        var limited: ReviewDraft? = null
+        while (accepted < 12 && limited == null) {
+            val draft = store.get(reviews[accepted % reviews.size])
+            val batch = try {
+                store.prepare(draft.id)
+            } catch (failure: IllegalStateException) {
+                assertTrue(failure.message.orEmpty().contains("notes and sent batches limit"))
+                assertSame(draft, store.get(draft.id)) // No lost notes or phantom in-flight batch.
+                limited = draft
+                continue
+            }
+            // Keep newer revisions unsent while accumulating genuine archived batches.
+            draft.comments.forEach { store.edit(draft.id, it.id, "$accepted ".padEnd(4000, 'x')) }
+            store.finish(batch, ReviewDeliveryResult(ReviewDeliveryStatus.QUEUED, "queued_by_agent", "r".repeat(256)))
+            accepted++
+        }
+        assertNotNull("Archived state must stay bounded", limited)
+        assertTrue("The 2 MiB state allowance is shared across drafts", accepted in 1..5)
+        reviews.forEach {
+            assertEquals(20, store.get(it).comments.size)
+            assertTrue(store.get(it).sent.isNotEmpty())
+        }
+        val blocked = limited!!
+        val other = reviews.single { it != blocked.id }
+        store.discard(other) // Free state explicitly; the blocked draft and its notes are retained.
+        val retry = store.prepare(blocked.id)
+        assertEquals(blocked.comments, retry.comments)
+        val finished = store.finish(retry, ReviewDeliveryResult(ReviewDeliveryStatus.QUEUED, "queued_by_agent", "last"))
+        assertTrue(finished.comments.isEmpty())
+        assertEquals("last", finished.sentResults.getValue(retry.id).receipt)
+    }
 }

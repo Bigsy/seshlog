@@ -22,7 +22,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 
 ### Review reliability follow-up (user priority, 2026-10-31)
 
-The six review findings take priority over the remaining acceptance work. Preserve all existing
+The reported review findings take priority over the remaining acceptance work. Preserve all existing
 Codex C7 and search/semantic checklists below. Drafts, comments and Send Review remain inside the
 native Commit/Changes tool window, with native diff editor tabs.
 
@@ -39,7 +39,7 @@ native Commit/Changes tool window, with native diff editor tabs.
 - [x] **R4. Include file existence in reviewed revisions.** A deletion recreated as an empty file
   must invalidate even base-side comments, including validation using an old `D` change status.
 - [x] **R5. Bound retained native diff text.** Charge open editor documents, including older
-  revisions and discarded drafts, to the shared 32 MiB budget. Reject excess content without
+  revisions and discarded drafts, to the shared 32 MiB snapshot budget. Reject excess content without
   losing notes. Release only after the last editor closes, and clear closed requests' text.
 - [x] **R6. Restore and reconcile this authoritative plan.** Restore the original 710 lines;
   record review implementation, automated evidence and open physical acceptance without closing
@@ -50,10 +50,23 @@ native Commit/Changes tool window, with native diff editor tabs.
 - [x] **R8. Reconcile file and aggregate memory limits.** Share immutable text between the stored
   snapshot and native readonly documents, including independent tabs. Count each retained snapshot
   once, reuse unchanged refreshes, keep old revisions bounded, and allow the reported 5 MiB per-side
-  file within the unchanged 8 MiB per-side / 32 MiB aggregate limits. Preserve raw revision hashes.
+  file within the unchanged 8 MiB per-side / 32 MiB snapshot limits. Preserve raw revision hashes.
 - [x] **R9. Align platform support and delivery availability.** Use one platform preflight for the
   endpoint backend, Send controls and delivery service. Linux/Windows must show direct delivery as
   unsupported before terminal checks; preserve copy/navigation and align README/usage/support docs.
+- [x] **R10. Reserve review state at the maximum file boundary.** Keep the 32 MiB shared snapshot
+  allowance and separately bound comments, frozen submissions and receipts to 2 MiB across reviews.
+  An 8 MiB ASCII file on each side must allow comments, submission and edits during delivery.
+  Preserve aggregate bounds and reject excess state without dropping notes or losing a receipt.
+
+R10 implemented 2026-10-31: an exact 8 MiB ASCII file on each side failed at the first short
+comment before the fix. Separate snapshot/state budgets now allow both-side notes, an overall
+note, submission, a bounded receipt and newer edits at that boundary. Overall notes retained by
+frozen batches are charged too. Aggregate state exhaustion preserves notes and pending state;
+explicit discard frees capacity. `make check` passes 742 tests, zero failures/errors and 10 opt-in
+skips. The snapshot limit and retained-revision checks remain intact. Physical acceptance stays open.
+`make release`, recursive package inspection and offline Plugin Verifier pass for both configured
+IDE builds, with existing API/layout warnings; the review report records the artifact hash.
 
 R7–R9 implemented 2026-10-31: forced native request refresh, the 5 MiB-per-side case and Linux Send
 availability each failed before the corresponding fix. Clean compilation and `make check` pass

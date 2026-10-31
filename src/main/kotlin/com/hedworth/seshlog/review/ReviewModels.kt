@@ -75,7 +75,7 @@ internal fun reviewHash(text: String): String = MessageDigest.getInstance("SHA-2
     .digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
 /** Pure, bounded, in-memory ownership. Returned collections cannot mutate the stored draft. */
-internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 1024) {
+internal class ReviewDraftStore(private val snapshotMemoryLimit: Long = 32L * 1024 * 1024) {
     private val drafts = LinkedHashMap<String, ReviewDraft>()
     private val editorSnapshots = java.util.IdentityHashMap<ReviewFileSnapshot, Int>()
     /** Native documents and snapshots share immutable text; old revisions still count after refresh. */
@@ -230,7 +230,7 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         drafts[draft.id] = frozen
         return frozen
     }
-    private fun memory(draft: ReviewDraft): Long =
+    private fun stateMemory(draft: ReviewDraft): Long =
         draft.comments.sumOf { (it.selected.length.toLong() + it.note.length) * 2 } + draft.overallNote.length * 2L +
         draft.sent.sumOf(::submissionMemory) + (draft.pending?.let { submissionMemory(it) + 1024 } ?: 0) +
         draft.sentResults.values.sumOf { (it.receipt?.length ?: 0) * 2L + it.reason.length * 2L + 32 }
@@ -239,11 +239,17 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         values.forEach { snapshots.addAll(it.files.values) }
         snapshots.addAll(editorSnapshots.keys)
         extra?.let(snapshots::add)
-        check(values.sumOf(::memory) + snapshots.sumOf { it.memoryBytes } <= memoryLimit) {
-            "Review memory limit reached; close older review diff tabs or explicitly discard a review before loading more content"
+        check(snapshots.sumOf { it.memoryBytes } <= snapshotMemoryLimit) {
+            "Review diff text limit reached; close older review diff tabs or explicitly discard a review before loading more content"
+        }
+        // A permitted pair of 8 MiB ASCII sides fills the snapshot allowance. Keep separate,
+        // aggregate headroom for notes, frozen batches and the existing pending receipt reserve.
+        check(values.sumOf(::stateMemory) <= 2L * 1024 * 1024) {
+            "Review notes and sent batches limit reached; shorten notes or explicitly discard a review to free memory"
         }
     }
-    private fun submissionMemory(submission: ReviewSubmission): Long = submission.payload.length * 2L +
+    private fun submissionMemory(submission: ReviewSubmission): Long =
+        (submission.payload.length.toLong() + submission.overallNote.length) * 2 +
         submission.comments.sumOf { (it.selected.length.toLong() + it.note.length) * 2 }
 }
 

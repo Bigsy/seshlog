@@ -70,13 +70,19 @@ receipt and exact read-only payload.
 ## Bounds and privacy
 
 - 10 drafts, 50 comments each, 4,000 characters per note, 20 selected excerpt lines / 4,000 characters,
-  128 KiB UTF-8 per outgoing message, 32 MiB aggregate review text budget. Snapshots and readonly
-  native documents share immutable buffers, including independent tabs; each retained snapshot is
+  128 KiB UTF-8 per outgoing message. Across reviews, retain at most 32 MiB of snapshot text plus
+  a separate 2 MiB of comments, overall notes, pending/sent batches and receipt state (34 MiB of
+  accounted retained text in total, excluding object/platform overhead). Snapshot loading cannot
+  consume the state allowance: even 8 MiB ASCII on each side leaves room to comment and submit
+  an otherwise empty review. Pending batches reserve receipt space before dispatch; accepted
+  batches remain charged until explicit draft discard. Snapshots and readonly native documents
+  share immutable buffers, including independent tabs; each retained snapshot is
   counted once. Unchanged refreshes reuse it; old revisions remain charged while open. Only actual
   processor disposal releases editor ownership; presentation changes keep both sides and the tab.
   Closing the last processor clears the request, while any text still owned by a draft stays charged.
-  Close older diff tabs or explicitly discard drafts to free memory. Extra content is rejected with an
-  explanation; unsent notes are never silently evicted or truncated.
+  Close older diff tabs or explicitly discard drafts to free snapshot space; shorten notes or
+  discard reviews to free state space. Extra content is rejected with an explanation; unsent notes
+  are never silently evicted or truncated.
 - Existing Git limits: 8 MiB per file side and 5,000 files. Display line endings are normalized;
   revision hashes still cover the original raw bytes. Resolved bases, file existence, hashes and checkout identity
   protect against moving refs, malformed UTF-8, replaced checkouts and stale child diffs.
@@ -185,6 +191,20 @@ No daily-IDE install or publishing occurred. The follow-up restored the original
 safety gates and native diff memory lifecycle remains open.
 
 ## Release validation
+
+Boundary follow-up, 2026-10-31 (R10): the exact 8 MiB ASCII-per-side regression failed on its first
+short comment before the fix. The unchanged 32 MiB snapshot allowance is now independent of 2 MiB
+for review state, including frozen overall notes. Tests cover both-side comments, overall notes,
+submission, a maximum-length receipt, newer edits and a subsequent attempt at that boundary.
+Extra snapshot text is still rejected. A separate two-draft regression fills the state allowance
+with sent batches, verifies failure preserves notes without a pending submission, then frees
+capacity through explicit discard. `make check` passed **742 tests, 10 opt-in skips, zero
+failures/errors**. `make release` and recursive ZIP/JAR inspection passed (no test fixtures/helpers).
+Artifact: `build/distributions/seshlog-0.8.5.zip`, SHA-256
+`ad1766b5911030318a9438b81a353806ef104ca42a5f00f3cdf1626c3df33e9b`.
+Offline Plugin Verifier passed for IU-262.11879.100 (2 scheduled-removal / 16 deprecated / 79
+experimental usages) and IU-263.7307.112 (3 / 20 / 72); existing API and SDK layout warnings remain.
+No new physical IDE acceptance or real model turn was performed; D7 remains open.
 
 Second reliability follow-up, 2026-10-31 (R7–R9): forced request refresh, duplicate text charging
 and platform availability each reproduced before the fix. Cleanup now follows actual native

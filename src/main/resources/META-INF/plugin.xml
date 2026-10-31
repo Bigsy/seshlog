@@ -28,17 +28,24 @@
         <li>Unread reply markers and next-attention navigation help you follow concurrent sessions</li>
         <li>Pin, locally rename or hide sessions without modifying agent data</li>
         <li>Filter by date, agent and sibling worktrees</li>
+        <li>Review checkout changes in Commit/Changes with native diff editor tabs, comments on either side and a single review message. Direct delivery supports a verified open Codex 0.166.0 session; other agents offer copy and navigation.</li>
     </ul>
     Entirely local: Seshlog reads the agent's transcripts read-only, never writes to them, and makes
-    no network requests — no telemetry, no analytics, nothing leaves your machine.
+    no Internet requests, telemetry or analytics. Explicit Send Review hands selected comments and
+    code excerpts to the chosen agent, which may save them and send them to its model under its normal settings.
     The saved search index contains sensitive lexical terms and positions, without raw conversation
     copies or query history. The index stays in this IDE profile and is not synced automatically.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
+    <!-- 263 extracts VCS implementation into a bundled plugin; 262 supplies it in the platform. -->
+    <depends optional="true" config-file="com.hedworth.seshlog-vcs.xml">com.intellij.platform.vcs</depends>
     <depends>org.jetbrains.plugins.terminal</depends>
     <dependencies>
         <module name="intellij.terminal.frontend" />
+        <module name="intellij.platform.vcs.impl" />
+        <module name="intellij.platform.vcs.impl.shared" />
     </dependencies>
 
     <change-notes><![CDATA[

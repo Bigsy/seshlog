@@ -21,6 +21,9 @@ async function main(agent, config) {
     return path.resolve(p);
   };
   if (!fs.existsSync(path.join(root, '.seshlog-synthetic-sandbox'))) throw new Error('not a marked synthetic profile');
+  if (agent === 'codex' && process.argv.includes('--synthetic-review')) {
+    return require('./review-queue.cjs').run(config, guard);
+  }
   if (agent === 'codex' && process.argv.includes('--synthetic-daemon')) {
     return require('./codex-daemon.cjs').run(config, guard);
   }
@@ -61,7 +64,17 @@ async function main(agent, config) {
     process.exit(1);
   }
   const title = () => titles ? `synthetic codex | ${session.id}` : 'synthetic codex';
+  let reviewBusy = false, reviewPolicy = 'accept', reviewPending = false, reviewClock = null;
+  const reviewDirectory = guard(path.join(root, '.review-terminals'));
+  const reviewMarker = guard(path.join(reviewDirectory, `${process.pid}.json`));
+  const reviewState = () => {
+    if (agent !== 'codex') return;
+    fs.mkdirSync(reviewDirectory, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(`${reviewMarker}.tmp`, JSON.stringify({ pid: process.pid, id: session.id, cwd: session.cwd, busy: reviewBusy, policy: reviewPolicy }));
+    fs.renameSync(`${reviewMarker}.tmp`, reviewMarker);
+  };
   const announce = () => {
+    reviewState();
     if (agent === 'codex') process.stdout.write(`\x1b]0;${title()}\x07`);
     console.log('SESHLOG_READY ' + JSON.stringify({ id: session.id, pid: process.pid, title: agent === 'codex' ? title() : null }));
   };
@@ -80,6 +93,8 @@ async function main(agent, config) {
   const finish = () => {
     if (closed) return;
     closed = true;
+    if (reviewClock) clearInterval(reviewClock);
+    if (agent === 'codex') fs.rmSync(reviewMarker, { force: true });
     try { session.close(); } finally { process.exit(0); }
   };
   const handle = async (line) => {
@@ -97,6 +112,10 @@ async function main(agent, config) {
       announce();
     } else if (agent === 'codex' && text.startsWith('/titles ')) {
       titles = text.slice(8) === 'on'; announce();
+    } else if (agent === 'codex' && text.startsWith('/review ')) {
+      const policy = text.slice(8);
+      if (['accept', 'hold', 'refuse', 'lost'].includes(policy)) { reviewPolicy = policy; reviewState(); }
+      console.log(`SESHLOG_REVIEW_POLICY ${reviewPolicy}`);
     } else if (text.startsWith('/barrier ')) {
       console.log('SESHLOG_BARRIER ' + JSON.stringify({ label: text.slice(9), id: session.id, title: agent === 'codex' ? title() : null }));
     } else if (text.startsWith('/title ')) {
@@ -106,12 +125,14 @@ async function main(agent, config) {
       delayMs = Math.max(0, Number(text.slice('/delay '.length)) * 1000 || 0);
       console.log(`Turns now take ${delayMs / 1000} s.`);
     } else if (text) {
+      reviewBusy = true; reviewState();
       session.begin(text);
       console.log('(working)');
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       turns += 1;
       const reply = `Synthetic reply ${turns}: recorded "${text.slice(0, 80)}". No model was contacted.`;
       session.finish(reply);
+      reviewBusy = false; reviewState();
       console.log(reply);
     }
     if (!inputClosed) rl.prompt();
@@ -122,6 +143,27 @@ async function main(agent, config) {
   });
   rl.on('SIGINT', () => rl.close());
   rl.on('close', () => { inputClosed = true; chain.then(finish); });
+  if (agent === 'codex') reviewClock = setInterval(() => {
+    if (closed || reviewBusy || reviewPending || !['accept', 'lost'].includes(reviewPolicy)) return;
+    const directory = guard(path.join(root, '.review-queue', session.id));
+    if (!fs.existsSync(directory)) return;
+    const file = fs.readdirSync(directory).filter((name) => name.endsWith('.json')).sort()[0];
+    if (!file) return;
+    const expected = session.id;
+    reviewPending = true;
+    chain = chain.then(async () => {
+      if (session.id !== expected || !['accept', 'lost'].includes(reviewPolicy)) return;
+      const recordPath = guard(path.join(directory, file));
+      const record = JSON.parse(fs.readFileSync(recordPath, 'utf8'));
+      if (record.threadId !== session.id) throw new Error('synthetic queue target mismatch');
+      reviewBusy = true; reviewState();
+      session.begin(record.text); fs.unlinkSync(recordPath);
+      console.log('SESHLOG_REVIEW_RECEIVED ' + JSON.stringify({ id: session.id, batchId: record.batchId, receipt: record.receipt, bytes: Buffer.byteLength(record.text) }));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      session.finish('Synthetic review processed. No model was contacted.');
+      console.log('SESHLOG_REVIEW_DONE ' + record.receipt);
+    }).catch((e) => console.error(`Synthetic review: ${e.message}`)).finally(() => { reviewBusy = false; reviewPending = false; reviewState(); });
+  }, 100).unref();
   for (const signal of ['SIGTERM', 'SIGHUP']) process.on(signal, finish);
   rl.prompt();
 }

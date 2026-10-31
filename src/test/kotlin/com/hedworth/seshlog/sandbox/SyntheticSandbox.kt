@@ -192,7 +192,7 @@ internal object SyntheticSandbox {
     private fun installStubs(layout: SandboxLayout, node: Path?) {
         val lib = layout.bin.resolve("lib")
         Files.createDirectories(lib)
-        for (resource in listOf("stub-agent.cjs", "codex-daemon.cjs")) {
+        for (resource in listOf("stub-agent.cjs", "codex-daemon.cjs", "review-queue.cjs")) {
             javaClass.getResourceAsStream("/sandbox/$resource")!!.use { Files.write(lib.resolve(resource), it.readAllBytes()) }
         }
         Files.writeString(lib.resolve("sandbox.json"), gson.toJson(mapOf("root" to layout.root.toString(),

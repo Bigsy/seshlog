@@ -6,7 +6,6 @@ import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.worktree.ReviewFile
 import com.hedworth.seshlog.worktree.WorktreeReviewSnapshot
 import com.intellij.diff.DiffContentFactory
-import com.intellij.diff.DiffManager
 import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.diff.tools.simple.SimpleDiffViewer
 import com.intellij.diff.util.DiffNotificationProvider
@@ -14,13 +13,21 @@ import com.intellij.diff.util.DiffUserDataKeys
 import com.intellij.diff.util.Side
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.Disposable
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Pair
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTabbedPane
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -31,22 +38,22 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import javax.swing.*
 
-internal class ReviewCommentsDialog(private val project: Project, private val draftId: String) : DialogWrapper(project, false) {
+internal class ReviewCommentsPanel(private val project: Project, private val draftId: String, private val closeView: () -> Unit) : JPanel(BorderLayout(6, 6)), Disposable {
     private val service = ReviewDraftService.getInstance()
     private val store = service.store
     private val recipient = store.get(draftId).recipient
     private val base = JTextField(store.get(draftId).base ?: "HEAD", 22)
     private val recorded = JCheckBox("Files mentioned in this session's recorded edits (tool records only)")
-    private val fileModel = DefaultListModel<ReviewFile>()
-    private val files = JBList(fileModel)
+    private val files = ReviewChangesBrowser(project, recipient.checkout.root, ::openFile)
     private val commentModel = DefaultListModel<ReviewComment>()
     private val comments = JBList(commentModel)
-    private val status = JTextArea(2, 80).apply { isEditable = false; lineWrap = true; wrapStyleWord = true; isOpaque = false }
+    private val sections = JBTabbedPane()
+    private val status = JTextArea(3, 25).apply { isEditable = false; lineWrap = true; wrapStyleWord = true; isOpaque = false; font = com.intellij.util.ui.UIUtil.getLabelFont() }
     private val count = JLabel()
     private val send = JButton("Send Review")
     private val cancelSend = JButton("Cancel Send")
     private val delivery get() = ReviewDeliveryService.getInstance()
-    private val availability = JLabel()
+    private val availability = JTextArea(2, 25).apply { isEditable = false; lineWrap = true; wrapStyleWord = true; isOpaque = false; font = com.intellij.util.ui.UIUtil.getLabelFont() }
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "seshlog-review-view").apply { isDaemon = true } }
     private var job: Future<*>? = null
     private var generation = 0L
@@ -56,41 +63,38 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
     private val subscription: AutoCloseable
 
     init {
-        title = "Review Checkout Changes and Comment"
-        setModal(false)
-        setOKButtonText("Close")
-        files.selectionMode = ListSelectionModel.SINGLE_SELECTION
         comments.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        files.accessibleContext.accessibleName = "Checkout changes (all contributors)"
         comments.accessibleContext.accessibleName = "Review comments across files"
         base.accessibleContext.accessibleName = "Local comparison base (fixed after first load)"
-        files.cellRenderer = textRenderer { value -> (value as ReviewFile).let { "${it.status}  ${it.path}" } }
         comments.cellRenderer = textRenderer { value -> (value as ReviewComment).let {
             "${if (it.validation == ReviewValidation.NEEDS_RECHECK) "Needs recheck · " else ""}${it.path}:${it.firstLine}–${it.lastLine} (${it.side.name.lowercase()}) · ${it.note.lineSequence().first().take(90)}"
         } }
-        files.addMouseListener(object : MouseAdapter() { override fun mouseClicked(e: MouseEvent) { if (e.clickCount == 2) openFile() } })
         comments.addMouseListener(object : MouseAdapter() { override fun mouseClicked(e: MouseEvent) { if (e.clickCount == 2) navigate() } })
-        bindEnter(files, ::openFile)
         bindEnter(comments, ::navigate)
         recorded.addActionListener { showFiles() }
         send.addActionListener { sendReview() }
         cancelSend.addActionListener { delivery.cancel(draftId); status.text = "Cancellation requested. A message already queued by the agent cannot be recalled." }
         subscription = service.listen { if (!closed) renderDraft() }
-        init()
+        createPanel()
         renderDraft()
         reload()
     }
 
     private fun renderDraft() {
-        val draft = runCatching { store.get(draftId) }.getOrNull() ?: run { close(OK_EXIT_CODE); return }
+        val draft = runCatching { store.get(draftId) }.getOrNull() ?: run { closeView(); return }
         val selected = comments.selectedValue?.id
         commentModel.clear()
         draft.comments.forEach(commentModel::addElement)
         draft.comments.indexOfFirst { it.id == selected }.takeIf { it >= 0 }?.let { comments.selectedIndex = it }
-        count.text = "Send ${draft.comments.size} comments to “${recipientTitle()}” · ${draft.sent.size} sent batches"
+        val noun = if (draft.comments.size == 1) "comment" else "comments"
+        count.text = "${draft.comments.size} $noun · ${draft.sent.size} sent ${if (draft.sent.size == 1) "batch" else "batches"}"
+        sections.setTitleAt(1, "Comments (${draft.comments.size})")
+        send.text = "Send ${draft.comments.size} $noun"
+        send.accessibleContext.accessibleName = "Send ${draft.comments.size} $noun to ${recipientTitle()}"
         val sending = delivery.isSending(draftId)
         send.isEnabled = recipient.kind == AgentKind.CODEX && !sending && draft.comments.isNotEmpty() && draft.comments.all { it.validation == ReviewValidation.CURRENT }
         cancelSend.isEnabled = sending
+        cancelSend.isVisible = sending
         availability.text = if (recipient.kind == AgentKind.CODEX) "Direct send: local Codex daemon 0.166.0; recipient and source files are verified on send."
             else "Direct send unavailable for ${recipient.kind.displayName}. Copy Review and Go to Session are available."
         if (sending) status.text = "Validating or delivering the frozen review… You can keep editing notes; newer revisions will be retained."
@@ -132,15 +136,10 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
         }
     }
     private fun showFiles() {
-        val selected = files.selectedValue?.path
-        fileModel.clear()
-        scan?.files?.filter { !recorded.isSelected || it.path in recordedFiles?.paths.orEmpty() }?.forEach(fileModel::addElement)
-        (0 until fileModel.size).firstOrNull { fileModel[it].path == selected }?.let { files.selectedIndex = it }
-        if (files.selectedIndex < 0 && !fileModel.isEmpty) files.selectedIndex = 0
+        files.setFiles(scan?.files.orEmpty().filter { !recorded.isSelected || it.path in recordedFiles?.paths.orEmpty() })
     }
-    private fun openFile() {
+    private fun openFile(file: ReviewFile) {
         val snapshot = scan ?: return
-        val file = files.selectedValue ?: return
         val expected = store.get(draftId).generation
         read("Reading reviewed snapshot…", { ReviewSnapshots.read(snapshot, file) }) { content ->
             store.load(draftId, content, expected)
@@ -154,31 +153,34 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
     }
     private fun showDiff(file: ReviewFileSnapshot, focus: ReviewComment? = null) {
         val factory = DiffContentFactory.getInstance()
+        val fileType = FileTypeManager.getInstance().getFileTypeByFileName(file.path)
         val unsaved = file.path in ReviewUnsavedBuffers.capture(recipient)
         lateinit var context: ReviewDiffContext
         context = ReviewDiffContext(draftId, file.path, file.revision, { side, first, last ->
             ReviewCommentUi.add(project, context, side, first, last)
         }, focus)
-        val request = SimpleDiffRequest("Checkout changes — ${file.path} — ${recipient.kind.displayName}: ${recipientTitle()}",
-            factory.create(project, file.before), factory.create(project, file.current),
+        val request = SimpleDiffRequest("Checkout changes — ${file.path} — ${recipient.kind.displayName}: ${recipientTitle()} [${recipient.sessionId.takeLast(8)}]",
+            factory.create(project, file.before, fileType), factory.create(project, file.current, fileType),
             "Base ${file.base.take(12)}", "Reviewed on-disk snapshot (all contributors)")
         request.putUserData(ReviewDiffExtension.REVIEW_CONTEXT, context)
         request.putUserData(DiffUserDataKeys.FORCE_READ_ONLY, true)
         request.putUserData(DiffUserDataKeys.NOTIFICATION_PROVIDERS, listOf(DiffNotificationProvider { viewer ->
-            when {
-                viewer !is SimpleDiffViewer -> JLabel("Seshlog comments require a side-by-side text diff. Switch presentation to add comments.")
-                unsaved -> JLabel("An unsaved IDE buffer differs from this on-disk snapshot. Save and refresh before sending comments for this file.")
-                else -> null
+            JPanel(BorderLayout()).apply {
+                add(JTextArea(reviewRecipientLabel(draftId), 3, 65).apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }, BorderLayout.NORTH)
+                when {
+                    viewer !is SimpleDiffViewer -> add(JLabel("Seshlog comments require a side-by-side text diff. Switch presentation to add comments."), BorderLayout.SOUTH)
+                    unsaved -> add(JLabel("An unsaved IDE buffer differs from this on-disk snapshot. Save and refresh before sending comments for this file."), BorderLayout.SOUTH)
+                }
             }
         }))
         focus?.let { request.putUserData(DiffUserDataKeys.SCROLL_TO_LINE,
             Pair(if (it.side == ReviewSide.BASE) Side.LEFT else Side.RIGHT, it.firstLine - 1)) }
-        DiffManager.getInstance().showDiff(project, request)
+        ReviewDiffEditors.open(project, request, context)
     }
     private fun edit() {
         val comment = comments.selectedValue ?: return
-        ReviewNoteDialog(project, "Edit Review Comment", comment.selected, comment.note) {
-            store.edit(draftId, comment.id, it); service.changed()
+        ReviewNoteDialog(project, "Edit Review Comment", comment.selected, comment.note, draftId) {
+            store.editFromEditor(draftId, comment, it); service.changed()
         }.show()
     }
     private fun overall() {
@@ -186,8 +188,11 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
         // An empty overall note is allowed; the dedicated editor retains input on validation failure.
         val field = JTextArea(note, 8, 55).apply { lineWrap = true; wrapStyleWord = true }
         val dialog = object : DialogWrapper(project) {
-            init { title = "Overall Review Note"; init() }
-            override fun createCenterPanel(): JComponent = JBScrollPane(field)
+            init { title = "Overall Review Note — ${recipientTitle()} [${recipient.sessionId.takeLast(8)}]"; init() }
+            override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
+                add(JTextArea(reviewRecipientLabel(draftId), 3, 55).apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }, BorderLayout.NORTH)
+                add(JBScrollPane(field), BorderLayout.CENTER)
+            }
             override fun doOKAction() {
                 try { store.overall(draftId, field.text); service.changed(); super.doOKAction() }
                 catch (e: Exception) { setErrorText(e.message ?: "Could not save note") }
@@ -204,7 +209,13 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
                 status.text = "Review copied. Direct delivery has not occurred."
             } else object : DialogWrapper(project, false) {
                 init { title = if (sent == null) "Exact Outgoing Review (current draft)" else "Sent Review — read only"; setModal(false); setOKButtonText("Close"); init() }
-                override fun createCenterPanel(): JComponent = JBScrollPane(JTextArea(payload).apply { isEditable = false; caretPosition = 0 }).apply { preferredSize = Dimension(850, 600) }
+                override fun createCenterPanel(): JComponent = JPanel(BorderLayout()).apply {
+                    preferredSize = Dimension(850, 600)
+                    sent?.let { batch -> store.get(draftId).sentResults[batch.id]?.let { result ->
+                        add(JTextArea(deliveryMessage(result), 3, 75).apply { isEditable = false; lineWrap = true; wrapStyleWord = true }, BorderLayout.NORTH)
+                    } }
+                    add(JBScrollPane(JTextArea(payload).apply { isEditable = false; caretPosition = 0 }), BorderLayout.CENTER)
+                }
                 override fun createActions(): Array<Action> = arrayOf(okAction)
             }.show()
         }
@@ -225,7 +236,7 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
     private fun discard() {
         if (delivery.isSending(draftId)) { status.text = "Cancel or finish this submission before discarding the review"; return }
         if (Messages.showYesNoDialog(project, "Discard this draft and its in-memory sent batches?", "Discard Review", Messages.getQuestionIcon()) != Messages.YES) return
-        try { store.discard(draftId); service.changed(); close(OK_EXIT_CODE) } catch (e: Exception) { status.text = e.message }
+        try { store.discard(draftId); service.changed(); closeView() } catch (e: Exception) { status.text = e.message }
     }
     private fun sendReview() {
         val unknown = store.get(draftId).lastResult?.status == ReviewDeliveryStatus.UNKNOWN
@@ -277,36 +288,53 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
         }
     }
     private fun button(text: String, action: () -> Unit) = JButton(text).apply { addActionListener { action() } }
-    override fun createCenterPanel(): JComponent = JPanel(BorderLayout(8, 8)).apply {
-        preferredSize = Dimension(1100, 680)
+    private fun createPanel() = apply {
+        minimumSize = Dimension(280, 300)
+        border = com.intellij.util.ui.JBUI.Borders.empty(6)
         add(JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(JTextArea("Recipient: ${recipient.kind.displayName} · ${recipientTitle()} · ${recipient.checkout.root}", 2, 75).apply {
-                isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true
+            add(JTextArea(reviewRecipientLabel(draftId), 3, 25).apply {
+                isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true; font = com.intellij.util.ui.UIUtil.getLabelFont()
             })
-            add(JTextArea("Checkout changes include all contributors. Recorded tool operations do not establish authorship or complete file history.", 2, 75).apply {
-                isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true
+            add(JTextArea("Checkout changes include all contributors. Recorded edits are incomplete tool records, not authorship.", 2, 25).apply {
+                isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true; font = com.intellij.util.ui.UIUtil.getLabelFont()
             })
-            add(JPanel(FlowLayout(FlowLayout.LEFT)).apply { add(JLabel("Local base:")); add(base); add(button("Refresh", ::reload)); add(recorded) })
+            add(JPanel(BorderLayout(4, 0)).apply { add(JLabel("Base:"), BorderLayout.WEST); add(base, BorderLayout.CENTER); add(button("Refresh", ::reload), BorderLayout.EAST) })
+            recorded.text = "Recorded edit files only"
+            recorded.toolTipText = "Files mentioned in this session's recorded edits (tool records only)"
+            add(recorded)
         }, BorderLayout.NORTH)
-        add(JSplitPane(JSplitPane.HORIZONTAL_SPLIT, JPanel(BorderLayout()).apply {
-            add(JBScrollPane(files), BorderLayout.CENTER); add(button("Show Diff", ::openFile), BorderLayout.SOUTH)
-        }, JPanel(BorderLayout()).apply {
+        sections.addTab("Files", files)
+        sections.addTab("Comments (0)", JPanel(BorderLayout()).apply {
             add(JBScrollPane(comments), BorderLayout.CENTER)
-            add(JPanel(FlowLayout(FlowLayout.LEFT)).apply { add(button("Go to Comment", ::navigate)); add(button("Edit", ::edit));
+            add(JPanel(java.awt.GridLayout(0, 2, 4, 4)).apply { add(button("Go to Comment", ::navigate)); add(button("Edit", ::edit));
                 add(button("Remove") { comments.selectedValue?.let { store.remove(draftId, it.id); service.changed() } }); add(button("Confirm Anchor", ::confirm)) }, BorderLayout.SOUTH)
-        }).apply { resizeWeight = 0.42 }, BorderLayout.CENTER)
+        })
+        add(sections, BorderLayout.CENTER)
         add(JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(count)
-            add(JPanel(java.awt.GridLayout(0, 4, 5, 5)).apply { add(button("Overall Note", ::overall)); add(button("Preview", { preview() })); add(button("Copy Review", { preview(copy = true) }));
-                add(button("Sent Batches", ::sent)); add(button("Discard Review", ::discard)); add(button("Go to Session", ::goToSession)); add(send); add(cancelSend) })
+            val actions = DefaultActionGroup().apply {
+                fun action(text: String, icon: Icon, run: () -> Unit) = add(object : DumbAwareAction(text, text, icon) {
+                    override fun actionPerformed(e: AnActionEvent) = run()
+                })
+                action("Overall Note", AllIcons.Actions.Edit, ::overall)
+                action("Preview", AllIcons.Actions.Preview) { preview() }
+                action("Copy Review", AllIcons.Actions.Copy) { preview(copy = true) }
+                action("Sent Batches", AllIcons.Actions.ListFiles, ::sent)
+                action("Go to Session", AllIcons.Actions.Execute, ::goToSession)
+                addSeparator()
+                action("Discard Review", AllIcons.Actions.GC, ::discard)
+            }
+            add(ActionManager.getInstance().createActionToolbar("SeshlogReview", actions, true).apply { targetComponent = this@ReviewCommentsPanel }.component)
+            add(JPanel(BorderLayout(4, 0)).apply { add(send, BorderLayout.CENTER); add(cancelSend, BorderLayout.EAST) })
             add(availability)
             add(status)
-            add(JLabel("Limits: 50 comments, 4,000 characters per note, 128 KiB per message. Drafts and sent batches live in memory until IDE exit."))
-            add(JLabel("Explicit send lets the agent store and process the review under its normal settings."))
+            add(JTextArea("Drafts and sent batches remain in memory until IDE exit. Explicit send lets the agent store and process the review under its normal settings.", 3, 25).apply {
+                isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true; font = com.intellij.util.ui.UIUtil.getLabelFont()
+                toolTipText = "50 comments, 4,000 characters per note, 128 KiB per message"
+            })
         }, BorderLayout.SOUTH)
     }
-    override fun createActions(): Array<Action> = arrayOf(okAction)
-    override fun dispose() { closed = true; generation++; job?.cancel(true); worker.shutdownNow(); subscription.close(); super.dispose() }
+    override fun dispose() { closed = true; generation++; job?.cancel(true); worker.shutdownNow(); subscription.close() }
     private fun bindEnter(component: JComponent, action: () -> Unit) {
         component.inputMap.put(KeyStroke.getKeyStroke("ENTER"), "review-open")
         component.actionMap.put("review-open", object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) = action() })

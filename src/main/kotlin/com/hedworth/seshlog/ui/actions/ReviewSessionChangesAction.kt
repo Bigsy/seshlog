@@ -1,6 +1,6 @@
 package com.hedworth.seshlog.ui.actions
 
-import com.hedworth.seshlog.review.ReviewCommentsDialog
+import com.hedworth.seshlog.review.ReviewToolWindow
 import com.hedworth.seshlog.review.ReviewDraftService
 import com.hedworth.seshlog.review.ReviewRecipient
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -19,7 +19,7 @@ class ReviewSessionChangesAction : DumbAwareAction("Review Changes and Commentâ€
         val checkout = checkoutFrom(e)?.takeIf { it.available } ?: return
         try {
             val draft = ReviewDraftService.getInstance().store.open(ReviewRecipient(session.kind, session.id, checkout))
-            ReviewCommentsDialog(project, draft.id).show()
+            ReviewToolWindow.open(project, draft.id)
         } catch (e: Exception) { Messages.showInfoMessage(project, e.message ?: "Could not open review", "Review Changes") }
     }
 }

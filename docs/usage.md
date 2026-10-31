@@ -178,6 +178,24 @@ binary files, symlinks, submodules and files over 8 MiB require the IDE's Git to
 to 5,000 files and bounded Git output; limits/errors are shown explicitly. Nothing is fetched or
 modified, and file previews remain in memory.
 
+### Commenting on checkout changes
+
+From a session, choose **Review Changes and Comment…**. Its review tab lives in IntelliJ's
+**Commit** tool window, or **Changes** with the classic VCS layout. The native Changes tree opens
+diff editor tabs. Select lines on either side and use the **+** gutter action or
+**Ctrl+Alt+Shift+K**. The **Comments** tab collects notes across files; double-click one to return
+to its range. Preview/copy the exact batch and optionally add an overall note.
+
+The recipient is fixed to that provider, session ID and checkout. The comparison includes all
+contributors. Newer files and relevant unsaved buffers require saving, refreshing and rechecking
+anchors before send. Drafts and sent batches remain in memory until IDE exit; closing a tab keeps
+them, while **Discard Review** removes them explicitly.
+
+Direct send supports a verified open **Codex 0.166.0** TUI through its existing private local
+daemon on macOS/Linux. Other providers and unsupported receivers offer copy/navigation. A queue
+receipt is not proof the agent has acted; rejected/unknown delivery keeps notes, and uncertain
+retries warn about duplication. See [review support, data handling and evidence](diff-review.md).
+
 ### Deleting a worktree
 
 Right-click a linked worktree's folder in the session list and choose **Delete Worktree…**. Seshlog
@@ -238,6 +256,11 @@ can be partial and doesn't reconstruct historical file contents.
 
 Seshlog makes no network requests and has no telemetry or analytics. It reads agent data without
 rewriting saved sessions. Settings and caches live in IDE storage.
+
+Explicit **Send Review** hands selected notes and code excerpts to the chosen agent, which may
+save them and send them to its model under its normal settings. Seshlog keeps draft/sent review
+text in memory only. If the agent stores the message, its history follows the normal search
+index policy below.
 
 Search saves words, positions and source references in the IDE config folder at
 `seshlog/search/lexical.sqlite`. It keeps no raw transcript copies, snippets or query history on

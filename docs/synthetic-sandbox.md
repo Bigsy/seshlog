@@ -253,8 +253,40 @@ this profile's `.codex-daemon.sock` before restarting it.
 `CodexSyntheticDaemonTest` drives the stale-resume/mixed-title, delayed-start, two-tab exchange and
 unindexed-replacement scenarios through real stubs and the production provider, process inspector,
 reconciler and Copy readers. It verifies retained daemon descriptors and absent TUI descriptors.
-The verifier checks that both installed helper files match this checkout. These helpers and their
+The verifier checks that all three installed helper files match this checkout. These helpers and their
 fixtures are test resources only and must never appear in the plugin ZIP.
+
+## Synthetic diff review delivery
+
+Start the independent, test-only Codex 0.166.0-shaped queue before launching fictional Codex TUIs:
+
+```sh
+"$SESHLOG_SANDBOX/bin/codex" app-server --synthetic-review
+```
+
+Wait for `SESHLOG_REVIEW_SERVER_READY`. The helper exposes a private Unix WebSocket through the
+synthetic Codex home's usual control-socket path. It never calls a model or a network service.
+Existing sandbox Codex stubs register their exact session ID, process and checkout automatically.
+The queue helper must be able to inspect those processes; a process sandbox that denies signal 0
+will correctly make targets unavailable. Run the helper in the same local process context as the IDE.
+
+In a fictional Codex terminal, use `/review hold`, `/review accept`, `/review refuse` or
+`/review lost`. Hold queues without consuming; accept releases it when idle; refuse returns a
+known rejection; lost stores the message and drops the receipt to exercise delivery unknown.
+No automatic retry should follow. `SESHLOG_REVIEW_RECEIVED` and `SESHLOG_REVIEW_DONE` prove consumption.
+The helper's `review-receipts.jsonl` records fictional IDs, byte counts and outcomes. Synthetic
+queued text is kept only under this disposable profile's `.review-queue` until consumed.
+
+Change files in the fictional `workspace/harbor` checkout, open a session's **Review Changes and
+Comment…**, then use the **Commit** review tab and native diff editor tabs. Check comments on both
+sides and across files, the exact preview, queue receipts and retained drafts after failures.
+Use two TUIs and `/new` or `/resume` to prove a review never follows a changed terminal identity.
+`ReviewSyntheticEndToEndTest` drives these helpers through the production socket adapter and
+provider; it checks one addressed batch, holding/release, refusal, lost receipts and two-TUI swaps.
+
+Ctrl+C stops the helper and removes only its own socket/symlink. Stop it before deleting a profile.
+`review-queue.cjs`, `stub-agent.cjs`, `codex-daemon.cjs` and the live compatibility script are test
+resources and must not ship. See [review evidence and limitations](diff-review.md).
 
 ## Testing the production Codex terminal wrapper
 

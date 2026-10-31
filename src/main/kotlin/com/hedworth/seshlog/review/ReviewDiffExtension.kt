@@ -55,8 +55,8 @@ class ReviewDiffExtension : DiffExtension() {
                         override fun getClickAction(): AnAction = if (comment == null) action else object : DumbAwareAction("Edit Review Comment") {
                             override fun actionPerformed(e: AnActionEvent) {
                                 val project = viewer.project ?: return
-                                ReviewNoteDialog(project, "Edit Review Comment", comment.selected, comment.note) {
-                                    service.store.edit(review.draftId, comment.id, it); service.changed()
+                                ReviewNoteDialog(project, "Edit Review Comment", comment.selected, comment.note, review.draftId) {
+                                    service.store.editFromEditor(review.draftId, comment, it); service.changed()
                                 }.show()
                             }
                         }

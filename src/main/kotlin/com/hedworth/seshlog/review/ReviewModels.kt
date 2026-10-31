@@ -46,6 +46,7 @@ internal data class ReviewDraft(
     val files: Map<String, ReviewFileSnapshot> = emptyMap(), val comments: List<ReviewComment> = emptyList(),
     val overallNote: String = "", val overallRevision: Long = 0, val generation: Long = 0, val pending: ReviewSubmission? = null,
     val lastResult: ReviewDeliveryResult? = null, val sent: List<ReviewSubmission> = emptyList(),
+    val sentResults: Map<String, ReviewDeliveryResult> = emptyMap(),
 )
 
 internal fun reviewHash(text: String): String = MessageDigest.getInstance("SHA-256")
@@ -92,6 +93,21 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         val draft = get(id)
         require(draft.comments.any { it.id == commentId }) { "This comment is no longer in the draft" }
         return put(draft.copy(comments = draft.comments.map { if (it.id == commentId) it.copy(note = note, revision = it.revision + 1) else it }))
+    }
+    @Synchronized fun editFromEditor(id: String, original: ReviewComment, note: String): ReviewDraft {
+        val draft = get(id)
+        val current = draft.comments.firstOrNull { it.id == original.id }
+        if (current != null) {
+            check(current.revision == original.revision) { "This comment changed in another view; your editor text has been kept" }
+            return edit(id, original.id, note)
+        }
+        validateNote(note)
+        check(draft.sent.any { batch -> batch.comments.any { it.id == original.id && it.revision == original.revision } }) {
+            "This comment was removed in another view; your editor text has been kept"
+        }
+        check(draft.comments.size < 50) { "This draft already contains 50 comments; your editor text has been kept" }
+        val validation = if (draft.files[original.path]?.revision == original.fileRevision) original.validation else ReviewValidation.NEEDS_RECHECK
+        return put(draft.copy(comments = draft.comments + original.copy(revision = original.revision + 1, note = note, validation = validation)))
     }
     @Synchronized fun remove(id: String, commentId: String): ReviewDraft = get(id).let {
         put(it.copy(comments = it.comments.filterNot { comment -> comment.id == commentId }))
@@ -149,7 +165,8 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         return put(draft.copy(pending = null, lastResult = result,
             comments = if (accepted) draft.comments.filterNot { included[it.id] == it.revision } else draft.comments,
             overallNote = if (accepted && draft.overallRevision == submission.overallRevision) "" else draft.overallNote,
-            sent = if (accepted) draft.sent + submission else draft.sent), enforceLimit = false)
+            sent = if (accepted) draft.sent + submission else draft.sent,
+            sentResults = if (accepted) draft.sentResults + (submission.id to result) else draft.sentResults), enforceLimit = false)
     }
     private fun validateNote(note: String) {
         require(note.isNotBlank()) { "Enter a review comment" }
@@ -159,7 +176,8 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         val frozen = draft.copy(generation = draft.generation + 1,
             files = Collections.unmodifiableMap(LinkedHashMap(draft.files)),
             comments = Collections.unmodifiableList(ArrayList(draft.comments)),
-            sent = Collections.unmodifiableList(ArrayList(draft.sent)))
+            sent = Collections.unmodifiableList(ArrayList(draft.sent)),
+            sentResults = Collections.unmodifiableMap(LinkedHashMap(draft.sentResults)))
         if (enforceLimit) {
             if (frozen.comments.isNotEmpty()) require(ReviewFormatter.format(frozen, "0".repeat(36)).toByteArray(Charsets.UTF_8).size <= 128 * 1024) {
                 "Review would exceed 128 KiB UTF-8; shorten this note or submit the current batch first"
@@ -172,7 +190,8 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
     }
     private fun memory(draft: ReviewDraft): Long = draft.files.values.sumOf { it.memoryBytes } +
         draft.comments.sumOf { (it.selected.length.toLong() + it.note.length) * 2 } + draft.overallNote.length * 2L +
-        draft.sent.sumOf(::submissionMemory) + (draft.pending?.let(::submissionMemory) ?: 0)
+        draft.sent.sumOf(::submissionMemory) + (draft.pending?.let { submissionMemory(it) + 1024 } ?: 0) +
+        draft.sentResults.values.sumOf { (it.receipt?.length ?: 0) * 2L + it.reason.length * 2L + 32 }
     private fun submissionMemory(submission: ReviewSubmission): Long = submission.payload.length * 2L +
         submission.comments.sumOf { (it.selected.length.toLong() + it.note.length) * 2 }
 }
@@ -181,6 +200,7 @@ internal object ReviewFormatter {
     fun format(draft: ReviewDraft, batch: String): String = buildString {
         append("Review feedback for the current task\nCheckout: ").append(quote(draft.recipient.checkout.root.fileName.toString()))
         append("; base: ").append(draft.base).append("; review: ").append(batch)
+        append("\nRecipient: ").append(draft.recipient.kind.displayName).append("; session: ").append(quote(draft.recipient.sessionId))
         append("\nThese comments refer to captured code. Check whether the code still matches before editing.\n")
         if (draft.overallNote.isNotBlank()) append("\nOverall note:\n").append(block(draft.overallNote))
         draft.comments.forEachIndexed { index, comment ->

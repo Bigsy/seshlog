@@ -20,6 +20,19 @@ class ReviewSendOperationTest {
     }
     private fun valid(draft: ReviewDraft) = ReviewSnapshots.Validation(emptySet(), emptySet())
 
+    @Test fun `saving an editor opened before a receipt keeps the new note without modifying the sent batch`() {
+        val (store, snapshot) = seeded()
+        val original = snapshot.comments.first()
+        val batch = store.prepare(snapshot.id)
+        store.finish(batch, ReviewDeliveryResult(ReviewDeliveryStatus.QUEUED, "queued_by_agent", "synthetic-receipt"))
+        store.editFromEditor(snapshot.id, original, "Typed while waiting for receipt")
+        val draft = store.get(snapshot.id)
+        assertEquals("Typed while waiting for receipt", draft.comments.single().note)
+        assertTrue(draft.comments.single().revision > original.revision)
+        assertFalse(draft.sent.single().payload.contains("Typed while waiting for receipt"))
+        assertEquals("synthetic-receipt", draft.sentResults.getValue(batch.id).receipt)
+    }
+
     @Test fun `one frozen batch across files survives newer edits and a tab or view closing after receipt`() {
         val (store, snapshot) = seeded()
         var current = true
@@ -37,6 +50,7 @@ class ReviewSendOperationTest {
         val draft = store.get(snapshot.id)
         assertEquals(listOf("Edited during send", "Added during send"), draft.comments.map { it.note })
         assertEquals(1, draft.sent.size)
+        assertEquals("synthetic-receipt", draft.sentResults.getValue(draft.sent.single().id).receipt)
         assertFalse(draft.sent.single().payload.contains("Edited during send"))
     }
     @Test fun `changed or unsaved files block both sides without consuming notes`() {

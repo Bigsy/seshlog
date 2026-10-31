@@ -72,8 +72,8 @@ class ReviewDiffExtensionTest : BasePlatformTestCase() {
         val file = ReviewFileSnapshot("file.kt", "a".repeat(40), "old\n", "new\n")
         service.store.load(draft.id, file)
         service.store.add(draft.id, file.path, ReviewSide.CURRENT, 1, 1, "Keep note")
-        val dialog = ReviewCommentsDialog(project, draft.id)
-        dialog.close(0)
+        val panel = ReviewCommentsPanel(project, draft.id) {}
+        Disposer.dispose(panel)
         val reopened = service.store.open(draft.recipient)
         assertEquals(draft.id, reopened.id)
         assertEquals("Keep note", reopened.comments.single().note)

@@ -74,7 +74,7 @@ internal class SyntheticSandboxVerifier(
         return checks
     }
 
-    private fun stubHelpers(): List<SandboxCheck> = listOf("stub-agent.cjs", "codex-daemon.cjs").map { name ->
+    private fun stubHelpers(): List<SandboxCheck> = listOf("stub-agent.cjs", "codex-daemon.cjs", "review-queue.cjs").map { name ->
         val installed = layout.bin.resolve("lib/$name")
         val expected = javaClass.getResourceAsStream("/sandbox/$name")!!.use { it.readAllBytes() }
         val current = Files.isRegularFile(installed) && Files.readAllBytes(installed).contentEquals(expected)

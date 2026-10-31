@@ -37,6 +37,9 @@ dependencies {
         bundledModule("intellij.terminal.frontend")
         // Platform Markdown parser; independent of the optional Markdown editor plugin.
         bundledModule("intellij.libraries.markdown")
+        // Native Changes browser and Commit/Changes content placement for session reviews.
+        bundledModule("intellij.platform.vcs.impl")
+        bundledModule("intellij.platform.vcs.impl.shared")
 
         pluginVerifier()
         zipSigner()

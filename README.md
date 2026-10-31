@@ -71,6 +71,17 @@ When you're done with a worktree, right-click its folder and choose **Delete Wor
 it only if it has no uncommitted or untracked changes. The conversations are kept, and you can hide
 their sessions in the same step.
 
+### Review checkout changes
+
+Right-click a session and choose **Review Changes and Comment…**. The review opens in IntelliJ's
+**Commit** tool window (or **Changes** with the classic VCS layout). Browse the native Changes tree,
+open diff editor tabs and add comments from either side using the gutter or **Ctrl+Alt+Shift+K**.
+Preview or copy one message containing the review across files.
+
+Direct send supports a verified open **Codex 0.166.0** session using its existing private local
+daemon. Other providers offer copy and navigation. Changed files require a recheck; failed or
+uncertain sends keep your notes. See [review usage and support limits](docs/diff-review.md).
+
 ## Screenshots
 
 <table>
@@ -93,6 +104,10 @@ Click any screenshot to view it full size.
 
 Seshlog makes no network requests and has no telemetry. It reads your agent history without
 rewriting the saved conversations.
+
+Explicit **Send Review** hands selected comments and code excerpts to the chosen agent. That agent
+may save the message and send it to its model under its normal settings. Review drafts and sent
+batches stay in IDE memory until exit; Seshlog does not save their text to disk.
 
 Search keeps an unencrypted local index of words and positions from your sessions, including tool
 activity. It can reveal conversation content, so treat it as private. Raw conversation copies and

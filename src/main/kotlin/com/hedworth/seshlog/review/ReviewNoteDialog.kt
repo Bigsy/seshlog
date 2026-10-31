@@ -10,14 +10,17 @@ import java.awt.BorderLayout
 import java.awt.Dimension
 import javax.swing.*
 
-internal class ReviewNoteDialog(project: Project, caption: String, excerpt: String, initial: String, private val commit: (String) -> Unit) : DialogWrapper(project) {
+internal class ReviewNoteDialog(project: Project, caption: String, excerpt: String, initial: String, private val draftId: String? = null, private val commit: (String) -> Unit) : DialogWrapper(project) {
     private val note = JTextArea(initial, 8, 55).apply { lineWrap = true; wrapStyleWord = true; accessibleContext.accessibleName = "Review comment (4,000 characters maximum)" }
     private val code = JTextArea(excerpt, 5, 55).apply { isEditable = false; accessibleContext.accessibleName = "Selected code excerpt" }
     private var disposed = false
     init { title = caption; setOKButtonText("Save Comment"); init() }
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout(8, 8)).apply {
         preferredSize = Dimension(650, 330)
-        add(JBScrollPane(code), BorderLayout.NORTH)
+        add(JPanel(BorderLayout(5, 5)).apply {
+            draftId?.let { add(JTextArea(reviewRecipientLabel(it), 3, 55).apply { isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true }, BorderLayout.NORTH) }
+            add(JBScrollPane(code), BorderLayout.CENTER)
+        }, BorderLayout.NORTH)
         add(JBScrollPane(note), BorderLayout.CENTER)
         add(JLabel("Maximum 4,000 characters. Drafts remain in memory until IDE exit."), BorderLayout.SOUTH)
     }
@@ -54,7 +57,7 @@ internal object ReviewCommentUi {
             }
             app.invokeLater({
                 if (!project.isDisposed) excerpt.fold({ text ->
-                    ReviewNoteDialog(project, "Add Review Comment — ${context.path} ($first–$last)", text, "") { note ->
+                    ReviewNoteDialog(project, "Add Review Comment — ${context.path} ($first–$last)", text, "", context.draftId) { note ->
                         service.store.add(context.draftId, context.path, side, first, last, note, context.revision)
                         service.changed()
                     }.show()
@@ -62,4 +65,11 @@ internal object ReviewCommentUi {
             }, ModalityState.any())
         }
     }
+}
+
+internal fun reviewRecipientLabel(id: String): String {
+    val recipient = ReviewDraftService.getInstance().store.get(id).recipient
+    val session = com.hedworth.seshlog.index.SessionIndex.getInstance().sessions.firstOrNull { it.kind == recipient.kind && it.id == recipient.sessionId }
+    val title = session?.let { com.hedworth.seshlog.settings.SessionOrganisation.getInstance().title(it) } ?: "Closed or unindexed session"
+    return "Recipient: ${recipient.kind.displayName} · $title\nSession: ${recipient.sessionId}\nCheckout: ${recipient.checkout.root}"
 }

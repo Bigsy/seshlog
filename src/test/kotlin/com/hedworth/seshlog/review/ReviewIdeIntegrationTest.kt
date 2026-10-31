@@ -104,8 +104,8 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         service.store.load(draft.id, file)
         val base = service.store.add(draft.id, file.path, ReviewSide.BASE, 2, 2, "Keep base").comments.last()
         val current = service.store.add(draft.id, file.path, ReviewSide.CURRENT, 1, 1, "Keep current").comments.last()
-        val opened = mutableMapOf<com.intellij.diff.editor.SimpleDiffVirtualFile, DiffEditorViewerFileEditor>()
-        fun open(focus: ReviewComment): com.intellij.diff.editor.SimpleDiffVirtualFile {
+        val opened = mutableMapOf<ReviewDiffVirtualFile, DiffEditorViewerFileEditor>()
+        fun open(focus: ReviewComment): ReviewDiffVirtualFile {
             val factory = DiffContentFactory.getInstance()
             val context = ReviewDiffContext(draft.id, file.path, file.revision, { _, _, _ -> }, focus)
             val request = SimpleDiffRequest("Synthetic review editor", factory.create(project, file.before), factory.create(project, file.current), "Base", "Snapshot")
@@ -129,6 +129,29 @@ class ReviewIdeIntegrationTest : BasePlatformTestCase() {
         assertEquals("base", viewer.editor1.selectionModel.selectedText)
         Disposer.dispose(editors.single())
         assertNull(viewer.editor1.getUserData(ReviewDiffExtension.EDITOR_BINDING))
+    }
+    fun `test force refreshing a live native diff preserves both sides and its tab`() {
+        val draft = draft()
+        val file = ReviewFileSnapshot("refresh.kt", "base", "old\n", "new\n")
+        service.store.load(draft.id, file)
+        val factory = DiffContentFactory.getInstance()
+        val request = SimpleDiffRequest("Synthetic refresh", factory.create(project, file.before), factory.create(project, file.current), "Base", "Snapshot")
+        val context = ReviewDiffContext(draft.id, file.path, file.revision, { _, _, _ -> })
+        lateinit var processor: DiffRequestProcessor
+        val tab = ReviewDiffEditors.open(project, request, context, { emptyList() }, { tab ->
+            processor = tab.createProcessor(project)
+            processor.updateRequest()
+            arrayOf(DiffEditorViewerFileEditor(project, tab, processor).also { Disposer.register(testRootDisposable, it) })
+        })
+        com.intellij.util.ui.UIUtil.dispatchAllInvocationEvents()
+        assertEquals(2, (tab.request as SimpleDiffRequest).contents.size)
+        processor.updateRequest(true)
+        com.intellij.util.ui.UIUtil.dispatchAllInvocationEvents()
+        assertEquals("Presentation refresh must not erase the request", 2, (tab.request as SimpleDiffRequest).contents.size)
+        assertTrue(tab.isValid)
+        val viewer = processor.activeViewer as SimpleDiffViewer
+        assertEquals("old\n", viewer.editor1.document.text)
+        assertEquals("new\n", viewer.editor2.document.text)
     }
     fun `test an open native diff counts against snapshot refresh memory until its editor closes`() {
         val draft = draft()

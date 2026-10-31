@@ -195,4 +195,55 @@ class TerminalReconcilerTest {
         )
         assertTrue(result.adopt.isEmpty())
     }
+    @Test fun `current titles exchange two owned threads together`() {
+        val other = Tab("other")
+        val result = TerminalReconciler.reconcile(input(
+            sessions = listOf(session("a"), session("b")),
+            ownership = mapOf("a" to tab, "b" to other),
+            ownershipAtInspection = mapOf(tab to "a", other to "b"),
+            discoveries = listOf(TabProcessDiscovery(tab, "b", process), TabProcessDiscovery(other, "a", Process("other"))),
+        ))
+        assertEquals(mapOf("b" to tab, "a" to other), result.adopt)
+        assertTrue(result.ended.isEmpty())
+    }
+
+    @Test fun `unindexed replacement clears current identity without creating ended context`() {
+        val result = TerminalReconciler.reconcile(input(listOf(session("a")),
+            ownership = mapOf("a" to tab), ownershipAtInspection = mapOf(tab to "a"),
+            running = setOf("a"), observedBefore = mapOf("a" to process), observedNow = mapOf("a" to process),
+            exited = setOf("a")).copy(invalidatedTabs = setOf(tab)))
+        assertEquals(mapOf("a" to tab), result.displacedTabs)
+        assertTrue(result.ended.isEmpty())
+        assertTrue(result.release.isEmpty())
+        assertTrue(result.running.isEmpty())
+        assertTrue(result.retitle.isEmpty())
+    }
+
+    @Test fun `three way cycle is accepted together but a stale member rejects the whole cycle`() {
+        val tabs = listOf(tab, Tab("two"), Tab("three"))
+        val ids = listOf("a", "b", "c")
+        val owners = ids.zip(tabs).toMap()
+        val discoveries = tabs.mapIndexed { i, t -> TabProcessDiscovery(t, ids[(i + 1) % 3], Process("p$i")) }
+        val snapshot = input(ids.map { session(it) }, ownership = owners,
+            ownershipAtInspection = owners.entries.associate { it.value to it.key }, discoveries = discoveries)
+            .copy(generationsAtInspection = tabs.associateWith { 1L }, generationsNow = tabs.associateWith { 1L })
+        assertEquals(discoveries.associate { it.sessionId to it.tab }, TerminalReconciler.reconcile(snapshot).adopt)
+        val stale = TerminalReconciler.reconcile(snapshot.copy(generationsNow = snapshot.generationsNow + (tabs.last() to 2L)))
+        assertTrue(stale.adopt.isEmpty())
+        assertTrue(stale.displacedTabs.isEmpty())
+    }
+
+    @Test fun `one way move releases displaced identity but duplicate claims never choose a winner`() {
+        val other = Tab("other")
+        val snapshot = input(listOf(session("a"), session("b")), ownership = mapOf("a" to tab, "b" to other),
+            ownershipAtInspection = mapOf(tab to "a", other to "b"),
+            discoveries = listOf(TabProcessDiscovery(tab, "b", process))).copy(invalidatedTabs = setOf(other))
+        val moved = TerminalReconciler.reconcile(snapshot)
+        assertEquals(mapOf("b" to tab), moved.adopt)
+        assertEquals(setOf("a", "b"), moved.displacedTabs.keys)
+        val duplicate = TerminalReconciler.reconcile(snapshot.copy(discoveries = snapshot.discoveries + TabProcessDiscovery(other, "b", process)))
+        assertTrue(duplicate.adopt.isEmpty())
+        assertTrue(duplicate.ended.isEmpty())
+    }
+
 }

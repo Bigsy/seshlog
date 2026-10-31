@@ -35,6 +35,8 @@ internal data class TerminalReconcileInput<T : Any, P : Any>(
     val generationsNow: Map<T, Long> = emptyMap(),
     /** Exact process identity found for already-owned sessions in this inspection. */
     val runningProcesses: Map<String, P> = emptyMap(),
+    /** Current evidence positively rules out the prior identity, even before index arrival. */
+    val invalidatedTabs: Set<T> = emptySet(),
 )
 
 internal data class TerminalReconcileResult<T : Any, P : Any>(
@@ -51,6 +53,8 @@ internal data class TerminalReconcileResult<T : Any, P : Any>(
     val retitle: List<TabRegistry.Retitle<T>>,
     /** Release targets, retained alongside [release] for generation-checked application. */
     val releaseTabs: Map<String, T> = emptyMap(),
+    /** Thread switches are not exits and must never populate ended-session context. */
+    val displacedTabs: Map<String, T> = emptyMap(),
 )
 
 /**
@@ -90,24 +94,27 @@ internal object TerminalReconciler {
         }
         (uniqueDiscoveries - unambiguous.toSet()).forEach { reject(it.tab, "ambiguous_discovery", it.sessionId) }
 
-        for (discovery in unambiguous) {
-            val session = sessions[discovery.sessionId]
-            if (session == null) { reject(discovery.tab, "session_missing_from_index", discovery.sessionId); continue }
-            // Codex and Pi deliberately do not expose a live flag. Exact process or descriptor
-            // evidence is sufficient to adopt those sessions.
-            if (!session.isLive && discovery.process == null) { reject(discovery.tab, "no_live_evidence", discovery.sessionId); continue }
-            // A tab may have changed owners while the worker inspected it. The caller's
-            // ownership snapshot is the compare-and-set token for this adoption.
-            if (!unchanged(discovery.tab)) continue
-            val existingTab = input.ownership[discovery.sessionId]
-            if (existingTab != null && existingTab != discovery.tab) { reject(discovery.tab, "session_owned_elsewhere", discovery.sessionId); continue }
-            val existingSession = ownershipByTab[discovery.tab]
-            if (existingSession != null && existingSession != discovery.sessionId) {
-                adopt.remove(existingSession)
+        val affected = (uniqueDiscoveries.map { it.tab } + input.invalidatedTabs).toSet()
+        // A stale member invalidates the complete transition, including an exchange partner.
+        val stable = affected.map(::unchanged).all { it }
+        val displaced = LinkedHashMap<String, T>()
+        if (stable) {
+            for ((id, tab) in input.ownership) {
+                if (tab in input.invalidatedTabs || tabsByDiscovery[tab]?.let { claims ->
+                        claims.isNotEmpty() && claims.none { it.sessionId == id }
+                    } == true) displaced[id] = tab
             }
-            ownershipByTab[discovery.tab] = discovery.sessionId
-            adopt[discovery.sessionId] = discovery.tab
-            discovery.process?.let { observe[discovery.sessionId] = it }
+            for (discovery in unambiguous) {
+                val session = sessions[discovery.sessionId]
+                if (session == null) { reject(discovery.tab, "session_missing_from_index", discovery.sessionId); continue }
+                if (!session.isLive && discovery.process == null) { reject(discovery.tab, "no_live_evidence", discovery.sessionId); continue }
+                val existingTab = input.ownership[discovery.sessionId]
+                if (existingTab != null && existingTab != discovery.tab && discovery.sessionId !in displaced) {
+                    reject(discovery.tab, "session_owned_elsewhere", discovery.sessionId); continue
+                }
+                adopt[discovery.sessionId] = discovery.tab
+                discovery.process?.let { observe[discovery.sessionId] = it }
+            }
         }
 
         // Capture valid incoming handles before processing exits. A process can be replaced
@@ -116,13 +123,14 @@ internal object TerminalReconciler {
         val incomingObservations = LinkedHashMap(observe)
         for ((sessionId, process) in input.runningProcesses) {
             val tab = input.ownership[sessionId] ?: continue
-            if (unchanged(tab)) incomingObservations[sessionId] = process
+            if (sessionId !in displaced && unchanged(tab)) incomingObservations[sessionId] = process
         }
 
         val release = LinkedHashSet<String>()
         val releaseTabs = LinkedHashMap<String, T>()
         val ended = LinkedHashMap<T, String>()
         for (sessionId in input.exited) {
+            if (sessionId in displaced || sessionId in adopt) continue
             val before = input.observedBefore[sessionId] ?: continue
             // A missing current observation means explicit tracking cleared the old evidence (for
             // example a quick Resume); preserve ownership until a newer tick proves an exit.
@@ -150,14 +158,14 @@ internal object TerminalReconciler {
         // match the worker snapshot. Otherwise a same-tab quick Resume can inherit stale state.
         for (sessionId in input.running) {
             val tab = input.ownership[sessionId] ?: continue
-            if (unchanged(tab)) running += sessionId
+            if (sessionId !in displaced && unchanged(tab)) running += sessionId
         }
         running += observe.keys
         running.removeAll(release)
         observe.keys.removeAll(release)
 
         val effectiveOwnership = LinkedHashMap(input.ownership)
-        for (sessionId in release) effectiveOwnership.remove(sessionId)
+        for (sessionId in release + displaced.keys) effectiveOwnership.remove(sessionId)
         for ((sessionId, tab) in adopt) {
             effectiveOwnership.entries.removeAll { it.value == tab && it.key != sessionId }
             effectiveOwnership[sessionId] = tab
@@ -170,6 +178,6 @@ internal object TerminalReconciler {
             if (input.tabTitles[tab] != desired) retitle += TabRegistry.Retitle(tab, desired)
         }
         running.retainAll(effectiveOwnership.keys)
-        return TerminalReconcileResult(adopt, release, observe, ended, running, retitle, releaseTabs)
+        return TerminalReconcileResult(adopt, release, observe, ended, running, retitle, releaseTabs, displaced)
     }
 }

@@ -74,7 +74,7 @@ last-known/ended context from a verified current association. Agent data remains
   passes 641 tests (10 opt-in skips), including title and direct-writer positives. Daemon
   scenarios now exercise the production batch inspector and assert unresolved identity.
 
-- [ ] **C3. Reconcile thread changes and exchanges atomically.** Extend `TerminalReconciler` and
+- [x] **C3. Reconcile thread changes and exchanges atomically.** Extend `TerminalReconciler` and
   `TabRegistry` with a generation-checked batch transition for affected tabs. Validate the whole
   affected set before mutation, release identities positively displaced by current evidence, then
   install unambiguous replacements together. Recheck expected owners, generations, shell/process
@@ -86,6 +86,10 @@ last-known/ended context from a verified current association. Agent data remains
   swaps, longer cycles, one-way moves, duplicate/conflicting claims, unindexed C then index arrival,
   delayed results after close/reuse, PID reuse and temporary inspection/adapter failure in
   `TerminalReconcilerTest`, `TabRegistryTest` and platform ownership tests.
+  Completed 2026-10-31: the two-tab exchange failed before the fix; `make check` passes
+  648 tests (10 opt-in skips) after recompiling without stale Gradle cache entries. Batch
+  ownership validates all members, supports cycles/unindexed reservations, and distinguishes
+  displacement from exit. Shell/title/disposal and observed-handle checks guard EDT application.
 
 - [ ] **C4. Apply the same identity policy to terminal actions and delayed results.** Audit
   `OwnedTerminalTabs.copySessionResolver`, `navigationTarget`, focus/close, `TerminalTabs.resume`,

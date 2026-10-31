@@ -218,4 +218,40 @@ class TabRegistryTest {
         registry.forget(tabA)
         assertFalse(registry.release("a", tabA, before))
     }
+    @Test fun `batch swaps owners and rejects every mutation when one member changed`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("a", tabA); registry.register("b", tabB)
+        val swap = listOf(TabRegistry.Transition(tabA, "a", registry.generation(tabA), "b"),
+            TabRegistry.Transition(tabB, "b", registry.generation(tabB), "a"))
+        registry.register("b", tabB)
+        assertFalse(registry.transition(swap))
+        assertEquals(mapOf("a" to tabA, "b" to tabB), registry.snapshot())
+        assertTrue(registry.transition(swap.map { it.copy(generation = registry.generation(it.tab)) }))
+        assertEquals(mapOf("b" to tabA, "a" to tabB), registry.snapshot())
+    }
+
+    @Test fun `unindexed replacement reserves the terminal and indexed arrival resolves it`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("a", tabA)
+        assertTrue(registry.transition(listOf(TabRegistry.Transition(tabA, "a", registry.generation(tabA), null))))
+        assertTrue(registry.isReserved(tabA))
+        assertNull(registry.sessionFor(tabA))
+        assertFalse(registry.owns("a"))
+        assertTrue(registry.transition(listOf(TabRegistry.Transition(tabA, null, registry.generation(tabA), "c"))))
+        assertFalse(registry.isReserved(tabA))
+        assertEquals("c", registry.sessionFor(tabA))
+        registry.forget(tabA)
+        assertFalse(registry.isReserved(tabA))
+    }
+
+    @Test fun `batch cannot install duplicate claims or steal an unaffected owner`() {
+        val registry = TabRegistry<Tab>()
+        registry.register("a", tabA); registry.register("b", tabB)
+        assertFalse(registry.transition(listOf(TabRegistry.Transition(tabA, "a", registry.generation(tabA), "b"))))
+        assertFalse(registry.transition(listOf(
+            TabRegistry.Transition(tabA, "a", registry.generation(tabA), "c"),
+            TabRegistry.Transition(tabB, "b", registry.generation(tabB), "c"))))
+        assertEquals(mapOf("a" to tabA, "b" to tabB), registry.snapshot())
+    }
+
 }

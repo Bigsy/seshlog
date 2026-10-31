@@ -17,6 +17,9 @@ class TabRegistry<T : Any> {
     // Closed Content handles must not be retained solely by stale polling generations.
     private val generationByTab = WeakHashMap<T, Long>()
     private var nextGeneration = 0L
+    private val reserved = java.util.Collections.newSetFromMap(WeakHashMap<T, Boolean>())
+    val reservedTabs: Set<T> get() = synchronized(bySession) { reserved.toSet() }
+    fun isReserved(tab: T): Boolean = synchronized(bySession) { tab in reserved }
 
     val sessionIds: Set<String> get() = synchronized(bySession) { bySession.keys.toSet() }
 
@@ -53,6 +56,7 @@ class TabRegistry<T : Any> {
     fun register(sessionId: String, tab: T) {
         synchronized(bySession) {
             bump(tab)
+            reserved.remove(tab)
             bySession.entries.removeAll { it.value == tab && it.key != sessionId }
             bySession[sessionId] = tab
         }
@@ -64,6 +68,26 @@ class TabRegistry<T : Any> {
         if (sessionFor(tab) != previousSessionId) return@synchronized false
         if (bySession[sessionId]?.let { it != tab } == true) return@synchronized false
         register(sessionId, tab)
+        true
+    }
+
+    data class Transition<T>(val tab: T, val previous: String?, val generation: Long,
+                             val next: String?, val reserve: Boolean = next == null)
+
+    /** Validate the entire set before releasing anything: swaps and cycles have no intermediate owner. */
+    fun transition(changes: List<Transition<T>>): Boolean = synchronized(bySession) {
+        if (changes.map { it.tab }.distinct().size != changes.size) return@synchronized false
+        if (changes.any { sessionFor(it.tab) != it.previous || generation(it.tab) != it.generation }) return@synchronized false
+        val incoming = changes.mapNotNull { it.next }
+        if (incoming.distinct().size != incoming.size) return@synchronized false
+        val tabs = changes.mapTo(HashSet()) { it.tab }
+        if (incoming.any { bySession[it]?.let { owner -> owner !in tabs } == true }) return@synchronized false
+        bySession.entries.removeAll { it.value in tabs }
+        for (change in changes) {
+            if (change.next != null) bySession[change.next] = change.tab
+            if (change.reserve && change.next == null) reserved.add(change.tab) else reserved.remove(change.tab)
+            if (change.previous != change.next) bump(change.tab)
+        }
         true
     }
 
@@ -79,6 +103,7 @@ class TabRegistry<T : Any> {
     /** The tab was closed: drop every session that pointed at it. */
     fun forget(tab: T) {
         synchronized(bySession) {
+            reserved.remove(tab)
             bySession.values.removeAll { it == tab }
             bump(tab)
         }

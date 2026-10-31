@@ -83,7 +83,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     /** The id of the session running in terminal tab [content], if we know one. */
     fun sessionFor(content: Content): String? = registry.sessionFor(content)
 
-    internal fun ownsTab(content: Content): Boolean = sessionFor(content) != null || pendingSessions.isPending(content) || content in launchIntents
+    internal fun ownsTab(content: Content): Boolean = sessionFor(content) != null || pendingSessions.isPending(content) || content in launchIntents || registry.isReserved(content)
 
     internal fun trackPending(terminal: TerminalHandle, existingIds: Set<String>) {
         trace.event("pending_launch", "tab" to DiagnosticRef.tab(terminal.content), "engine" to terminal.diagnosticEngine, "existingSessions" to existingIds.size)
@@ -101,7 +101,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
 
     /** Includes temporarily detached tabs; disposal is the only definitive end of ownership. */
     internal fun knownContents(): List<Content> =
-        (registry.sessionIds.mapNotNull(::undisposedContent) + pendingSessions.tabs + launchIntents.keys).filter { !Disposer.isDisposed(it) }.distinct()
+        (registry.sessionIds.mapNotNull(::undisposedContent) + pendingSessions.tabs + launchIntents.keys + registry.reservedTabs).filter { !Disposer.isDisposed(it) }.distinct()
 
     /** Repair a missed adoption before an action, without waiting for transcript activity. EDT only. */
     fun resolveSession(content: Content): String? {
@@ -256,17 +256,25 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
             val discoveries = inspections.groupBy({ it.second }, { it.first })
             val handles = inspections.mapNotNull { (_, id, handle) -> handle?.let { id to it } }.toMap()
             val exited = watched.filterValues { !it.isAlive }.keys
-            ProcessObservations(found, discoveries, handles, exited)
+            val invalidated = inspected.filter { (tab, shell) ->
+                previousOwners[tab] in batch.discoveries[shell]?.discovery?.excludedSessionIds.orEmpty()
+            }.keys
+            ProcessObservations(found, discoveries, handles, exited, invalidated)
         }, apply = { result ->
-            val (found, discoveries, handles, exited) = result
+            val (found, discoveries, handles, exited, invalidated) = result
             if (!disposed && !project.isDisposed) {
                 val ownershipBefore = registry.snapshot()
                 val generationNow = registry.generations(inspected.keys)
                 val stableTabs = inspected.filter { (tab, shell) ->
                     !Disposer.isDisposed(tab) &&
-                        TerminalTabs.terminalOf(project, tab)?.shellPid() == shell
+                        TerminalTabs.terminalOf(project, tab)?.let { it.shellPid() == shell && it.applicationTitle() == titles[shell] } == true
                 }.keys
                 (inspected.keys - stableTabs).forEach { poll.event("tab_result_rejected", "tab" to DiagnosticRef.tab(it), "reason" to "disposed_or_shell_changed") }
+                val changedMembers = (discoveries.values.flatten() + invalidated).any { it !in stableTabs }
+                if (changedMembers) {
+                    poll.event("atomic_transition_rejected", "reason" to "disposed_or_shell_or_title_changed")
+                    return@run
+                }
                 val validFound = found.filter { (id, _) ->
                     val candidate = candidates.firstOrNull { it.first == id } ?: return@filter false
                     val tab = ownershipBefore[id] ?: return@filter false
@@ -300,38 +308,45 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                         generationsAtInspection = previousGenerations,
                         generationsNow = generationNow,
                         runningProcesses = validFound,
+                        invalidatedTabs = invalidated.intersect(stableTabs),
                     ), poll,
                 )
+                val nextByTab = reconciliation.adopt.entries.associate { it.value to it.key }
+                val affected = (nextByTab.keys + reconciliation.displacedTabs.values + reconciliation.releaseTabs.values).toSet()
+                val transition = affected.map { tab -> TabRegistry.Transition(tab, previousOwners[tab],
+                    previousGenerations.getValue(tab), nextByTab[tab], reserve = tab !in reconciliation.releaseTabs.values) }
+                val ready = reconciliation.observe.values.all { it.isAlive } && affected.all { tab ->
+                    !Disposer.isDisposed(tab) && TerminalTabs.terminalOf(project, tab)?.let {
+                        it.shellPid() == inspected[tab] && it.applicationTitle() == titles[inspected[tab]]
+                    } == true && (!pendingSessions.isPending(tab) || nextByTab[tab]?.let {
+                        pendingSessions.candidate(tab, idsByTab[tab].orEmpty()) == it
+                    } != false)
+                }
+                if (!ready || !registry.transition(transition)) {
+                    poll.event("atomic_transition_rejected", "reason" to "terminal_or_generation_changed")
+                    return@run
+                }
+                for ((id, tab) in reconciliation.displacedTabs) {
+                    endedSessions.remove(tab)
+                    agents.forget(id)
+                    if (tab !in nextByTab) TerminalTabs.terminalOf(project, tab)?.rename("Codex (unresolved)")
+                    poll.event("tab_identity_displaced", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id))
+                }
                 for ((id, tab) in reconciliation.adopt) {
-                    if (Disposer.isDisposed(tab)) continue
-                    if (TerminalTabs.terminalOf(project, tab)?.shellPid() != inspected[tab]) continue
-                    val pending = pendingSessions.isPending(tab)
-                    val candidateIds = idsByTab[tab].orEmpty()
-                    // Recheck the pending association immediately before adoption. The
-                    // injected expiry clock may have advanced while the worker result was
-                    // waiting for the EDT; never leave a registry entry without resolving it.
-                    if (pending && pendingSessions.candidate(tab, candidateIds) != id) continue
-                    if (!registry.adoptDiscovered(id, tab, previousOwners[tab], previousGenerations[tab])) {
-                        poll.event("adoption_rejected", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id), "reason" to "ownership_or_generation_changed")
-                        continue
-                    }
+                    endedSessions.remove(tab)
                     launchIntents.remove(tab)
+                    val pending = pendingSessions.isPending(tab)
                     poll.event("tab_adopted", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id),
-                        "previous" to DiagnosticRef.of(previousOwners[tab]), "generation" to registry.generation(tab), "pending" to pending)
+                        "previous" to DiagnosticRef.of(previousOwners[tab]), "generation" to registry.generation(tab), "pending" to pending,
+                        "atomic" to true)
                     if (pending) {
-                        pendingSessions.resolve(tab, candidateIds)
-                        SessionIndex.getInstance().sessionById(id)?.let {
-                            SessionRestoreManager.getInstance(project).recordLaunch(it)
-                        }
+                        pendingSessions.resolve(tab, idsByTab[tab].orEmpty())
+                        SessionIndex.getInstance().sessionById(id)?.let { SessionRestoreManager.getInstance(project).recordLaunch(it) }
                     }
                 }
                 for ((id, tab) in reconciliation.releaseTabs) {
-                    if (Disposer.isDisposed(tab)) continue
-                    if (TerminalTabs.terminalOf(project, tab)?.shellPid() != inspected[tab]) continue
-                    if (registry.release(id, tab, previousGenerations[tab])) {
-                        endedSessions[tab] = id
-                        poll.event("tab_released", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id), "reason" to "observed_process_exited")
-                    }
+                    endedSessions[tab] = id
+                    poll.event("tab_released", "tab" to DiagnosticRef.tab(tab), "session" to DiagnosticRef.of(id), "reason" to "observed_process_exited")
                 }
                 for ((id, process) in reconciliation.observe) {
                     val tab = registry.tabFor(id) ?: continue
@@ -348,6 +363,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                 }
                 agents.retainOnly(registry.sessionIds)
                 tabObserver.refresh()
+                updateActiveSession(selectedContent)
                 val valid = reconciliation.running.filterTo(HashSet()) { id ->
                     val tab = registry.tabFor(id) ?: return@filterTo false
                     !Disposer.isDisposed(tab) &&
@@ -376,6 +392,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val discoveries: Map<String, List<Content>>,
         val handles: Map<String, ProcessHandle>,
         val exited: Set<String>,
+        val invalidated: Set<Content>,
     )
 
     /** Remember that [widget]'s tab runs [session]. Must be called on the EDT. */

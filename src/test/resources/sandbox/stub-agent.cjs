@@ -34,15 +34,32 @@ async function main(agent, config) {
   // Record the shell's spelling of the directory, as the real CLIs do, when it is the same place.
   const pwd = process.env.PWD;
   const cwd = pwd && path.isAbsolute(pwd) && realPath(pwd) === realPath(process.cwd()) ? pwd : process.cwd();
+  let launchArgs = process.argv.slice(2).filter((x) => x !== '--synthetic-start-paused');
+  let titles = process.env.SESHLOG_STUB_TITLES !== '0';
+  if (agent === 'codex') {
+    // Model only the configuration override used by the production terminal wrapper.
+    const forwarded = [];
+    for (let i = 0; i < launchArgs.length; i++) {
+      const arg = launchArgs[i];
+      if (arg === '--') { forwarded.push(...launchArgs.slice(i)); break; }
+      let configValue;
+      if (arg === '-c' || arg === '--config') configValue = launchArgs[++i];
+      else if (arg.startsWith('--config=')) configValue = arg.slice('--config='.length);
+      else { forwarded.push(arg); continue; }
+      if (configValue && /^tui\.terminal_title\s*=/.test(configValue)) {
+        titles = /["']thread-id["']/.test(configValue);
+      }
+    }
+    launchArgs = forwarded;
+  }
   let session;
   try {
-    session = ADAPTERS[agent](config, guard).open(process.argv.slice(2).filter((x) => x !== '--synthetic-start-paused'), cwd);
+    session = ADAPTERS[agent](config, guard).open(launchArgs, cwd);
     await session.ready;
   } catch (e) {
     console.error(`Synthetic ${NAMES[agent]} stub: ${e.message}`);
     process.exit(1);
   }
-  let titles = process.env.SESHLOG_STUB_TITLES !== '0';
   const title = () => titles ? `synthetic codex | ${session.id}` : 'synthetic codex';
   const announce = () => {
     if (agent === 'codex') process.stdout.write(`\x1b]0;${title()}\x07`);

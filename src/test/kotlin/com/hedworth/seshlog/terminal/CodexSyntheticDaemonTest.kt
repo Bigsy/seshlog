@@ -56,6 +56,37 @@ class CodexSyntheticDaemonTest {
         }
     }
 
+    @Test fun `manual wrapped launch enables titles without changing the synthetic agent config`() {
+        assumeFalse(System.getProperty("os.name").lowercase().contains("win"))
+        assumeTrue("Node is required for synthetic agents", SyntheticSandbox.findNode() != null)
+        val root = temporary.root.toPath().resolve("wrapped-profile")
+        val layout = SandboxLayout(root, root.resolve("ide/config"), root.resolve("ide/log"), root.resolve("ide/plugins"))
+        SyntheticSandbox.prepare(layout, filler = 0, env = emptyMap(), home = temporary.root.toPath().resolve("home"))
+        val executable = layout.executable(AgentKind.CODEX)
+        val provider = CodexSessionProvider({ layout.codex }, { executable.toString() })
+        val id = provider.scan(emptyMap()).first { it.cwd == layout.projects.harbor }.id
+        val wrapper = CodexTerminalWrapper.install(root.resolve("ide/config/seshlog/terminal"))
+        val config = layout.codex.resolve("config.toml")
+        val before = if (java.nio.file.Files.exists(config)) java.nio.file.Files.readString(config) else null
+        try {
+            val daemon = Client(ProcessBuilder(executable.toString(), "app-server", "--synthetic-daemon").start()).also { clients += it }
+            daemon.await("SESHLOG_DAEMON_READY ")
+            val builder = ProcessBuilder("/bin/sh", "-c", "codex resume \"\$1\"", "shell", id)
+                .directory(layout.projects.harbor.toFile()).redirectErrorStream(true)
+            builder.environment().putAll(mapOf(
+                "PATH" to "$wrapper:${executable.parent}:${System.getenv("PATH")}",
+                "SESHLOG_STUB_CODEX_DAEMON" to "1", "SESHLOG_STUB_TITLES" to "0",
+            ))
+            val tui = Client(builder.start()).also { clients += it; it.ready() }
+            assertEquals(id, tui.id)
+            assertTrue(tui.title.orEmpty().contains(id))
+            tui.change("/new")
+            assertNotEquals(id, tui.id)
+            assertTrue(tui.title.orEmpty().contains(tui.id))
+            assertEquals(before, if (java.nio.file.Files.exists(config)) java.nio.file.Files.readString(config) else null)
+        } finally { clients.asReversed().forEach(Client::close) }
+    }
+
     @Test fun `shared synthetic daemon exercises switches exchanges index lag and mixed titles`() {
         assumeFalse(System.getProperty("os.name").lowercase().contains("win"))
         assumeTrue("Node is required for synthetic agents", SyntheticSandbox.findNode() != null)

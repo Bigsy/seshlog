@@ -1,0 +1,31 @@
+#!/bin/sh
+# Seshlog's IDE-local launcher. Never edits Codex configuration or transcripts.
+# Remove this launcher from lookup before resolving the user's real executable.
+# All expansion is quoted; arguments are forwarded without evaluation.
+seshlog_remaining=${PATH-}
+seshlog_path=
+seshlog_separator=
+seshlog_executable=
+while :; do
+    case "$seshlog_remaining" in
+        *:*) seshlog_entry=${seshlog_remaining%%:*}; seshlog_remaining=${seshlog_remaining#*:}; seshlog_more=1 ;;
+        *) seshlog_entry=$seshlog_remaining; seshlog_more=0 ;;
+    esac
+    seshlog_candidate=${seshlog_entry:-.}/codex
+    if ! [ "$seshlog_candidate" -ef "$0" ]; then
+        seshlog_path=$seshlog_path$seshlog_separator$seshlog_entry
+        seshlog_separator=:
+        if [ -z "$seshlog_executable" ] && [ -f "$seshlog_candidate" ] && [ -x "$seshlog_candidate" ]; then
+            seshlog_executable=$seshlog_candidate
+        fi
+    fi
+    [ "$seshlog_more" = 1 ] || break
+done
+if [ -z "$seshlog_executable" ]; then
+    printf '%s\n' 'Seshlog: codex was not found on this terminal PATH. Install Codex or use its full executable path.' >&2
+    exit 127
+fi
+# Keeping our directory out of the child's PATH also prevents nested wrappers from cycling.
+PATH=$seshlog_path
+export PATH
+exec "$seshlog_executable" -c 'tui.terminal_title=["project","thread-id"]' "$@"

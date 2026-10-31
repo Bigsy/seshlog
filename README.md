@@ -17,8 +17,15 @@ If you use custom data folders or executables, set them under **Settings → Too
 
 ### Codex terminal tracking
 
-To let Seshlog follow thread switches inside a running Codex terminal, add this to
-`~/.codex/config.toml`. If you already have a `[tui]` section, add the setting there:
+On macOS/Linux, open a **new local bash, zsh or fish terminal** with IntelliJ shell integration
+enabled and type `codex` normally. Seshlog supplies the thread-ID title setting through an IDE-local
+launcher, including for `codex resume …` and `codex fork …`. No Codex config edit is needed for
+these launches. **Settings → Tools → Seshlog → Enable Codex tracking in new terminals** controls
+this behavior; reopen terminal tabs after changing it.
+
+For Windows, unsupported shells, aliases/functions, full executable paths, remote sessions or
+launches that bypass the wrapper, add this to `~/.codex/config.toml` (or your custom Codex home).
+If you already have a `[tui]` section, add the setting there:
 
 ```toml
 [tui]
@@ -31,7 +38,8 @@ shortened ID must uniquely identify an indexed thread. Without a usable thread-I
 rollout written directly by that TUI, Seshlog leaves the terminal unresolved: launch arguments,
 shared-daemon files and startup timing are never used to guess its current conversation. Copy and
 session navigation wait for verified identity; the terminal stays reserved during a thread switch.
-Seshlog does not edit your agent configuration. See [tracking details](docs/codex-tracking.md).
+Seshlog does not edit your agent configuration. See [automatic setup and limits](docs/codex-terminal-wrapper.md)
+and [tracking details](docs/codex-tracking.md).
 
 ## Find your way back
 

@@ -7,6 +7,17 @@ import java.nio.file.Paths
 class SeshlogSettingsTest {
     private val home = Paths.get(System.getProperty("user.home"))
 
+    @Test fun `terminal wrapper defaults on and disabling survives settings reload`() {
+        val settings = SeshlogSettings()
+        settings.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(org.jdom.Element("state"), SeshlogSettings.State::class.java))
+        assertEquals(true, settings.codexTerminalWrapperEnabled)
+        settings.codexTerminalWrapperEnabled = false
+        val restored = SeshlogSettings()
+        restored.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(
+            com.intellij.util.xmlb.XmlSerializer.serialize(settings.state), SeshlogSettings.State::class.java))
+        assertEquals(false, restored.codexTerminalWrapperEnabled)
+    }
+
     @Test fun `diagnostics default on for old settings and off survives serialization and reload`() {
         val settings = SeshlogSettings()
         settings.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(org.jdom.Element("state"), SeshlogSettings.State::class.java))

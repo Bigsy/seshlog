@@ -45,7 +45,14 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
             agentGroup(
                 "Codex", settings::codexDataDir, settings::codexExecutable, settings::codexExtraArgs,
                 "Leave empty to use \$CODEX_HOME or ~/.codex (currently ${settings.resolvedCodexDataDir()}).",
-            )
+            ) {
+                row {
+                    checkBox("Enable Codex tracking in new terminals")
+                        .bindSelected(settings::codexTerminalWrapperEnabled)
+                        .comment("Adds the thread ID to Codex's title when you type codex in a new local bash, zsh or fish terminal on macOS/Linux. Requires IntelliJ shell integration. Reopen terminal tabs after changing this setting.")
+                }
+                row { comment("Uses an IDE-local launcher; your Codex config is unchanged. Aliases, full executable paths and remote shells can bypass it.") }
+            }
             agentGroup(
                 "opencode", settings::opencodeDataDir, settings::opencodeExecutable, settings::opencodeExtraArgs,
                 "Leave empty to use \$XDG_DATA_HOME/opencode or ~/.local/share/opencode (currently ${settings.resolvedOpenCodeDataDir()}).",

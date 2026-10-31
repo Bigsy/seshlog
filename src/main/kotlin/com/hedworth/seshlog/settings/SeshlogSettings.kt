@@ -28,6 +28,8 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         var codexDataDir: String = ""
         var codexExecutable: String = "codex"
         var codexExtraArgs: String = ""
+        /** New local Unix terminal shells resolve codex through an IDE-managed title wrapper. */
+        @Volatile var codexTerminalWrapperEnabled: Boolean = true
         /** Empty = auto (`$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`). */
         var opencodeDataDir: String = ""
         var opencodeExecutable: String = "opencode"
@@ -99,6 +101,10 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
     var codexExtraArgs: String
         get() = state.codexExtraArgs
         set(value) { state.codexExtraArgs = value }
+
+    var codexTerminalWrapperEnabled: Boolean
+        get() = state.codexTerminalWrapperEnabled
+        set(value) { state.codexTerminalWrapperEnabled = value }
 
     var opencodeDataDir: String
         get() = state.opencodeDataDir

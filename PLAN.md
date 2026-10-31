@@ -8,7 +8,7 @@ trusting historical line numbers. Take the open items below in order unless the 
 
 | Area | Status | Evidence / next action |
 | --- | --- | --- |
-| Codex terminal identity and ownership | C1–C6 implemented and tested; C7 physical acceptance partially verified | [Tracking report](docs/codex-tracking.md); finish the remaining C7 matrix before returning to existing acceptance work. |
+| Codex terminal identity and ownership | C1–C6 and C8 implemented and tested; C7 physical acceptance partially verified | [Tracking report](docs/codex-tracking.md), [automatic terminal setup](docs/codex-terminal-wrapper.md); remaining C7 matrix stays open. |
 | Persistent SQLite FTS5 BM25 | Implemented and automatically tested; release acceptance open | [Production report](docs/production-bm25.md); finish responsiveness, relevance/resource and manual checks below. |
 | Main search sorting and grouping | Implemented and tested; focused synthetic physical checks passed | [Presentation report](docs/search-presentation.md); broader action/accessibility/platform checks remain open. |
 | Source filters and match provenance | Implemented and automatically tested; release acceptance open | [Source-filter report](docs/search-source-filters.md); all physical UI checks remain unverified. |
@@ -20,6 +20,22 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
 
 ### Codex tracking correctness (user priority, 2026-10-31)
+
+- [x] **C8. Enable title tracking for manually typed Codex launches** (user priority after C1–C6).
+  Register a terminal startup customizer that adds an IDE-managed `codex` wrapper for new local
+  bash/zsh/fish shells on macOS/Linux with IntelliJ shell integration. Resolve the real executable
+  using that shell's PATH, apply the per-launch thread-ID title override and preserve arguments,
+  streams, exit status and process lifecycle. Never edit agent configs or shell startup files.
+  Reapply PATH after shell initialization through the platform API, avoid recursion, support a
+  persistent disable setting, and leave unsupported/remote shells unchanged. Test synthetic
+  executable forwarding, PATH resolution, missing binaries, duplicates, quoting, configuration
+  precedence and actual shell startup; physically check manually typed launches in a freshly
+  verified sandbox. Run `make check`, release/package checks and Plugin Verifier; document limits.
+  Completed 2026-10-31: 675 tests, zero failures/errors, 10 opt-in skips; release and offline
+  Plugin Verifier pass. Verified macOS reworked terminals keep the wrapper first after startup
+  PATH reset, enable titles for manually typed new/resume, follow `/new` and Copy, and honor
+  the disable setting. Isolated Oh My Zsh with git/robbyrussell retained its prompt and Git alias.
+  [Report](docs/codex-terminal-wrapper.md) records hashes, platform warnings and shell/OS limits.
 
 Repair the process-tracking review findings before the remaining feature acceptance work. This
 section is a plan, not implementation or acceptance evidence. Existing unchecked work stays open.

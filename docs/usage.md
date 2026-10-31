@@ -19,17 +19,29 @@ A session can appear in the list before Seshlog identifies its terminal. Activit
 actions depend on that association. Missing or ambiguous process information can leave a terminal
 unassociated, especially for new Pi and opencode sessions.
 
-Codex terminals share a background server, so nothing in their processes shows which conversation
-a terminal moves to after `/new`, `/clear`, `/resume` or the `codex resume` picker. Add `thread-id`
-to Codex's terminal title so Seshlog can follow those switches, in the `[tui]` section of
-`~/.codex/config.toml`:
+Codex terminals can share a background server. Seshlog needs each terminal's current thread ID to
+follow `/new`, `/clear`, `/resume` and the resume picker reliably.
+
+**Enable Codex tracking in new terminals** is on by default in **Settings → Tools → Seshlog**.
+For new local bash, zsh and fish terminals on macOS/Linux with IntelliJ shell integration enabled,
+Seshlog installs a small launcher in its own IDE config storage and puts it first on the terminal
+PATH after shell startup. Typing `codex`, `codex resume …` or `codex fork …` runs the real executable
+from the rest of that shell's PATH with `-c 'tui.terminal_title=["project","thread-id"]'`. Arguments,
+input/output and exit status pass through. The launcher exits into the real process and removes
+itself from the child's PATH. It does not install Codex or change Codex config or shell startup files.
+An explicit later `-c` override remains the user's choice and may disable tracking.
+
+Reopen terminal tabs after installation or changing the setting. Existing shells and already
+running agents are not modified. Aliases/functions, absolute executable paths (including a custom
+Seshlog executable setting), later PATH changes, SSH/container sessions and unsupported shells can
+bypass the launcher. Windows and terminals with shell integration disabled are unchanged. For
+those cases, set this in your Codex home's `config.toml`, then restart Codex:
 
 ```toml
 [tui]
 terminal_title = ["project", "thread-id"]
 ```
 
-Start Codex again in open terminals afterwards. Seshlog does not change this configuration for you.
 A full thread ID, or a shortened prefix matching exactly one indexed Codex session, identifies the
 current thread only alongside a live TUI. A title left by an observed earlier process or by a
 non-interactive command cannot identify a replacement TUI. If a process restarts while leaving

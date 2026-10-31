@@ -4,6 +4,10 @@ Updated 2026-10-31. C1–C6 are implemented; C7 acceptance remains open. This re
 automated coverage from physical checks. It does not accept the remaining search/worktree plan
 or authorize starting Phase 2.
 
+The later [C8 terminal wrapper](codex-terminal-wrapper.md) enables the same title signal for
+manually typed launches in supported new local IDE terminals. Its report supersedes the artifact
+hashes here for that later build; the C1–C7 results below remain historical evidence.
+
 ## Current identity contract
 
 A captured thread-ID title is checked against a live, uniquely identified TUI and the session

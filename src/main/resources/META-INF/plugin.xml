@@ -89,6 +89,10 @@
                                  id="com.hedworth.seshlog.settings" displayName="Seshlog"/>
     </extensions>
 
+    <extensions defaultExtensionNs="org.jetbrains.plugins.terminal">
+        <shellExecOptionsCustomizer implementation="com.hedworth.seshlog.terminal.CodexTerminalCustomizer"/>
+    </extensions>
+
     <actions>
         <action id="Seshlog.SwitchSession" class="com.hedworth.seshlog.ui.actions.SwitchSessionAction"
                 text="Seshlog: Switch Session / Worktree" description="Find sessions in the tool window's project scope and focus their terminals or explicitly resume them">

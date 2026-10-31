@@ -256,6 +256,21 @@ reconciler and Copy readers. It verifies retained daemon descriptors and absent 
 The verifier checks that both installed helper files match this checkout. These helpers and their
 fixtures are test resources only and must never appear in the plugin ZIP.
 
+## Testing the production Codex terminal wrapper
+
+The plugin's `/terminal/codex` resource is a production launcher and must ship; the synthetic
+`stub-agent.cjs` and `codex-daemon.cjs` remain test-only. The stub understands the launcher's `-c`
+title override, including a later explicit override, without changing synthetic configuration.
+
+For a physical manual-typing check, give the sandbox IDE a synthetic `ZDOTDIR` containing only a
+`.zshrc` that sets `PATH="$SESHLOG_SANDBOX/bin:/usr/bin:/bin"`. This ensures a real agent cannot be
+selected after personal startup files reorder PATH. The platform should prepend the Seshlog
+wrapper after that file. Before running `codex`, inspect `command -v codex` and `PATH`: the wrapper
+must be first and the marked profile's `bin` next. Use `SESHLOG_STUB_TITLES=0 codex` to prove the
+wrapper enables the title; full-path stub launches with the same environment should omit it.
+Shared-daemon mode also needs `SESHLOG_STUB_CODEX_DAEMON=1` and a ready synthetic daemon.
+Run the usual sandbox verification before all physical checks.
+
 ## Limits
 
 - Stub agents run on macOS and Linux. On Windows the profile and verification work, but launched

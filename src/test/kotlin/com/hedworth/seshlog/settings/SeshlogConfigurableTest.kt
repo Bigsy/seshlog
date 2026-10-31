@@ -18,6 +18,28 @@ import javax.swing.ListCellRenderer
  */
 class SeshlogConfigurableTest : BasePlatformTestCase() {
 
+    fun `test terminal wrapper preference is only changed on apply`() {
+        val settings = SeshlogSettings.getInstance()
+        val previous = settings.codexTerminalWrapperEnabled
+        val configurable = SeshlogConfigurable()
+        try {
+            settings.codexTerminalWrapperEnabled = true
+            val toggle = components(configurable.createComponent()).filterIsInstance<JCheckBox>()
+                .single { it.text == "Enable Codex tracking in new terminals" }
+            assertTrue(toggle.isSelected)
+            toggle.isSelected = false
+            assertTrue(settings.codexTerminalWrapperEnabled)
+            configurable.apply()
+            assertFalse(settings.codexTerminalWrapperEnabled)
+            toggle.isSelected = true
+            configurable.reset()
+            assertFalse(toggle.isSelected)
+        } finally {
+            configurable.disposeUIResources()
+            settings.codexTerminalWrapperEnabled = previous
+        }
+    }
+
     fun `test diagnostics preference is applied and reset through the checkbox`() {
         val settings = SeshlogSettings.getInstance()
         val previous = settings.sessionDiagnosticsEnabled

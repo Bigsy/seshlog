@@ -69,6 +69,7 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
     @Synchronized fun load(id: String, file: ReviewFileSnapshot, expectedGeneration: Long? = null): ReviewDraft {
         val draft = get(id)
         check(expectedGeneration == null || expectedGeneration == draft.generation) { "The draft changed while loading; refresh this file again" }
+        check(draft.pending == null) { "Wait for this submission before refreshing snapshots; your draft has been kept" }
         require(draft.base == null || draft.base == file.base) { "The review base is fixed; start a new review to change it" }
         val comments = draft.comments.map { comment ->
             if (comment.path == file.path && comment.fileRevision != file.revision && comment.validation != ReviewValidation.NEEDS_RECHECK)
@@ -131,6 +132,13 @@ internal class ReviewDraftStore(private val memoryLimit: Long = 32L * 1024 * 102
         return submission
     }
     @Synchronized fun preview(id: String): String = get(id).let { it.pending?.payload ?: ReviewFormatter.format(it, batchId(it)) }
+    @Synchronized fun prepareIfCurrent(id: String, generation: Long): ReviewSubmission {
+        check(get(id).generation == generation) { "The draft changed during validation; send again after reviewing it" }
+        return prepare(id)
+    }
+    @Synchronized fun recordResult(id: String, result: ReviewDeliveryResult): ReviewDraft = get(id).let {
+        if (it.pending != null) it else put(it.copy(lastResult = result), enforceLimit = false)
+    }
     private fun batchId(draft: ReviewDraft) = UUID.nameUUIDFromBytes("${draft.id}:${draft.generation}".toByteArray(Charsets.UTF_8)).toString()
     @Synchronized fun finish(submission: ReviewSubmission, result: ReviewDeliveryResult): ReviewDraft {
         val draft = get(submission.draftId)

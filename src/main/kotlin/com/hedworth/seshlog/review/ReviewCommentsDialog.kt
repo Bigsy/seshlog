@@ -1,6 +1,7 @@
 package com.hedworth.seshlog.review
 
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.model.AgentKind
 import com.hedworth.seshlog.settings.SessionOrganisation
 import com.hedworth.seshlog.worktree.ReviewFile
 import com.hedworth.seshlog.worktree.WorktreeReviewSnapshot
@@ -42,7 +43,10 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
     private val comments = JBList(commentModel)
     private val status = JTextArea(2, 80).apply { isEditable = false; lineWrap = true; wrapStyleWord = true; isOpaque = false }
     private val count = JLabel()
-    private val send = JButton("Send review").apply { isEnabled = false; toolTipText = "Verified delivery adapter is being connected" }
+    private val send = JButton("Send Review")
+    private val cancelSend = JButton("Cancel Send")
+    private val delivery get() = ReviewDeliveryService.getInstance()
+    private val availability = JLabel()
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "seshlog-review-view").apply { isDaemon = true } }
     private var job: Future<*>? = null
     private var generation = 0L
@@ -69,6 +73,8 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
         bindEnter(files, ::openFile)
         bindEnter(comments, ::navigate)
         recorded.addActionListener { showFiles() }
+        send.addActionListener { sendReview() }
+        cancelSend.addActionListener { delivery.cancel(draftId); status.text = "Cancellation requested. A message already queued by the agent cannot be recalled." }
         subscription = service.listen { if (!closed) renderDraft() }
         init()
         renderDraft()
@@ -82,6 +88,13 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
         draft.comments.forEach(commentModel::addElement)
         draft.comments.indexOfFirst { it.id == selected }.takeIf { it >= 0 }?.let { comments.selectedIndex = it }
         count.text = "Send ${draft.comments.size} comments to “${recipientTitle()}” · ${draft.sent.size} sent batches"
+        val sending = delivery.isSending(draftId)
+        send.isEnabled = recipient.kind == AgentKind.CODEX && !sending && draft.comments.isNotEmpty() && draft.comments.all { it.validation == ReviewValidation.CURRENT }
+        cancelSend.isEnabled = sending
+        availability.text = if (recipient.kind == AgentKind.CODEX) "Direct send: local Codex daemon 0.166.0; recipient and source files are verified on send."
+            else "Direct send unavailable for ${recipient.kind.displayName}. Copy Review and Go to Session are available."
+        if (sending) status.text = "Validating or delivering the frozen review… You can keep editing notes; newer revisions will be retained."
+        else draft.lastResult?.let { status.text = deliveryMessage(it) }
         base.isEnabled = draft.base == null
         draft.base?.let { base.text = it }
     }
@@ -91,6 +104,7 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
 
     private data class Refresh(val scan: WorktreeReviewSnapshot, val files: List<ReviewFileSnapshot>, val failed: Set<String>, val recorded: ReviewSnapshots.RecordedFiles)
     private fun reload() {
+        if (delivery.isSending(draftId)) { status.text = "Wait for this submission before replacing snapshots; your draft has been kept"; return }
         val draft = store.get(draftId)
         val ref = draft.base ?: base.text.trim()
         val expected = draft.generation
@@ -209,8 +223,45 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
         read("Checking selected text…", { store.confirm(draftId, comment.id) }) { service.changed() }
     }
     private fun discard() {
+        if (delivery.isSending(draftId)) { status.text = "Cancel or finish this submission before discarding the review"; return }
         if (Messages.showYesNoDialog(project, "Discard this draft and its in-memory sent batches?", "Discard Review", Messages.getQuestionIcon()) != Messages.YES) return
         try { store.discard(draftId); service.changed(); close(OK_EXIT_CODE) } catch (e: Exception) { status.text = e.message }
+    }
+    private fun sendReview() {
+        val unknown = store.get(draftId).lastResult?.status == ReviewDeliveryStatus.UNKNOWN
+        if (unknown && Messages.showYesNoDialog(project, "The previous delivery is unknown. The agent may already have queued it; sending again may duplicate the review. Send again?",
+                "Possible Duplicate Review", Messages.getWarningIcon()) != Messages.YES) return
+        delivery.start(draftId, allowUnknownRetry = unknown)
+    }
+    private fun goToSession() {
+        val target = ReviewTargets.capture(recipient, delivery = false)
+        if (target == null) { status.text = "No uniquely verified open IDE terminal for the original session"; return }
+        read("Checking the original session…", { target.proof.inspect() }) { verified ->
+            if (verified && target.proof.current()) target.proof.focus()
+            else status.text = "The original terminal identity changed or is unresolved"
+        }
+    }
+    private fun deliveryMessage(result: ReviewDeliveryResult): String {
+        val prefix = when (result.status) {
+            ReviewDeliveryStatus.ACCEPTED -> "Accepted by agent."
+            ReviewDeliveryStatus.QUEUED -> "Queued by agent. Receipt confirmed; this does not mean the agent has read or acted on the review."
+            ReviewDeliveryStatus.REJECTED -> "Rejected by agent. Your draft has been kept."
+            ReviewDeliveryStatus.UNKNOWN -> "Delivery unknown. The agent may have queued the review. Your draft has been kept; retrying may duplicate it."
+            ReviewDeliveryStatus.UNAVAILABLE -> "Direct send unavailable. Your draft has been kept."
+        }
+        val detail = when (result.reason) {
+            "unsaved_buffers" -> " Save the affected IDE buffers, refresh and confirm their anchors."
+            "files_changed" -> " Source files changed; refresh, inspect and confirm the affected anchors."
+            "recipient_changed", "target_unavailable", "recipient_or_files_changed" -> " The original session has no uniquely verified open IDE terminal, or its identity changed. Use Go to Session or Copy Review."
+            "checkout_changed" -> " The checkout changed; start a review in the session's current checkout."
+            "codex_version_unsupported", "queue_method_unsupported", "protocol_unavailable" -> " This local Codex server version does not support the verified delivery contract."
+            "thread_not_loaded", "thread_unavailable", "thread_mismatch", "server_home_mismatch" -> " The original thread is not verified on this local server. No session was resumed."
+            "local_transport_unavailable", "socket_not_private" -> " A supported private local Codex server is unavailable. Copy the review or go to the session."
+            "cancelled_before_dispatch" -> " Cancelled before dispatch."
+            "draft_or_validation_changed" -> " The draft changed during validation; review it and send again."
+            else -> ""
+        }
+        return prefix + detail + (result.receipt?.let { " Receipt: $it" } ?: "")
     }
     private fun <T> read(message: String, work: () -> T, deliver: (T) -> Unit) {
         val request = ++generation
@@ -229,8 +280,12 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout(8, 8)).apply {
         preferredSize = Dimension(1100, 680)
         add(JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(JLabel("Recipient: ${recipient.kind.displayName} · ${recipientTitle()} · ${recipient.checkout.root}"))
-            add(JLabel("Checkout changes include all contributors. Recorded tool operations do not establish authorship or complete file history."))
+            add(JTextArea("Recipient: ${recipient.kind.displayName} · ${recipientTitle()} · ${recipient.checkout.root}", 2, 75).apply {
+                isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true
+            })
+            add(JTextArea("Checkout changes include all contributors. Recorded tool operations do not establish authorship or complete file history.", 2, 75).apply {
+                isEditable = false; isOpaque = false; lineWrap = true; wrapStyleWord = true
+            })
             add(JPanel(FlowLayout(FlowLayout.LEFT)).apply { add(JLabel("Local base:")); add(base); add(button("Refresh", ::reload)); add(recorded) })
         }, BorderLayout.NORTH)
         add(JSplitPane(JSplitPane.HORIZONTAL_SPLIT, JPanel(BorderLayout()).apply {
@@ -242,8 +297,9 @@ internal class ReviewCommentsDialog(private val project: Project, private val dr
         }).apply { resizeWeight = 0.42 }, BorderLayout.CENTER)
         add(JPanel().apply { layout = BoxLayout(this, BoxLayout.Y_AXIS)
             add(count)
-            add(JPanel(FlowLayout(FlowLayout.LEFT)).apply { add(button("Overall Note", ::overall)); add(button("Preview", { preview() })); add(button("Copy Review", { preview(copy = true) }));
-                add(button("Sent Batches", ::sent)); add(button("Discard Review", ::discard)); add(send) })
+            add(JPanel(java.awt.GridLayout(0, 4, 5, 5)).apply { add(button("Overall Note", ::overall)); add(button("Preview", { preview() })); add(button("Copy Review", { preview(copy = true) }));
+                add(button("Sent Batches", ::sent)); add(button("Discard Review", ::discard)); add(button("Go to Session", ::goToSession)); add(send); add(cancelSend) })
+            add(availability)
             add(status)
             add(JLabel("Limits: 50 comments, 4,000 characters per note, 128 KiB per message. Drafts and sent batches live in memory until IDE exit."))
             add(JLabel("Explicit send lets the agent store and process the review under its normal settings."))

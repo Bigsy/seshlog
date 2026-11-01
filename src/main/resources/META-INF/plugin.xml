@@ -50,7 +50,7 @@
     </dependencies>
 
     <change-notes><![CDATA[
-    <b>Unreleased</b>
+    <b>0.8.7</b>
     <ul>
         <li>Right-click selected lines to add their file path and range to the highlighted terminal without submitting.</li>
     </ul>

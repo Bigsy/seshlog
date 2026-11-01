@@ -1,6 +1,6 @@
 # Current work plan
 
-Updated 2026-10-31. This is the authoritative execution checklist.
+Updated 2026-11-01. This is the authoritative execution checklist.
 Before editing, inspect `git status --short`, preserve user work, and re-find symbols rather than
 trusting historical line numbers. Take the open items below in order unless the user directs otherwise.
 
@@ -19,6 +19,60 @@ trusting historical line numbers. Take the open items below in order unless the 
 | Synthetic sandbox profile | Implemented; verified end to end on macOS | [Guide](docs/synthetic-sandbox.md): `make sandbox`, then `make sandbox-verify`, for every physical check. |
 | Session-bound diff comments and review delivery | Native Commit/Changes implementation; reliability regressions pass; physical acceptance open | [Review report](docs/diff-review.md); local `PLAN-diff.md` holds the feature checklist. Direct send requires proven macOS socket peer identity. |
 | Other feature ideas | Local backlog only | Ignored `PLAN-BACKLOG.md` in this checkout. |
+
+### Editor references in terminal input (user priority, 2026-11-01)
+
+Bring the useful Codex Link interaction into Seshlog: select editor lines, right-click, insert the
+file and line numbers into the highlighted Terminal tab, then let the user type and press Enter.
+The scope is file/line references only; no source excerpt, composer, queue submission or new agent.
+The user explicitly chose direct paste into the selected terminal, without requiring session
+registration or identifying the program running there. E2 below supersedes E1's recipient checks.
+
+- [x] **E2. Remove the session requirement.** Paste into the selected terminal immediately on the
+  EDT, including plain shells and unrecognised tools. Remove background process/index verification,
+  its freshness limit and transfer gate. Preserve safe bracketed paste, input, clipboard and manual
+  Enter; never retry or substitute another tab. Guard delayed focus against closed or changed tabs.
+  Regressions exercise the real action and terminal adapter with unregistered tabs, failed/uncertain
+  pastes and a changed selection, without providing any program identity or process information.
+  Completed 2026-11-01: the real-action tests reproduced the registration restriction before the
+  change. `make check` passes 756 tests, zero failures/errors and 10 opt-in skips. The action no
+  longer accesses session tracking/indexing or schedules background delivery; capture and paste
+  happen in one EDT action. XML retains one short Unreleased entry above the released 0.8.6 notes.
+  Offline Plugin Verifier passes IU-262.11879.100 and IU-263.7307.112 with the existing API/layout
+  warnings; plugin ZIP and nested JAR CRCs pass. The user manually tested the current action and
+  reported that it works great. Specific engines and the broader acceptance scenarios were not
+  recorded, so the detailed physical matrix below remains unverified.
+- [ ] Current-version physical acceptance: direct paste into an unregistered/plain-shell tab in a
+  freshly verified synthetic IDE, both terminal engines, existing input, manual Enter, editor mouse
+  popup, assigned shortcut, unsaved-buffer label and detached/ambiguous split refusal. The previous
+  physical checks below cover the superseded tracked-session version only. The user will perform
+  manual testing; no further agent-driven UI checks are requested for E2.
+
+- [x] **E1. Add Send File and Lines to Terminal (initial tracked-session version).** Capture an absolute local-file path and inclusive
+  one-based lines, label unsaved buffers without saving, and insert one bracketed paste into only
+  the selected, freshly verified running agent tab. Preserve input and clipboard; never send Enter,
+  launch or retry. Reject stale document/path/identity, unsupported editors, plain shells and
+  ambiguous splits. Cover action registration, selection boundaries, wrong-target/stale delivery,
+  terminal controls, uncertain attempts and non-executing terminal adapters with regressions.
+  Completed 2026-11-01: `make check` passes 753 tests, zero failures/errors and 10 opt-in skips.
+  Plugin ZIP and nested JAR CRCs pass; the action is packaged and synthetic helpers are excluded.
+  Offline Plugin Verifier passes IU-262.11879.100 and IU-263.7307.112 with deprecated/experimental
+  terminal API and SDK layout warnings. ZIP SHA-256: `827323da00ce270f1fcbaa8c021b314b2db897e81cf25f4308c08773cc46cb38`.
+- [x] Initial tracked-session physical checks through Find Action: both highlighted Classic/Reworked agents
+  preserve an existing question prefix, receive only `"/absolute/path/Backoff.kt":1-3 ` and gain
+  focus without submission. The Reworked stub records zero user messages before explicit Enter
+  and one afterwards; the Classic stub remains at zero. A highlighted plain shell refuses while
+  the other agent stays open. Verified profile: `/private/tmp/seshlog-editor-reference-sandbox`,
+  `verification.txt` at 2026-11-01T12:19:01Z, IDE PID 69636, diagnostics run
+  `a23abb9c-7720-4394-b8b9-aa4e246ae447`, loaded JAR SHA-256
+  `cf35c64fd943f3cca29523c9ceecf3065b8555556f558b89692b64469d5fbec0`.
+  Test-only stubs used explicit bracketed-mode setup; no real agent or model was contacted.
+- [ ] Initial version's remaining physical acceptance: editor mouse popup, assigned shortcut, switching/closing tabs
+  during verification, unsaved-buffer label and split ambiguity. Popup registration passes the
+  platform test, but native automation did not expose the editor mouse menu; toolbar accessibility
+  invocation also hit a platform `component must be shown on the screen` failure. The successful
+  transfer checks used Find Action. No physical result is inferred from unit tests. Real-agent/model
+  messaging is not authorized by these development checks.
 
 ### Review reliability follow-up (user priority, 2026-10-31)
 

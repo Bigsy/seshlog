@@ -71,6 +71,17 @@ When you're done with a worktree, right-click its folder and choose **Delete Wor
 it only if it has no uncommitted or untracked changes. The conversations are kept, and you can hide
 their sessions in the same step.
 
+### Add a file reference to terminal input
+
+Select lines in a file, right-click **Seshlog: Send File and Lines to Terminal**, then add your
+message in the terminal and press Enter yourself. It inserts the absolute file path and one-based
+line range into the highlighted tab in this project's **Terminal** tool window. Existing
+input is preserved. Selected code is not copied, and unsaved editors are labelled without saving.
+
+The tab can run any tool or a plain shell; no registered Seshlog session is needed. The terminal
+must support bracketed paste. Detached tabs and ambiguous split panes are unavailable. Assign a
+shortcut in **Settings → Keymap** if desired. No separate Codex Link plugin is needed.
+
 ### Review checkout changes
 
 Right-click a session and choose **Review Changes and Comment…**. The review opens in IntelliJ's

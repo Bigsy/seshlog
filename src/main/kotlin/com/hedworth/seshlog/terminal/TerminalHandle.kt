@@ -11,5 +11,7 @@ interface TerminalHandle {
     fun applicationTitle(): String? = null
     fun state(): TerminalState
     fun execute(command: String)
+    /** Insert at the input cursor without Enter or clearing input; false means unavailable. */
+    fun paste(text: String): Boolean = false
     fun rename(title: String) { content?.displayName = title }
 }

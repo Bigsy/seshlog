@@ -3,6 +3,10 @@
 Implemented 2026-10-31 for PLAN C8. The thread-ID title remains the identity signal; the wrapper
 enables it for ordinary manually typed launches without editing Codex configuration.
 
+The later merge `da634c1` also supplies a title setting directly for Seshlog's new/resume/fork
+commands on macOS/Linux, including custom executables. Its 678-test suite passed (10 opt-in
+skips); the package, compatibility and physical results below describe the earlier wrapper build.
+
 ## Behavior
 
 For a new local bash, zsh or fish terminal on macOS/Linux, with IntelliJ shell integration enabled,
@@ -37,7 +41,8 @@ modified. User Codex config, shell startup files and transcripts are never edite
 - Windows, unsupported shells, disabled shell integration and non-local Eel environments are
   left unchanged. Remote/container shells entered from a local terminal do not gain this wrapper.
 - Aliases/functions, absolute executable paths and later PATH changes can bypass the wrapper.
-  In particular, a custom full-path Seshlog executable setting still needs its own title config.
+  Seshlog's own launches on macOS/Linux supply the title setting directly, including custom
+  full-path executables; manually typed full paths still bypass automatic setup.
 - Explicitly overriding `tui.terminal_title` can remove the ID and leave shared-daemon tracking
   unresolved. The wrapper does not weaken the evidence requirements from [C1–C6](codex-tracking.md).
 - The wrapper does not preserve custom title components from a config file: it supplies project

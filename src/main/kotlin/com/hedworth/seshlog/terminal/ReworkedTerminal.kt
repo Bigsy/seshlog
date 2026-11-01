@@ -130,6 +130,11 @@ internal class ReworkedTerminal(
             (view as TerminalView).createSendTextBuilder().shouldExecute().send(command)
         }
 
+        override fun paste(text: String): Boolean {
+            BracketedPaste.validate(text)
+            return (view as TerminalView).createSendTextBuilder().requireBracketedPasteMode().trySend(text)
+        }
+
         override fun rename(title: String) {
             // The view owns the persistent title. Changing only Content is overwritten when
             // shell integration next updates the title, and is lost when the IDE restores tabs.

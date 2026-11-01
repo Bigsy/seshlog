@@ -216,6 +216,27 @@ folders, worktrees containing configured agent data, or shared Git metadata over
 running git. It can't always see an agent running in a terminal outside IntelliJ, so check that
 nothing else is using the worktree first.
 
+## Sending file and line references
+
+Highlight a range in a local file and choose **Seshlog: Send File and Lines to Terminal** from the
+editor's right-click menu (also available in Find Action and **Settings → Keymap**). The highlighted
+tab in this project's Terminal tool window receives a reference such as
+`"/work/project/src/Example.kt":12-15 `, then gains focus. Type your message and press Enter yourself.
+Existing input and the clipboard are preserved; Seshlog sends no Enter and starts no agent.
+
+Only the file path and one-based inclusive line range are inserted. A selection ending at the
+start of the next line excludes that line. Absolute paths avoid resolving a relative reference in
+the wrong worktree. Unsaved editors add `(unsaved editor)`; save first if the agent should read
+the changes from disk. Source text is never copied, saved or logged by this action.
+
+No registered or recognised Seshlog session is needed: the selected tab can run a plain shell or
+any other tool. The terminal must have bracketed-paste mode enabled. Both Classic and Reworked
+terminal engines are supported. A detached terminal or ambiguous split pane is unavailable;
+another tab is never used as a substitute. The reference is inserted immediately into the selected
+tab, and a later focus request cannot reselect it after you switch tabs. Multiple carets and
+memory-only/viewer editors are excluded. An uncertain paste is never automatically retried.
+Your terminal's program handles the reference normally when you submit its input.
+
 ## Attention and copying
 
 **Seshlog: Attention Inbox** in Find Action or the tool-window toolbar lists unread sessions across

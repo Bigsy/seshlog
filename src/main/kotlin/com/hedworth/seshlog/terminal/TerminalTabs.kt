@@ -11,11 +11,14 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.terminal.ui.TerminalWidget
 import com.intellij.ui.content.Content
 import com.intellij.ui.content.ContentManager
 import com.jediterm.terminal.ProcessTtyConnector
+import com.jediterm.terminal.TerminalMode
+import com.jediterm.terminal.model.JediTerminal
 import java.awt.KeyboardFocusManager
 import java.awt.event.KeyEvent
 import java.nio.file.Path
@@ -94,6 +97,32 @@ object TerminalTabs {
         return (tabs + widgets(project).mapNotNull { contentOf(project, it) }).distinct()
     }
 
+    /** Editor actions deliberately address the highlighted tool-window tab, independent of focus. */
+    internal fun selectedContent(project: Project): Content? {
+        val selected = ToolWindowManager.getInstance(project)
+            .getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID)?.getContentManagerIfCreated()?.selectedContent
+            ?: return null
+        return selectedIn(selected, contents(project).filter { terminalOf(project, it) != null })
+    }
+
+    internal fun selectedIn(selected: Content, contents: List<Content>): Content? = contents.filter {
+        it.manager?.isSelected(it) == true &&
+            (it.component === selected.component || SwingUtilities.isDescendingFrom(it.component, selected.component))
+    }.singleOrNull()
+
+    /** Focus the pasted tab, but never restore a stale selection after the user switches tabs. */
+    internal fun focusSelected(project: Project, content: Content) {
+        val manager = content.manager ?: return
+        if (project.isDisposed || Disposer.isDisposed(content) || manager.isDisposed || selectedContent(project) !== content) return
+        val window = ToolWindowManager.getInstance(project).getToolWindow(TerminalToolWindowFactory.TOOL_WINDOW_ID) ?: return
+        window.activate({
+            if (!project.isDisposed && !Disposer.isDisposed(content) && !manager.isDisposed &&
+                content.manager === manager && selectedContent(project) === content) {
+                manager.setSelectedContent(content, true)
+            }
+        }, true)
+    }
+
     private fun contentsRecursively(manager: ContentManager): List<Content> =
         manager.contentsRecursively.toList()
 
@@ -131,6 +160,15 @@ object TerminalTabs {
         override fun applicationTitle(): String? = widget.terminalTitle.applicationTitle
         override fun state() = TerminalTabs.state(widget)
         override fun execute(command: String) = widget.sendCommandToExecute(command)
+        override fun paste(text: String): Boolean {
+            val framed = BracketedPaste.frame(text)
+            val jedi = runCatching { ShellTerminalWidget.toShellJediTermWidgetOrThrow(widget) }.getOrNull()
+            val starter = jedi?.terminalStarter ?: return false
+            if ((jedi.terminal as? JediTerminal)?.isModelEnabled(TerminalMode.BracketedPasteMode) != true) return false
+            // TerminalStarter queues the TTY write on its executor, never on the EDT.
+            starter.sendString(framed, false)
+            return true
+        }
         override fun rename(title: String) {
             widget.terminalTitle.change { userDefinedTitle = title }
             super.rename(title)

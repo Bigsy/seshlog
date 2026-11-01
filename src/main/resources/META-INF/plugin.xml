@@ -23,6 +23,7 @@
         <li>Copy the latest assistant reply from Claude Code, Codex, opencode or Pi, preserving Markdown and code blocks without selecting terminal output</li>
         <li>Copy the latest identifiable plan from Claude Code or Codex for review elsewhere</li>
         <li>Use both copy actions from a known session's terminal, the session list or the conversation viewer; assign your own shortcuts in Settings &rarr; Keymap</li>
+        <li>Right-click selected editor lines to add their file path and line range to the highlighted terminal, then type your message and press Enter yourself</li>
         <li>Restore the sessions that were running when the IDE was closed</li>
         <li>Activity badges and waiting notifications show when an agent needs input</li>
         <li>Unread reply markers and next-attention navigation help you follow concurrent sessions</li>
@@ -49,6 +50,10 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Right-click selected lines to add their file path and range to the highlighted terminal without submitting.</li>
+    </ul>
     <b>0.8.6</b>
     <ul>
         <li>Automatic Codex tracking setup for Seshlog launches and new local bash, zsh and fish terminals on macOS/Linux.</li>
@@ -103,6 +108,10 @@
     </extensions>
 
     <actions>
+        <action id="Seshlog.SendFileReference" class="com.hedworth.seshlog.ui.actions.SendFileReferenceAction"
+                text="Seshlog: Send File and Lines to Terminal" description="Add the selected file and line range to the highlighted terminal without pressing Enter">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
         <action id="Seshlog.AddReviewComment" class="com.hedworth.seshlog.review.AddReviewCommentAction" text="Add Review Comment">
             <keyboard-shortcut keymap="$default" first-keystroke="control alt shift K"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>

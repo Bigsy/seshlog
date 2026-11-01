@@ -30,9 +30,18 @@ class ReworkedTerminalTest {
 
     private class Sender : TerminalSendTextBuilder {
         var sent: String? = null
-        override fun shouldExecute() = this
+        var executes = false
+        var bracketed = false
+        var acceptsPaste = true
+        override fun shouldExecute() = apply { executes = true }
         override fun send(text: String) { sent = text }
         override fun useBracketedPasteMode() = this
+        override fun requireBracketedPasteMode() = apply { bracketed = true }
+        override fun trySend(text: String): Boolean {
+            check(bracketed)
+            if (acceptsPaste) sent = text
+            return acceptsPaste
+        }
     }
 
     private class View(
@@ -133,6 +142,20 @@ class ReworkedTerminalTest {
         handle(view).rename("Agent session")
         view.title.change { applicationTitle = "shell prompt" }
         assertEquals("Agent session", view.title.buildTitle())
+    }
+
+    @Test fun `reference paste requires bracketed mode and never executes or clears input`() {
+        val view = View()
+        val text = "\"/fictional/file.kt\":2-4 "
+        assertTrue(handle(view).paste(text))
+        assertTrue(view.sender.bracketed)
+        assertFalse(view.sender.executes)
+        assertEquals(text, view.sender.sent)
+        val refusing = View().apply { sender.acceptsPaste = false }
+        assertFalse(handle(refusing).paste(text))
+        assertNull(refusing.sender.sent)
+        assertFalse(refusing.sender.executes)
+        assertThrows(IllegalArgumentException::class.java) { handle(view).paste("\u001b[201~") }
     }
 
     @Test fun `mixed terminal shells adopt and remember only their own agents`() {

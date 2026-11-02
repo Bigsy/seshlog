@@ -7,6 +7,36 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 class WorktreeReviewTest {
+    @Test fun `base choices use shared worktree branches and prefer main over HEAD`() = repository { root ->
+        Files.writeString(root.resolve("tracked.txt"), "main\n")
+        git(root, "add", "."); commit(root)
+        git(root, "branch", "-M", "main")
+        git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+        git(root, "tag", "release")
+        val linked = root.resolve("linked")
+        git(root, "worktree", "add", "-qb", "feature", linked.toString())
+        Files.writeString(linked.resolve("tracked.txt"), "feature\n")
+        git(linked, "add", "."); commit(linked)
+
+        val checkout = GitRepository.checkout(linked)!!
+        val bases = WorktreeReview.bases(checkout)
+        assertEquals(listOf("HEAD", "feature", "main", "origin/main"), bases)
+        assertEquals("main", WorktreeReview.defaultBase(bases))
+        assertTrue(WorktreeReview.scan(checkout, "HEAD").files.isEmpty())
+        assertEquals(listOf(ReviewFile("tracked.txt", "M")), WorktreeReview.scan(checkout, WorktreeReview.defaultBase(bases)).files)
+        assertEquals("origin/main", WorktreeReview.defaultBase(bases - "main"))
+        assertEquals("master", WorktreeReview.defaultBase(listOf("HEAD", "master", "origin/master")))
+        assertEquals("origin/master", WorktreeReview.defaultBase(listOf("HEAD", "origin/master")))
+        assertEquals("HEAD", WorktreeReview.defaultBase(listOf("HEAD", "feature")))
+
+        // A tag named main must not make the picker compare with the tag instead of the branch.
+        git(root, "tag", "main", "feature")
+        val ambiguous = WorktreeReview.bases(checkout)
+        assertEquals("heads/main", WorktreeReview.defaultBase(ambiguous))
+        assertEquals(listOf(ReviewFile("tracked.txt", "M")), WorktreeReview.scan(checkout, WorktreeReview.defaultBase(ambiguous)).files)
+    }
+
     @Test fun `review compares committed staged unstaged and untracked changes with chosen base`() = repository { root ->
         Files.writeString(root.resolve("tracked.txt"), "base\n")
         git(root, "add", ".")

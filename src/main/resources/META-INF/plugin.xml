@@ -50,6 +50,10 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Worktree review now offers a branch picker and defaults to local <code>main</code>.</li>
+    </ul>
     <b>0.8.7</b>
     <ul>
         <li>Right-click selected lines to add their file path and range to the highlighted terminal without submitting.</li>

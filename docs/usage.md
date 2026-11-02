@@ -167,9 +167,11 @@ still apply; avoid conflicting directory/worktree flags. opencode/Pi retain ordi
 
 ### Reviewing a checkout
 
-Choose **Review Worktree Changes…** from a session or folder row. The default base is `HEAD`,
-showing the current tracked changes plus untracked files. Enter a local branch, tag or commit and
-press **Refresh** to include committed differences from that base. This is a direct comparison
+Choose **Review Worktree Changes…** from a session or folder row. The base dropdown lists local and
+remote-tracking branches and defaults to local `main`, then `origin/main`, `master`, `origin/master`,
+or `HEAD`, whichever is available first. Choose `HEAD` to see uncommitted changes, including staged
+and untracked files. Select a branch to include committed differences, or type a tag or commit and
+press Enter or **Refresh**. Refresh also updates the branch list. This is a direct comparison
 with the selected commit, not an automatic merge-base comparison. Ignored files are excluded.
 
 Select a file and press Enter or **Show Diff** for IntelliJ's native diff viewer. Changes belong

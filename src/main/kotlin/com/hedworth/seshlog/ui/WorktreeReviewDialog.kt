@@ -10,6 +10,7 @@ import com.intellij.diff.requests.SimpleDiffRequest
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
@@ -23,7 +24,11 @@ import java.util.concurrent.Future
 import javax.swing.*
 
 internal class WorktreeReviewDialog(private val project: Project, private val checkout: Checkout) : DialogWrapper(project, false) {
-    private val base = JTextField("HEAD", 24)
+    private val base = ComboBox(arrayOf("HEAD")).apply {
+        isEditable = true
+        (editor.editorComponent as? JTextField)?.columns = 24
+        toolTipText = "Choose a local or remote-tracking branch, or type a tag or commit"
+    }
     private val refresh = JButton("Refresh")
     private val compare = JButton("Show Diff")
     private val status = JLabel(" ")
@@ -33,7 +38,10 @@ internal class WorktreeReviewDialog(private val project: Project, private val ch
     private var job: Future<*>? = null
     private var generation = 0L
     private var closed = false
+    private var updatingBases = false
     private var snapshot: WorktreeReviewSnapshot? = null
+
+    private data class LoadedReview(val bases: List<String>, val ref: String, val changes: Result<WorktreeReviewSnapshot>)
 
     init {
         title = "Review Worktree Changes — ${checkout.root.fileName}"
@@ -51,24 +59,39 @@ internal class WorktreeReviewDialog(private val project: Project, private val ch
         list.inputMap.put(KeyStroke.getKeyStroke("ENTER"), "diff")
         list.actionMap.put("diff", object : AbstractAction() { override fun actionPerformed(e: java.awt.event.ActionEvent) = compare() })
         refresh.addActionListener { reload() }
-        base.addActionListener { reload() }
+        base.addActionListener { if (!updatingBases) reload() }
         compare.addActionListener { compare() }
-        base.accessibleContext.accessibleName = "Local base branch, tag or commit"
+        base.accessibleContext.accessibleName = "Base branch, tag or commit"
         list.accessibleContext.accessibleName = "Checkout-wide changed files"
         init()
-        reload()
+        reload(chooseDefault = true)
     }
 
-    private fun reload() {
+    private fun reload(chooseDefault: Boolean = false) {
         snapshot = null
         model.clear()
         compare.isEnabled = false
-        val ref = base.text.trim()
-        submit("Reading changes…", { WorktreeReview.scan(checkout, ref) }) { result ->
-            snapshot = result
-            result.files.forEach(model::addElement)
-            status.text = "${result.files.size} files · base ${result.base.take(8)} · ignored files excluded"
-            if (!model.isEmpty) list.selectedIndex = 0
+        val ref = base.editor.item?.toString()?.trim().orEmpty()
+        base.isEnabled = false
+        refresh.isEnabled = false
+        submit("Reading changes…", {
+            val bases = WorktreeReview.bases(checkout)
+            val selected = if (chooseDefault) WorktreeReview.defaultBase(bases) else ref
+            LoadedReview(bases, selected, runCatching { WorktreeReview.scan(checkout, selected) })
+        }) { loaded ->
+            updatingBases = true
+            try {
+                base.model = DefaultComboBoxModel(loaded.bases.toTypedArray())
+                base.selectedItem = loaded.ref
+            } finally { updatingBases = false }
+            loaded.changes.fold({ result ->
+                snapshot = result
+                result.files.forEach(model::addElement)
+                status.text = if (result.files.isEmpty() && loaded.ref == "HEAD")
+                    "No uncommitted changes. Select a branch to include committed changes."
+                else "${result.files.size} files · base ${result.base.take(8)} · ignored files excluded"
+                if (!model.isEmpty) list.selectedIndex = 0
+            }, { status.text = it.message ?: "Could not read changes" })
         }
     }
 
@@ -92,6 +115,8 @@ internal class WorktreeReviewDialog(private val project: Project, private val ch
             val result = runCatching(read)
             ApplicationManager.getApplication().invokeLater({
                 if (!closed && !project.isDisposed && request == generation) {
+                    base.isEnabled = true
+                    refresh.isEnabled = true
                     result.fold(deliver) { status.text = it.message ?: "Could not read changes" }
                 }
             }, ModalityState.any())
@@ -103,6 +128,7 @@ internal class WorktreeReviewDialog(private val project: Project, private val ch
         add(JPanel(BorderLayout()).apply {
             add(JLabel("Checkout-wide changes, including staged and untracked files; not attributed to one session."), BorderLayout.NORTH)
             add(JPanel(FlowLayout(FlowLayout.LEFT)).apply { add(JLabel("Compare current files with:")); add(base); add(refresh) }, BorderLayout.CENTER)
+            add(JLabel("HEAD shows uncommitted changes. Select a branch to include committed changes, or type a tag or commit."), BorderLayout.SOUTH)
         }, BorderLayout.NORTH)
         add(JBScrollPane(list), BorderLayout.CENTER)
         add(JPanel(BorderLayout()).apply { add(status, BorderLayout.CENTER); add(compare, BorderLayout.EAST) }, BorderLayout.SOUTH)

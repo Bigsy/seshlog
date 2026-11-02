@@ -14,6 +14,23 @@ internal data class ReviewContent(val before: String, val current: String, val b
 internal object WorktreeReview {
     private const val LIMIT = 8 * 1024 * 1024
 
+    fun bases(checkout: Checkout): List<String> {
+        verify(checkout)
+        val refs = GitRead.run(checkout.root, listOf("for-each-ref", "--sort=refname",
+            "--format=%(refname:short)%00%(symref)", "refs/heads/", "refs/remotes/"), 1024 * 1024)
+            .toString(Charsets.UTF_8).lineSequence().filter { it.isNotEmpty() }.mapNotNull { line ->
+                // Remote HEAD aliases duplicate a branch and are not useful comparison choices.
+                val fields = line.split('\u0000', limit = 2)
+                check(fields.size == 2) { "Incomplete Git branch list" }
+                fields[0].takeIf { fields[1].isEmpty() }
+            }.toList()
+        verify(checkout)
+        return (listOf("HEAD") + refs).distinct()
+    }
+
+    fun defaultBase(bases: List<String>): String = listOf("main", "heads/main", "origin/main", "remotes/origin/main",
+        "master", "heads/master", "origin/master", "remotes/origin/master").firstOrNull { it in bases } ?: "HEAD"
+
     fun verify(checkout: Checkout) {
         val current = GitRepository.checkout(checkout.root, checkout)
         check(current?.available == true && checkout.sameIdentity(current)) { "Checkout is missing or replaced; select it again" }

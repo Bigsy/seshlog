@@ -18,6 +18,20 @@ class SeshlogSettingsTest {
         assertEquals(false, restored.codexTerminalWrapperEnabled)
     }
 
+    @Test fun `terminal menu agents default on for old settings and hiding one survives reload`() {
+        val settings = SeshlogSettings()
+        settings.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(org.jdom.Element("state"), SeshlogSettings.State::class.java))
+        com.hedworth.seshlog.model.AgentKind.entries.forEach { assertEquals(true, settings.inTerminalMenu(it)) }
+        settings.setInTerminalMenu(com.hedworth.seshlog.model.AgentKind.CODEX, false)
+        val restored = SeshlogSettings()
+        restored.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(
+            com.intellij.util.xmlb.XmlSerializer.serialize(settings.state), SeshlogSettings.State::class.java))
+        assertEquals(
+            com.hedworth.seshlog.model.AgentKind.entries.associateWith { it != com.hedworth.seshlog.model.AgentKind.CODEX },
+            com.hedworth.seshlog.model.AgentKind.entries.associateWith(restored::inTerminalMenu),
+        )
+    }
+
     @Test fun `diagnostics default on for old settings and off survives serialization and reload`() {
         val settings = SeshlogSettings()
         settings.loadState(com.intellij.util.xmlb.XmlSerializer.deserialize(org.jdom.Element("state"), SeshlogSettings.State::class.java))

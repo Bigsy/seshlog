@@ -62,6 +62,37 @@ class SeshlogConfigurableTest : BasePlatformTestCase() {
         }
     }
 
+    fun `test each agent has a terminal menu checkbox applied and reset per agent`() {
+        val settings = SeshlogSettings.getInstance()
+        val previous = AgentKind.entries.associateWith(settings::inTerminalMenu)
+        val configurable = SeshlogConfigurable()
+        try {
+            AgentKind.entries.forEach { settings.setInTerminalMenu(it, true) }
+            val toggles = components(configurable.createComponent()).filterIsInstance<JCheckBox>()
+                .filter { it.text == SeshlogConfigurable.TERMINAL_MENU_LABEL }
+            assertEquals(AgentKind.entries.size, toggles.size)
+            assertTrue(toggles.all { it.isSelected })
+            toggles[AgentKind.entries.indexOf(AgentKind.CODEX)].isSelected = false
+            assertTrue(settings.inTerminalMenu(AgentKind.CODEX))
+            configurable.apply()
+            assertEquals(AgentKind.entries.associateWith { it != AgentKind.CODEX }, AgentKind.entries.associateWith(settings::inTerminalMenu))
+            toggles.forEach { it.isSelected = true }
+            configurable.reset()
+            assertFalse(toggles[AgentKind.entries.indexOf(AgentKind.CODEX)].isSelected)
+        } finally {
+            configurable.disposeUIResources()
+            previous.forEach(settings::setInTerminalMenu)
+        }
+    }
+
+    fun `test terminal menu comment says where the agent was found or why it is hidden`() {
+        val found = com.hedworth.seshlog.terminal.AgentAvailability(finder = { java.nio.file.Path.of("/opt/bin/claude") })
+        val missing = com.hedworth.seshlog.terminal.AgentAvailability(finder = { null })
+        assertTrue(SeshlogConfigurable.terminalMenuComment(AgentKind.CLAUDE_CODE, "claude", found).endsWith("Found at /opt/bin/claude."))
+        val hidden = SeshlogConfigurable.terminalMenuComment(AgentKind.CODEX, "codex", missing)
+        assertTrue(hidden, hidden.startsWith("Hidden: codex was not found on the IDE's PATH."))
+    }
+
     fun `test restore-mode combo renders a label for every mode`() {
         val configurable = SeshlogConfigurable()
         try {

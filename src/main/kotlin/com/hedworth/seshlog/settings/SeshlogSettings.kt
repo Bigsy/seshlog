@@ -38,6 +38,11 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         var piSessionsDir: String = ""
         var piExecutable: String = "pi"
         var piExtraArgs: String = ""
+        /** Offer a fresh session of the agent in the terminal right-click menu when its executable is found. */
+        var claudeInTerminalMenu: Boolean = true
+        var codexInTerminalMenu: Boolean = true
+        var opencodeInTerminalMenu: Boolean = true
+        var piInTerminalMenu: Boolean = true
         /** opencode lets the user archive a session to hide it from its own list; hidden here too unless set. */
         var opencodeShowArchived: Boolean = false
         var showAllProjects: Boolean = false
@@ -142,6 +147,22 @@ class SeshlogSettings : PersistentStateComponent<SeshlogSettings.State> {
         AgentKind.CODEX -> codexExtraArgs
         AgentKind.OPENCODE -> opencodeExtraArgs
         AgentKind.PI -> piExtraArgs
+    }
+
+    fun inTerminalMenu(kind: AgentKind): Boolean = when (kind) {
+        AgentKind.CLAUDE_CODE -> state.claudeInTerminalMenu
+        AgentKind.CODEX -> state.codexInTerminalMenu
+        AgentKind.OPENCODE -> state.opencodeInTerminalMenu
+        AgentKind.PI -> state.piInTerminalMenu
+    }
+
+    fun setInTerminalMenu(kind: AgentKind, shown: Boolean) {
+        when (kind) {
+            AgentKind.CLAUDE_CODE -> state.claudeInTerminalMenu = shown
+            AgentKind.CODEX -> state.codexInTerminalMenu = shown
+            AgentKind.OPENCODE -> state.opencodeInTerminalMenu = shown
+            AgentKind.PI -> state.piInTerminalMenu = shown
+        }
     }
 
     fun resolvedPiSessionsDir(): Path = resolvePiSessionsDir(state.piSessionsDir)

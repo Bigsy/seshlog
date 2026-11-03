@@ -24,6 +24,7 @@
         <li>Copy the latest identifiable plan from Claude Code or Codex for review elsewhere</li>
         <li>Use both copy actions from a known session's terminal, the session list or the conversation viewer; assign your own shortcuts in Settings &rarr; Keymap</li>
         <li>Right-click selected editor lines to add their file path and line range to the highlighted terminal, then type your message and press Enter yourself</li>
+        <li>Right-click a terminal to start a new Claude Code, Codex, opencode or Pi session in a new tab in that terminal's directory; only agents found on your PATH are offered, and each can be hidden in settings</li>
         <li>Restore the sessions that were running when the IDE was closed</li>
         <li>Activity badges and waiting notifications show when an agent needs input</li>
         <li>Unread reply markers and next-attention navigation help you follow concurrent sessions</li>
@@ -50,6 +51,10 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Right-click a terminal to start a new agent session in a new tab in that terminal's directory. Only agents found on your PATH are offered; hide any of them in Settings → Tools → Seshlog.</li>
+    </ul>
     <b>0.8.8</b>
     <ul>
         <li>Worktree review now offers a branch picker and defaults to local <code>main</code>.</li>
@@ -186,5 +191,13 @@
                 text="Fork Session" description="Continue this tab's coding-agent session in a new session" icon="AllIcons.Vcs.Branch">
             <add-to-group group-id="ToolWindowContextMenu" anchor="last"/>
         </action>
+        <group id="Seshlog.TerminalNewSession" class="com.hedworth.seshlog.ui.actions.TerminalNewSessionGroup" popup="true"
+               text="New Agent Session" description="Start a fresh coding-agent session in a new tab in this terminal's directory">
+            <action id="Seshlog.TerminalNewClaudeSession" class="com.hedworth.seshlog.ui.actions.TerminalNewClaudeSessionAction"/>
+            <action id="Seshlog.TerminalNewCodexSession" class="com.hedworth.seshlog.ui.actions.TerminalNewCodexSessionAction"/>
+            <action id="Seshlog.TerminalNewOpenCodeSession" class="com.hedworth.seshlog.ui.actions.TerminalNewOpenCodeSessionAction"/>
+            <action id="Seshlog.TerminalNewPiSession" class="com.hedworth.seshlog.ui.actions.TerminalNewPiSessionAction"/>
+            <add-to-group group-id="Terminal.ReworkedTerminalContextMenu" anchor="after" relative-to-action="Terminal.NewTab"/>
+        </group>
     </actions>
 </idea-plugin>

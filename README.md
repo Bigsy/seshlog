@@ -71,6 +71,15 @@ When you're done with a worktree, right-click its folder and choose **Delete Wor
 it only if it has no uncommitted or untracked changes. The conversations are kept, and you can hide
 their sessions in the same step.
 
+### Start an agent from a terminal
+
+Right-click inside a terminal and choose **New Claude Code Session** (or Codex, opencode or Pi).
+It opens a new tab in that terminal's current directory, falling back to the project folder, and
+Seshlog tracks it like any session it starts. With more than one agent installed, they share a
+**New Agent Session** submenu. Only agents whose executable is found on the IDE's PATH are offered;
+untick **Show New Session in the terminal right-click menu** under an agent in
+**Settings → Tools → Seshlog** to hide it. This menu needs the Reworked terminal engine.
+
 ### Add a file reference to terminal input
 
 Select lines in a file, right-click **Seshlog: Send File and Lines to Terminal**, then add your

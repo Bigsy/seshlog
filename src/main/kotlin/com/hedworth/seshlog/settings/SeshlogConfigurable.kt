@@ -1,6 +1,8 @@
 package com.hedworth.seshlog.settings
 
 import com.hedworth.seshlog.index.SessionIndex
+import com.hedworth.seshlog.model.AgentKind
+import com.hedworth.seshlog.terminal.AgentAvailability
 import com.hedworth.seshlog.ui.actions.OpenSessionDiagnosticsAction
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
@@ -39,11 +41,11 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                 }
             }
             agentGroup(
-                "Claude Code", settings::claudeDataDir, settings::claudeExecutable, settings::claudeExtraArgs,
+                AgentKind.CLAUDE_CODE, settings::claudeDataDir, settings::claudeExecutable, settings::claudeExtraArgs,
                 "Leave empty to use \$CLAUDE_CONFIG_DIR or ~/.claude (currently ${settings.resolvedClaudeDataDir()}).",
             )
             agentGroup(
-                "Codex", settings::codexDataDir, settings::codexExecutable, settings::codexExtraArgs,
+                AgentKind.CODEX, settings::codexDataDir, settings::codexExecutable, settings::codexExtraArgs,
                 "Leave empty to use \$CODEX_HOME or ~/.codex (currently ${settings.resolvedCodexDataDir()}).",
             ) {
                 row {
@@ -54,7 +56,7 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                 row { comment("Uses an IDE-local launcher; your Codex config is unchanged. Aliases, full executable paths and remote shells can bypass it.") }
             }
             agentGroup(
-                "opencode", settings::opencodeDataDir, settings::opencodeExecutable, settings::opencodeExtraArgs,
+                AgentKind.OPENCODE, settings::opencodeDataDir, settings::opencodeExecutable, settings::opencodeExtraArgs,
                 "Leave empty to use \$XDG_DATA_HOME/opencode or ~/.local/share/opencode (currently ${settings.resolvedOpenCodeDataDir()}).",
             ) {
                 row {
@@ -64,7 +66,7 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                 }
             }
             agentGroup(
-                "Pi", settings::piSessionsDir, settings::piExecutable, settings::piExtraArgs,
+                AgentKind.PI, settings::piSessionsDir, settings::piExecutable, settings::piExtraArgs,
                 "Leave empty to use PI_CODING_AGENT_SESSION_DIR, PI_CODING_AGENT_DIR/sessions or ~/.pi/agent/sessions (currently ${settings.resolvedPiSessionsDir()}).",
                 directoryLabel = "Pi sessions directory:",
             )
@@ -129,9 +131,12 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
         }
     }
 
-    /** The per-agent settings group: data directory with a folder chooser, executable, additional arguments, optional extras. */
+    /**
+     * The per-agent settings group: data directory with a folder chooser, executable, additional
+     * arguments, the terminal-menu toggle, optional extras.
+     */
     private fun Panel.agentGroup(
-        title: String,
+        kind: AgentKind,
         dataDir: KMutableProperty0<String>,
         executable: KMutableProperty0<String>,
         extraArgs: KMutableProperty0<String>,
@@ -139,7 +144,7 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
         directoryLabel: String = "Data directory:",
         extraRows: Panel.() -> Unit = {},
     ) {
-        group(title) {
+        group(kind.displayName) {
             row(directoryLabel) {
                 textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor())
                     .bindText(dataDir)
@@ -158,6 +163,12 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
                     .columns(40)
                     .comment("Appended as typed to the resume and fork commands, for example --model sonnet. Quote values as you would in the shell.")
             }
+            row {
+                val settings = SeshlogSettings.getInstance()
+                checkBox(TERMINAL_MENU_LABEL)
+                    .bindSelected({ settings.inTerminalMenu(kind) }, { settings.setInTerminalMenu(kind, it) })
+                    .comment(terminalMenuComment(kind, settings.executable(kind)))
+            }
             extraRows()
         }
     }
@@ -170,6 +181,17 @@ class SeshlogConfigurable : BoundConfigurable("Seshlog") {
 
     companion object {
         internal const val EXTRA_ARGS_LABEL = "Additional arguments:"
+        internal const val TERMINAL_MENU_LABEL = "Show New Session in the terminal right-click menu"
+
+        /** Reflects the saved executable; an edited one is checked again when the menu next opens. */
+        internal fun terminalMenuComment(kind: AgentKind, executable: String, availability: AgentAvailability = AgentAvailability.shared): String {
+            val found = availability.locate(executable)
+            return if (found != null) {
+                "Opens ${kind.displayName} in a new tab in the clicked terminal's directory. Found at $found."
+            } else {
+                "Hidden: $executable was not found on the IDE's PATH. Shell aliases and functions are not detected; enter a full path in Executable instead."
+            }
+        }
         internal const val NOTIFY_WAITING_LABEL = "Notify when a running session is waiting for input"
     }
 }

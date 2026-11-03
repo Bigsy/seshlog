@@ -11,6 +11,16 @@ session to resume it, fork its conversation, open its history, pin it, rename it
 Local names and organisation stay in Seshlog; the agent's saved conversation is unchanged.
 Double-click a session, or press Enter in the session list, to resume it or focus its tracked terminal.
 
+Right-click inside a terminal for the same New Session actions. The agent starts in a new tab in
+that terminal's current directory, or in the project folder when the directory is not a local
+folder; the clicked terminal is left untouched. One offered agent appears directly in the menu,
+after **New Tab**; several share a **New Agent Session** submenu. An agent is offered when
+**Show New Session in the terminal right-click menu** is ticked in its **Settings → Tools → Seshlog**
+group (the default) and its **Executable** is found. A bare name is looked up on the IDE's PATH, and
+a full or `~/` path is checked directly. Shell aliases and functions are not detected, so enter a
+full path instead. The settings page says where each agent was found. A newly installed agent can
+take up to 30 seconds to appear. The menu entry is available with the Reworked terminal engine only.
+
 **Kill Session** stops its processes and closes its terminal tab in the current project. The saved
 conversation remains available. Seshlog can offer to restore sessions that were running when the
 IDE closed; Pi sessions are not restored.

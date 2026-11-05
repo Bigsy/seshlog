@@ -51,7 +51,7 @@
     </dependencies>
 
     <change-notes><![CDATA[
-    <b>Unreleased</b>
+    <b>0.8.9</b>
     <ul>
         <li>Right-click a terminal to start a new agent session in a new tab in that terminal's directory. Only agents found on your PATH are offered; hide any of them in Settings → Tools → Seshlog.</li>
     </ul>

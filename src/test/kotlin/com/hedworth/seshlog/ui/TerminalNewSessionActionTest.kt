@@ -95,21 +95,25 @@ class TerminalNewSessionActionTest : BasePlatformTestCase() {
 
     fun `test the group is hidden, inline or a submenu by how many agents are offered`() {
         val terminal = view(Path.of(project.basePath!!))
-        fun group(vararg actions: AnAction) = TerminalNewSessionGroup().apply { actions.forEach(::add) }
+        val settings = SeshlogSettings.getInstance()
+        fun offer(vararg kinds: AgentKind) = AgentKind.entries.forEach { settings.setInTerminalMenu(it, it in kinds) }
 
-        val none = updated(group(action(AgentKind.CLAUDE_CODE, missing), action(AgentKind.CODEX, missing)), terminal)
-        assertFalse(none.isVisible)
+        offer(*AgentKind.entries.toTypedArray())
+        assertFalse(updated(TerminalNewSessionGroup(missing), terminal).isVisible)
+        assertFalse(updated(TerminalNewSessionGroup(found), null).isVisible)
 
-        val one = updated(group(action(AgentKind.CLAUDE_CODE), action(AgentKind.CODEX, missing)), terminal)
+        offer()
+        assertFalse(updated(TerminalNewSessionGroup(found), terminal).isVisible)
+
+        offer(AgentKind.CODEX)
+        val one = updated(TerminalNewSessionGroup(found), terminal)
         assertTrue(one.isVisible)
         assertFalse(one.isPopupGroup)
 
-        val two = updated(group(action(AgentKind.CLAUDE_CODE), action(AgentKind.CODEX, missing), action(AgentKind.PI)), terminal)
+        offer(AgentKind.CLAUDE_CODE, AgentKind.PI)
+        val two = updated(TerminalNewSessionGroup(found), terminal)
         assertTrue(two.isVisible)
         assertTrue(two.isPopupGroup)
-
-        SeshlogSettings.getInstance().setInTerminalMenu(AgentKind.PI, false)
-        assertFalse(updated(group(action(AgentKind.CLAUDE_CODE), action(AgentKind.PI)), terminal).isPopupGroup)
     }
 
     fun `test the session opens in the clicked terminal's directory, else the project root`() {

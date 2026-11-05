@@ -69,15 +69,8 @@ abstract class TerminalNewSessionAction internal constructor(
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
-    /** Shared with [TerminalNewSessionGroup], which hides itself when no agent is offered. */
-    internal fun isOffered(e: AnActionEvent): Boolean {
-        if (e.project == null || e.getData(TerminalView.DATA_KEY) == null) return false
-        val settings = SeshlogSettings.getInstance()
-        return settings.inTerminalMenu(kind) && availability.locate(settings.executable(kind)) != null
-    }
-
     override fun update(e: AnActionEvent) {
-        e.presentation.isEnabledAndVisible = isOffered(e)
+        e.presentation.isEnabledAndVisible = isOffered(e, kind, availability)
     }
 
     final override fun actionPerformed(e: AnActionEvent) {
@@ -92,6 +85,13 @@ abstract class TerminalNewSessionAction internal constructor(
     }
 
     internal companion object {
+        /** Shared with [TerminalNewSessionGroup], which counts offered agents without querying its children. */
+        fun isOffered(e: AnActionEvent, kind: AgentKind, availability: AgentAvailability): Boolean {
+            if (e.project == null || e.getData(TerminalView.DATA_KEY) == null) return false
+            val settings = SeshlogSettings.getInstance()
+            return settings.inTerminalMenu(kind) && availability.locate(settings.executable(kind)) != null
+        }
+
         /** The clicked terminal's directory when it is a local folder, else the project root. */
         fun launchDirectory(terminal: Path?, basePath: String?, isDirectory: (Path) -> Boolean = Files::isDirectory): Path? {
             terminal?.takeIf { it.fileSystem == FileSystems.getDefault() && isDirectory(it) }?.let { return it }
@@ -106,11 +106,15 @@ class TerminalNewOpenCodeSessionAction : TerminalNewSessionAction(AgentKind.OPEN
 class TerminalNewPiSessionAction : TerminalNewSessionAction(AgentKind.PI)
 
 /** One offered agent appears inline; several share a New Agent Session submenu; none hides it. */
-class TerminalNewSessionGroup : DefaultActionGroup(), DumbAware {
+class TerminalNewSessionGroup internal constructor(private val availability: AgentAvailability) : DefaultActionGroup(), DumbAware {
+    constructor() : this(AgentAvailability.shared)
+
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
-        val offered = getChildren(e).count { (it as? TerminalNewSessionAction)?.isOffered(e) == true }
+        // plugin.xml registers one child per AgentKind. Counting kinds directly avoids getChildren,
+        // which the platform marks override-only (the plugin verifier fails the build on calls to it).
+        val offered = AgentKind.entries.count { TerminalNewSessionAction.isOffered(e, it, availability) }
         e.presentation.isVisible = offered > 0
         e.presentation.isPopupGroup = offered > 1
     }

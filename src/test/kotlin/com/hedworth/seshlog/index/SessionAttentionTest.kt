@@ -37,24 +37,25 @@ class SessionAttentionTest {
     @Test fun `completion timestamp catches a whole turn between polls but metadata edits do not`() {
         val attention = SessionAttention()
         val original = session()
-        attention.observe(listOf(original), emptySet())
-        attention.observe(listOf(original.copy(title = "Renamed", lastActivityAt = Instant.ofEpochSecond(2))), emptySet())
+        attention.observe(listOf(original), setOf("a"))
+        attention.observe(listOf(original.copy(title = "Renamed", lastActivityAt = Instant.ofEpochSecond(2))), setOf("a"))
         assertTrue(attention.unread.isEmpty())
         val done = session(at = 3)
-        attention.observe(listOf(done), emptySet())
+        attention.observe(listOf(done), setOf("a"))
         assertNotNull(attention.receipt(done))
     }
 
     @Test fun `stale preview cannot clear a newer turn and resumed work clears old badges`() {
         val attention = SessionAttention()
-        attention.observe(listOf(session(activity = Activity.WORKING)), emptySet())
+        val running = setOf("a")
+        attention.observe(listOf(session(activity = Activity.WORKING)), running)
         val done = session(at = 2)
-        attention.observe(listOf(done), emptySet())
+        attention.observe(listOf(done), running)
         val receipt = attention.receipt(done)
-        attention.observe(listOf(session(activity = Activity.WORKING, at = 3)), emptySet())
+        attention.observe(listOf(session(activity = Activity.WORKING, at = 3)), running)
         assertTrue(attention.unread.isEmpty())
         val later = session(at = 4)
-        attention.observe(listOf(later), emptySet())
+        attention.observe(listOf(later), running)
         assertNull(attention.receipt(done))
         assertFalse(attention.viewed("a", receipt))
         assertFalse(attention.viewed("a", null))
@@ -63,19 +64,20 @@ class SessionAttentionTest {
 
     @Test fun `interruptions and unknown activity are not completed turns`() {
         val attention = SessionAttention()
-        attention.observe(listOf(session(activity = Activity.WORKING)), emptySet())
-        attention.observe(listOf(session(activity = Activity.INTERRUPTED, at = 2)), emptySet())
+        val running = setOf("a")
+        attention.observe(listOf(session(activity = Activity.WORKING)), running)
+        attention.observe(listOf(session(activity = Activity.INTERRUPTED, at = 2)), running)
         assertTrue(attention.unread.isEmpty())
-        attention.observe(listOf(session(activity = Activity.UNKNOWN, at = 3)), emptySet())
-        attention.observe(listOf(session(at = 4)), emptySet())
+        attention.observe(listOf(session(activity = Activity.UNKNOWN, at = 3)), running)
+        attention.observe(listOf(session(at = 4)), running)
         assertTrue(attention.unread.isEmpty())
     }
 
     @Test fun `persisted unread survives restart missing storage and loss of live status`() {
         val original = SessionAttention()
-        original.observe(listOf(session(activity = Activity.WORKING)), emptySet())
+        original.observe(listOf(session(activity = Activity.WORKING)), setOf("a"))
         val done = session(at = 3).copy(lastActivityAt = Instant.ofEpochSecond(2))
-        original.observe(listOf(done), emptySet())
+        original.observe(listOf(done), setOf("a"))
         val restored = SessionAttention(original.unread.toMutableMap())
         restored.observe(emptyList(), emptySet())
         val exited = done.copy(activity = Activity.UNKNOWN, activitySince = null, isLive = false)
@@ -86,12 +88,13 @@ class SessionAttentionTest {
 
     @Test fun `providers without activity timestamps require an observed working turn`() {
         val attention = SessionAttention()
+        val running = setOf("a")
         val done = session().copy(activitySince = null)
-        attention.observe(listOf(done), emptySet())
-        attention.observe(listOf(done.copy(lastActivityAt = Instant.ofEpochSecond(2))), emptySet())
+        attention.observe(listOf(done), running)
+        attention.observe(listOf(done.copy(lastActivityAt = Instant.ofEpochSecond(2))), running)
         assertTrue(attention.unread.isEmpty())
-        attention.observe(listOf(done.copy(activity = Activity.WORKING)), emptySet())
-        attention.observe(listOf(done), emptySet())
+        attention.observe(listOf(done.copy(activity = Activity.WORKING)), running)
+        attention.observe(listOf(done), running)
         assertNotNull(attention.receipt(done))
     }
 
@@ -106,22 +109,31 @@ class SessionAttentionTest {
     }
 
     @Test fun `group summary includes only tracked working sessions and unread completions`() {
-        val sessions = listOf(session("live", Activity.WORKING),
+        val sessions = listOf(session("external", Activity.WORKING), session("tracked", Activity.WORKING),
             session("owned", Activity.WORKING, live = false), session("historical", Activity.WORKING, live = false),
             session("unread", live = false), session("idle"))
-        assertEquals("2 working · 1 unread", SessionAttention.summary(sessions, setOf("owned"), setOf("unread", "elsewhere")))
+        assertEquals("2 working · 1 unread",
+            SessionAttention.summary(sessions, setOf("tracked", "owned"), setOf("unread", "elsewhere")))
         assertEquals("", SessionAttention.summary(listOf(session()), emptySet(), emptySet()))
     }
 
     @Test fun `counts expose working and unread totals independently of presentation`() {
         val sessions = listOf(
-            session("live", Activity.WORKING),
+            session("external", Activity.WORKING),
             session("owned", Activity.WORKING, live = false),
             session("waiting", live = false),
         )
         val counts = SessionAttention.counts(sessions, setOf("owned"), setOf("waiting", "elsewhere"))
-        assertEquals(2, counts.working)
+        assertEquals(1, counts.working)
         assertEquals(1, counts.unread)
-        assertEquals("2 working · 1 unread", counts.summary())
+        assertEquals("1 working · 1 unread", counts.summary())
+    }
+
+    @Test fun `an agent live only in an external terminal is never tracked`() {
+        val attention = SessionAttention()
+        attention.observe(listOf(session(activity = Activity.WORKING)), emptySet())
+        attention.observe(listOf(session(at = 2)), emptySet())
+        assertTrue(attention.unread.isEmpty())
+        assertEquals(SessionAttention.Counts(0, 0), SessionAttention.counts(listOf(session(activity = Activity.WORKING)), emptySet(), emptySet()))
     }
 }

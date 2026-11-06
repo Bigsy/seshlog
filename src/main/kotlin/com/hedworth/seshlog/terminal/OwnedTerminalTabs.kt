@@ -17,6 +17,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.content.Content
@@ -190,7 +191,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
     private val processClock = Timer(2_000) { refreshRunning() }
 
     /** Cached process evidence; collecting it must never block the EDT. */
-    fun runningSessionIds(): Set<String> = running.intersect(registry.sessionIds)
+    fun runningSessionIds(): Set<String> = if (disposed) emptySet() else running.intersect(registry.sessionIds)
 
     /** Capture on EDT, inspect on a worker, then validate again on EDT before focusing. */
     internal class NavigationTarget(
@@ -415,7 +416,7 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
                     "nextDelayMs" to cadence.delayMillis)
                 if (running != valid) {
                     running = valid
-                    project.messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningSessionIds())
+                    publishRunning()
                 }
             } else poll.event("poll_discarded", "reason" to "project_disposed")
         })
@@ -541,8 +542,11 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         disposed = true
         processClock.stop()
         tabObserver.dispose()
+        // Other windows may show this window's sessions (All Projects, worktrees): drop their badges.
+        if (runningSessionIds().isNotEmpty()) ApplicationManager.getApplication().invokeLater { publishRunning() }
     }
 
+    /** Application-level: [ids] are the sessions running in IDE terminal tabs of every open project. */
     interface RunningListener {
         fun runningChanged(ids: Set<String>)
     }
@@ -555,6 +559,17 @@ class OwnedTerminalTabs(private val project: Project) : Disposable {
         val RUNNING_TOPIC = Topic.create("Seshlog running terminals", RunningListener::class.java)
         val ACTIVE_SESSION_TOPIC = Topic.create("Seshlog active terminal", ActiveSessionListener::class.java)
         fun getInstance(project: Project): OwnedTerminalTabs = project.getService(OwnedTerminalTabs::class.java)
+
+        /**
+         * Sessions confirmed running in an IDE terminal tab of any open project. Running, activity,
+         * unread and working state come only from here: an agent started in an external terminal
+         * is never tracked, even when the agent itself reports it as live. EDT only.
+         */
+        fun runningInIde(): Set<String> = ProjectManager.getInstance().openProjects
+            .filterNot { it.isDisposed }.flatMapTo(HashSet()) { getInstance(it).runningSessionIds() }
+
+        private fun publishRunning() =
+            ApplicationManager.getApplication().messageBus.syncPublisher(RUNNING_TOPIC).runningChanged(runningInIde())
     }
 }
 

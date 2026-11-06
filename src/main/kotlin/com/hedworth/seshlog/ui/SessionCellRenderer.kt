@@ -43,7 +43,7 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         }
     var showFolder: Boolean = false
     var activeSessionId: String? = null
-    /** Sessions of agents without a pid file whose Seshlog-owned tab still runs them. Set by the panel on the EDT. */
+    /** Sessions running in an IDE terminal tab of any open project. Set by the panel on the EDT. */
     var runningOwned: Set<String> = emptySet()
     var unread: Set<String> = emptySet()
 
@@ -221,7 +221,11 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
                 if (session.activity != Activity.UNKNOWN) session.activitySince?.let { append(" since ").append(fmt(it)) }
                 append("<br>")
             }
-            if (session.isLive) append("Running, pid ").append(session.livePid).append("<br>")
+            if (session.isLive) {
+                append("Running, pid ").append(session.livePid)
+                if (!isRunning(session)) append(" (no tracked IDE terminal)")
+                append("<br>")
+            }
             hit?.let {
                 append(esc(it.primary.source.label))
                 when (it.primary.metadataVariant) {
@@ -238,8 +242,8 @@ class SessionCellRenderer : JPanel(BorderLayout()), TreeCellRenderer {
         }
     }
 
-    /** Live by the agent's own pid file, or still running in a tab Seshlog owns. */
-    private fun isRunning(session: Session): Boolean = session.isLive || session.id in runningOwned
+    /** Running in an IDE terminal tab. An agent's own live marker alone may be an external terminal. */
+    private fun isRunning(session: Session): Boolean = session.id in runningOwned
 
     companion object {
         // Treat agent-provided text literally; JLabel otherwise interprets strings starting with <html>.

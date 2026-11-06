@@ -36,7 +36,8 @@ internal data class SwitcherRow(
     }
     fun attention(now: Instant): String = buildList {
         if (unread) add("● unread")
-        if (running) add(ActivityLabel.badge(session.activity, session.activitySince, now)) else add("no tracked terminal")
+        // A live session with no IDE terminal may be in an external terminal: block Resume, never track it.
+        if (associated) add(ActivityLabel.badge(session.activity, session.activitySince, now)) else add("no tracked terminal")
         locationProblem?.let(::add)
     }.joinToString(" · ")
     fun details(): String = buildList {

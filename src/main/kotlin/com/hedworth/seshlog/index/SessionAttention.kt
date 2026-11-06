@@ -3,7 +3,11 @@ package com.hedworth.seshlog.index
 import com.hedworth.seshlog.model.Activity
 import com.hedworth.seshlog.model.Session
 
-/** Metadata only. First observation establishes a baseline, never an unread backlog. */
+/**
+ * Metadata only. First observation establishes a baseline, never an unread backlog. `running` is the
+ * set of sessions running in an IDE terminal tab; an agent's own live marker (`Session.isLive`) is
+ * deliberately ignored so sessions in external terminals are never tracked.
+ */
 class SessionAttention(val unread: MutableMap<String, Completion> = linkedMapOf()) {
     data class Counts(val working: Int, val unread: Int) {
         val hasAttention: Boolean get() = working > 0 || unread > 0
@@ -24,7 +28,7 @@ class SessionAttention(val unread: MutableMap<String, Completion> = linkedMapOf(
             if (session.activity == Activity.WORKING || session.activity == Activity.INTERRUPTED) {
                 unread.remove(session.id)
             } else if (session.activity == Activity.WAITING && before != null &&
-                (session.isLive || session.id in running || before.isLive || session.id in previouslyRunning) &&
+                (session.id in running || session.id in previouslyRunning) &&
                 (before.activity == Activity.WORKING ||
                     (before.activity == Activity.WAITING && before.activitySince != null &&
                         session.activitySince != null && session.activitySince > before.activitySince))) {
@@ -60,7 +64,7 @@ class SessionAttention(val unread: MutableMap<String, Completion> = linkedMapOf(
         }
 
         fun counts(sessions: List<Session>, running: Set<String>, unread: Set<String>): Counts = Counts(
-            working = sessions.count { it.activity == Activity.WORKING && (it.isLive || it.id in running) },
+            working = sessions.count { it.activity == Activity.WORKING && it.id in running },
             unread = sessions.count { it.id in unread },
         )
     }

@@ -42,7 +42,9 @@ class SessionAttentionUiTest : BasePlatformTestCase() {
             val panel = SessionTreePanel(project, disposable)
             val working = session("working").copy(activity = Activity.WORKING)
             val done = session("done", 2)
-            attention.observe(listOf(working, done.copy(activity = Activity.WORKING)), emptySet())
+            val running = setOf(working.id, done.id) // in IDE terminal tabs
+            attention.observe(listOf(working, done.copy(activity = Activity.WORKING)), running)
+            panel.refreshBadges(running)
             panel.render(listOf(working, done))
             val root = panel.tree.model.root as DefaultMutableTreeNode
             val group = root.firstChild as DefaultMutableTreeNode
@@ -55,7 +57,7 @@ class SessionAttentionUiTest : BasePlatformTestCase() {
                 override fun treeNodesInserted(e: javax.swing.event.TreeModelEvent) = Unit
                 override fun treeNodesRemoved(e: javax.swing.event.TreeModelEvent) = Unit
             })
-            attention.observe(listOf(working, done), emptySet())
+            attention.observe(listOf(working, done), running)
             val renderer = panel.tree.cellRenderer as SessionCellRenderer
             fun label(value: Any): String {
                 renderer.getTreeCellRendererComponent(panel.tree, DefaultMutableTreeNode(value), false, false,
@@ -89,8 +91,9 @@ class SessionAttentionUiTest : BasePlatformTestCase() {
             SessionOrganisation.getInstance().edit(pinned.id) { it.pinned = true }
             SessionOrganisation.getInstance().edit(hidden.id) { it.hidden = true }
             val all = listOf(newer, hidden, pinned)
-            attention.observe(all.map { it.copy(activity = Activity.WORKING) }, emptySet())
-            attention.observe(all, emptySet())
+            val running = all.mapTo(HashSet()) { it.id }
+            attention.observe(all.map { it.copy(activity = Activity.WORKING) }, running)
+            attention.observe(all, running)
             panel.render(all)
             val root = panel.tree.model.root as DefaultMutableTreeNode
             val group = root.firstChild as DefaultMutableTreeNode

@@ -7,7 +7,6 @@ import com.hedworth.seshlog.terminal.OwnedTerminalTabs
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.*
-import com.intellij.openapi.project.ProjectManager
 import com.intellij.util.messages.Topic
 
 /** App-wide unread completion timestamps, shared by every project. All mutations run on EDT. */
@@ -68,8 +67,7 @@ class SessionAttentionState : PersistentStateComponent<SessionAttentionState.Sta
     private fun unreadSnapshotOf(source: Map<String, SessionAttention.Completion>): Map<String, SessionAttention.Completion> =
         source.mapValues { it.value.copy() }
 
-    private fun runningIds(): Set<String> = ProjectManager.getInstance().openProjects
-        .filterNot { it.isDisposed }.flatMap { OwnedTerminalTabs.getInstance(it).runningSessionIds() }.toSet()
+    private fun runningIds(): Set<String> = OwnedTerminalTabs.runningInIde()
 
     private fun publish() = ApplicationManager.getApplication().messageBus.syncPublisher(TOPIC).changed()
     override fun dispose() {}

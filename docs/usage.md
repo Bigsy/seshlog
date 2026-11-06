@@ -29,6 +29,11 @@ A session can appear in the list before Seshlog identifies its terminal. Activit
 actions depend on that association. Missing or ambiguous process information can leave a terminal
 unassociated, especially for new Pi and opencode sessions.
 
+Seshlog tracks only agents running in IntelliJ terminal tabs, in any open project window. An agent
+in another terminal app (iTerm, Ghostty, VS Code and so on) gets no running, activity or unread
+badges, isn't counted as working and doesn't trigger notifications. Its saved conversation is still
+listed, and Seshlog won't resume a Claude Code session while its process is still running.
+
 Codex terminals can share a background server. Seshlog needs each terminal's current thread ID to
 follow `/new`, `/clear`, `/resume` and the resume picker reliably.
 

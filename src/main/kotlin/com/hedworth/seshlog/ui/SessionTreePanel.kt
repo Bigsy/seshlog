@@ -219,7 +219,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
         tree.cellRenderer = renderer
         renderer.activeSessionId = OwnedTerminalTabs.getInstance(project).activeSessionId
         badgeClock.start()
-        renderer.runningOwned = OwnedTerminalTabs.getInstance(project).runningSessionIds()
+        renderer.runningOwned = OwnedTerminalTabs.runningInIde()
         renderer.unread = SessionAttentionState.getInstance().unreadIds
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(
             SessionAttentionState.TOPIC,
@@ -229,7 +229,7 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                     refreshBadges(renderer.runningOwned)
                 }
             })
-        project.messageBus.connect(this).subscribe(OwnedTerminalTabs.RUNNING_TOPIC,
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(OwnedTerminalTabs.RUNNING_TOPIC,
             object : OwnedTerminalTabs.RunningListener {
                 override fun runningChanged(ids: Set<String>) = refreshBadges(ids)
             })
@@ -336,8 +336,8 @@ class SessionTreePanel(private val project: Project, parentDisposable: Disposabl
                     invalidateResolvedPaths()
                 }
                 preparePaths(sessions)
-                // Agents without a pid file show their activity only while their owned tab still runs them.
-                renderer.runningOwned = OwnedTerminalTabs.getInstance(project).runningSessionIds()
+                // Activity shows only while an IDE terminal tab runs the session, never for external terminals.
+                renderer.runningOwned = OwnedTerminalTabs.runningInIde()
                 // A rescan while searching: re-run the query so new/changed transcripts are included.
                 if (activeQuery.isNotEmpty()) runSearch() else render(sessions)
             }

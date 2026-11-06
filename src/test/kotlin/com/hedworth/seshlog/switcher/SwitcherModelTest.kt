@@ -132,6 +132,8 @@ class SwitcherModelTest {
         assertTrue(row.copy(associated = true).status.contains("Enter"))
         assertFalse(row.copy(session = row.session.copy(isLive = true)).canResume)
         assertTrue(row.copy(session = row.session.copy(isLive = true)).status.contains("not associated"))
+        val external = row.copy(session = row.session.copy(isLive = true, activity = Activity.WORKING)).attention(Instant.EPOCH)
+        assertFalse(external.contains("working")); assertTrue(external.contains("no tracked terminal"))
         assertFalse(row.copy(session = row.session.copy(recordedDirectoryAvailable = false)).canResume)
         assertFalse(row.copy(session = row.session.copy(location = row.session.location!!.copy(uncertain = true))).canResume)
         assertFalse(row.copy(session = row.session.copy(checkout = row.session.checkout!!.unavailable("removed"))).canResume)

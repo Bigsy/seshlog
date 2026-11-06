@@ -43,6 +43,7 @@ and [tracking details](docs/codex-tracking.md).
 - **Search your history.** Search messages, titles and paths. Use `"quoted phrases"` for exact text,
   and **Search in** to choose your messages, assistant replies or tool activity.
 - **Follow your running agents.** Working, waiting and unread badges show which sessions need a look.
+  Only agents running in IntelliJ terminal tabs are tracked; sessions in other terminal apps stay in the list without badges.
   Use **Next Session Needing Attention** to jump to the next unread reply.
 - **Keep the list useful.** Filter by agent, project or date. Pin sessions, give them local names,
   or hide ones you're finished with.

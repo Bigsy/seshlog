@@ -56,7 +56,7 @@ class AttentionPresentation(private val project: Project) : Disposable {
             object : SeshlogSettingsListener { override fun settingsChanged() = refresh() })
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(SessionOrganisation.TOPIC,
             object : SessionOrganisation.Listener { override fun changed() = refresh() })
-        project.messageBus.connect(this).subscribe(OwnedTerminalTabs.RUNNING_TOPIC,
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(OwnedTerminalTabs.RUNNING_TOPIC,
             object : OwnedTerminalTabs.RunningListener { override fun runningChanged(ids: Set<String>) = refresh() })
         project.messageBus.connect(this).subscribe(AgentFilterState.TOPIC,
             object : AgentFilterState.Listener { override fun changed() = refresh() })
@@ -72,7 +72,7 @@ class AttentionPresentation(private val project: Project) : Disposable {
         if (project.isDisposed) return
         val request = generation.incrementAndGet()
         val sessions = SessionIndex.getInstance().sessions
-        val running = OwnedTerminalTabs.getInstance(project).runningSessionIds()
+        val running = OwnedTerminalTabs.runningInIde()
         val unread = SessionAttentionState.getInstance().unreadIds
         val filter = filterSnapshot()
         executor.execute {

@@ -51,6 +51,10 @@
     </dependencies>
 
     <change-notes><![CDATA[
+    <b>Unreleased</b>
+    <ul>
+        <li>Only agents running in IntelliJ terminal tabs are tracked. Claude Code sessions in other terminal apps no longer get running, working, waiting or unread badges, attention counts or waiting notifications.</li>
+    </ul>
     <b>0.8.9</b>
     <ul>
         <li>Right-click a terminal to start a new agent session in a new tab in that terminal's directory. Only agents found on your PATH are offered; hide any of them in Settings → Tools → Seshlog.</li>

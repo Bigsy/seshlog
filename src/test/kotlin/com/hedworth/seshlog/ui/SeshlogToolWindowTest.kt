@@ -43,6 +43,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         )
         renderer.hits = mapOf(com.hedworth.seshlog.index.lexical.SearchSessionKey(item.kind,item.id) to SearchHit(item, 1.0, false, "A long matching snippet ".repeat(20), partial = true))
         renderer.unread = setOf(item.id)
+        renderer.runningOwned = setOf(item.id)
         fun render(value: Any) = renderer.getTreeCellRendererComponent(tree,
             javax.swing.tree.DefaultMutableTreeNode(value), false, false, true, 1, false)
         render(item)
@@ -79,6 +80,10 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
         render(item.copy(id = "other", isLive = false))
         assertFalse(renderer.activityLabel.isVisible)
         assertFalse(renderer.matchLabel.isVisible)
+        // The agent reports it live, but no IDE terminal runs it: an external terminal is not tracked.
+        render(item.copy(id = "external", livePid = 4242))
+        assertFalse(renderer.activityLabel.isVisible)
+        assertTrue(renderer.toolTipText.contains("no tracked IDE terminal"))
     }
 
     fun `test running badges clear without a session scan and invalidate row widths`() {
@@ -101,7 +106,7 @@ class SeshlogToolWindowTest : BasePlatformTestCase() {
                     javax.swing.tree.DefaultMutableTreeNode(item), false, false, true, 1, false)
                 return renderer.toString()
             }
-            val publisher = project.messageBus.syncPublisher(
+            val publisher = com.intellij.openapi.application.ApplicationManager.getApplication().messageBus.syncPublisher(
                 com.hedworth.seshlog.terminal.OwnedTerminalTabs.RUNNING_TOPIC)
             publisher.runningChanged(setOf(item.id))
             assertTrue(label().contains("waiting"))

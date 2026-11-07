@@ -51,7 +51,7 @@
     </dependencies>
 
     <change-notes><![CDATA[
-    <b>Unreleased</b>
+    <b>0.8.10</b>
     <ul>
         <li>Only agents running in IntelliJ terminal tabs are tracked. Claude Code sessions in other terminal apps no longer get running, working, waiting or unread badges, attention counts or waiting notifications.</li>
     </ul>
